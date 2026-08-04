@@ -8,12 +8,11 @@ import '../models/models.dart';
 ///
 /// Override the host per build:
 ///   flutter run --dart-define=API_BASE_URL=https://yourchurch.org
-/// Defaults to 10.0.2.2, the Android emulator's alias for the host machine's
-/// localhost — swap for your real domain (or use --dart-define) for iOS
-/// simulator/device builds and for production.
+/// Defaults to the production server — swap via --dart-define for local
+/// development (e.g. Android emulator uses http://10.0.2.2:8080).
 class ApiClient {
   static const String _configuredBase = String.fromEnvironment('API_BASE_URL', defaultValue: '');
-  static String get baseUrl => _configuredBase.isNotEmpty ? _configuredBase : 'http://10.0.2.2:8080';
+  static String get baseUrl => _configuredBase.isNotEmpty ? _configuredBase : 'https://rccgsopyaya.pmhserver.name.ng';
 
   Uri _uri(String path, [Map<String, dynamic>? query]) {
     final clean = query?.map((k, v) => MapEntry(k, v?.toString())) ?? {};

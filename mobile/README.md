@@ -23,14 +23,14 @@ This folder contains only the Dart application (`lib/`, `pubspec.yaml`) — it w
 The API base URL is compile-time configurable (`lib/services/api_client.dart`):
 
 ```bash
+# Production server
+flutter run --dart-define=API_BASE_URL=https://rccgsopyaya.pmhserver.name.ng
+
 # Android emulator (10.0.2.2 is the emulator's alias for your host machine's localhost)
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080
-
-# iOS simulator / physical device / production
-flutter run --dart-define=API_BASE_URL=https://your-church-domain.org
 ```
 
-Without `--dart-define`, it defaults to `http://10.0.2.2:8080` (Android-emulator-friendly local dev).
+Without `--dart-define`, it defaults to `https://rccgsopyaya.pmhserver.name.ng` (the production server).
 
 ## Run it
 
@@ -45,12 +45,15 @@ flutter run               # pick a device, or -d chrome for a quick web preview
 
 ```bash
 # Android — signed APK/AAB needs a keystore first: https://docs.flutter.dev/deployment/android
-flutter build apk --release --dart-define=API_BASE_URL=https://your-church-domain.org
-flutter build appbundle --release --dart-define=API_BASE_URL=https://your-church-domain.org
+flutter build apk --release
+flutter build appbundle --release
 
 # iOS — must be run on a Mac with Xcode installed; this is an Apple platform
 # requirement, not specific to this app or to Flutter.
-flutter build ios --release --dart-define=API_BASE_URL=https://your-church-domain.org
+flutter build ios --release
+```
+
+The release commands above already point at `https://rccgsopyaya.pmhserver.name.ng` by default; pass `--dart-define=API_BASE_URL=...` only if you need to override it for a specific build.
 ```
 
 ## Structure
