@@ -176,14 +176,11 @@ function handleCreatePost(PDO $pdo, array $user, bool $instant): array
     $caption = trim($_POST['caption'] ?? '');
     $categoryIds = array_map('intval', $_POST['categories'] ?? []);
     $isPublished = isset($_POST['is_published']) ? 1 : 0;
-    $source = ($_POST['source'] ?? 'upload') === 'youtube' ? 'youtube' : 'upload';
     $errors = [];
+    $youtubeUrl = trim((string) ($_POST['youtube_url'] ?? ''));
+    $videoId = $youtubeUrl !== '' ? youtubeVideoId($youtubeUrl) : null;
 
-    if ($source === 'youtube') {
-        $videoId = youtubeVideoId($_POST['youtube_url'] ?? '');
-        if (!$videoId) {
-            return ['errors' => ['That doesn\'t look like a valid YouTube link.']];
-        }
+    if ($videoId) {
         $youtubeCover = null;
         if (!empty($_FILES['youtube_cover']['tmp_name']) && is_uploaded_file($_FILES['youtube_cover']['tmp_name'])) {
             $youtubeCover = $_FILES['youtube_cover']['tmp_name'];
@@ -200,6 +197,9 @@ function handleCreatePost(PDO $pdo, array $user, bool $instant): array
     } else {
         $items = collectMediaFiles($_FILES['media'] ?? null, $errors);
         $covers = $_FILES['cover'] ?? null;
+        if ($youtubeUrl !== '' && !$items) {
+            $errors[] = "That YouTube link doesn't look valid.";
+        }
     }
 
     if (!$items && !$errors) {
@@ -364,85 +364,54 @@ require __DIR__ . '/partials/layout-open.php';
 
   <div class="card composer">
     <h2>Create a Post</h2>
-    <p class="sub">Upload photos/videos, or paste a YouTube link. Video covers are captured automatically from the first frame — you can override them.</p>
+    <p class="sub">Paste a YouTube link, or upload photos/videos. Video covers are captured automatically from the first frame — you can override them.</p>
 
-    <div class="composer-tabs">
-      <button type="button" class="tab active" data-tab="upload">Upload</button>
-      <button type="button" class="tab" data-tab="youtube">YouTube Link</button>
-    </div>
+    <form id="mediaForm" method="post" action="/admin/media?action=create" enctype="multipart/form-data">
+      <?= Csrf::field() ?>
 
-    <div class="pane" id="pane-upload">
-      <form id="uploadForm">
-        <?= Csrf::field() ?>
-        <input type="hidden" name="source" value="upload">
-        <label for="media">Photos or Video</label>
+      <div class="media-zone">
+        <label for="media">Upload photos or video</label>
         <input type="file" id="media" name="media[]" multiple accept="image/*,video/*">
         <div class="media-preview" id="mediaPreview"></div>
-        <p class="hint" id="coverHint">Video covers are auto-captured as the default — tap a preview to replace it.</p>
+        <p class="hint">Video covers are auto-captured as the default — tap a preview to replace it.</p>
+      </div>
 
-        <label for="caption-upload">Caption</label>
-        <textarea id="caption-upload" name="caption" placeholder="Write a caption…"><?= old('caption') ?></textarea>
-
-        <label>Categories</label>
-        <div class="row three" style="margin-bottom:15px;">
-          <?php foreach ($categories as $cat): ?>
-            <label style="font-weight:400;display:flex;align-items:center;gap:6px;margin-bottom:0;">
-              <input type="checkbox" name="categories[]" value="<?= (int) $cat['id'] ?>" style="width:auto;margin:0;"> <?= e($cat['name']) ?>
-            </label>
-          <?php endforeach; ?>
-        </div>
-
-        <div class="checkbox-row">
-          <input type="checkbox" id="is_published_upload" name="is_published" checked>
-          <label for="is_published_upload" style="margin:0;">Publish immediately</label>
-        </div>
-
-        <div class="progress-wrap" id="progressWrap" hidden>
-          <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
-          <div class="progress-label" id="progressLabel">Uploading… 0%</div>
-        </div>
-
-        <div class="btn-row">
-          <button class="btn" type="submit" id="publishBtn">Publish Post</button>
-          <a class="btn secondary" href="/admin/media">Cancel</a>
-        </div>
-      </form>
-    </div>
-
-    <div class="pane" id="pane-youtube" hidden>
-      <form id="youtubeForm">
-        <?= Csrf::field() ?>
-        <input type="hidden" name="source" value="youtube">
-        <label for="youtube_url">YouTube Link</label>
+      <div class="media-zone">
+        <label for="youtube_url">Or use a YouTube link <small style="font-weight:400;color:var(--ink-dim);">(a link is used instead of uploads)</small></label>
         <input type="url" id="youtube_url" name="youtube_url" placeholder="https://www.youtube.com/watch?v=… or a Shorts link">
         <div class="yt-preview" id="ytPreview"></div>
         <label for="youtube_cover">Cover image <small style="font-weight:400;color:var(--ink-dim);">(optional — defaults to the video's own thumbnail)</small></label>
         <input type="file" id="youtube_cover" name="youtube_cover" accept="image/*">
         <div class="yt-cover-preview" id="ytCoverPreview"></div>
+      </div>
 
-        <label for="caption-youtube">Caption</label>
-        <textarea id="caption-youtube" name="caption" placeholder="Write a caption…"><?= old('caption') ?></textarea>
+      <label for="caption">Caption</label>
+      <textarea id="caption" name="caption" placeholder="Write a caption…"><?= old('caption') ?></textarea>
 
-        <label>Categories</label>
-        <div class="row three" style="margin-bottom:15px;">
-          <?php foreach ($categories as $cat): ?>
-            <label style="font-weight:400;display:flex;align-items:center;gap:6px;margin-bottom:0;">
-              <input type="checkbox" name="categories[]" value="<?= (int) $cat['id'] ?>" style="width:auto;margin:0;"> <?= e($cat['name']) ?>
-            </label>
-          <?php endforeach; ?>
-        </div>
+      <label>Categories</label>
+      <div class="row three" style="margin-bottom:15px;">
+        <?php foreach ($categories as $cat): ?>
+          <label style="font-weight:400;display:flex;align-items:center;gap:6px;margin-bottom:0;">
+            <input type="checkbox" name="categories[]" value="<?= (int) $cat['id'] ?>" style="width:auto;margin:0;"> <?= e($cat['name']) ?>
+          </label>
+        <?php endforeach; ?>
+      </div>
 
-        <div class="checkbox-row">
-          <input type="checkbox" id="is_published_youtube" name="is_published" checked>
-          <label for="is_published_youtube" style="margin:0;">Publish immediately</label>
-        </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="is_published" name="is_published" checked>
+        <label for="is_published" style="margin:0;">Publish immediately</label>
+      </div>
 
-        <div class="btn-row">
-          <button class="btn" type="submit">Publish Post</button>
-          <a class="btn secondary" href="/admin/media">Cancel</a>
-        </div>
-      </form>
-    </div>
+      <div class="progress-wrap" id="progressWrap" hidden>
+        <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+        <div class="progress-label" id="progressLabel">Saving…</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" type="submit" id="publishBtn">Publish Post</button>
+        <a class="btn secondary" href="/admin/media">Cancel</a>
+      </div>
+    </form>
   </div>
 
   <div class="card" style="max-width:720px;">

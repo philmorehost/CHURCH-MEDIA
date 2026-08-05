@@ -1,27 +1,25 @@
 (function () {
   'use strict';
 
-  var csrfInput = document.querySelector('input[name="_csrf"]');
+  var form = document.getElementById('mediaForm');
+  var csrfInput = form ? form.querySelector('input[name="_csrf"]') : null;
   var csrfToken = csrfInput ? csrfInput.value : '';
-
-  /* ---------- tabs ---------- */
-  var tabs = document.querySelectorAll('.composer-tabs .tab');
-  var paneUpload = document.getElementById('pane-upload');
-  var paneYoutube = document.getElementById('pane-youtube');
-  tabs.forEach(function (tab) {
-    tab.addEventListener('click', function () {
-      tabs.forEach(function (t) { t.classList.remove('active'); });
-      tab.classList.add('active');
-      paneUpload.hidden = tab.dataset.tab !== 'upload';
-      paneYoutube.hidden = tab.dataset.tab !== 'youtube';
-    });
-  });
 
   /* ---------- shared ---------- */
   function esc(str) {
     var div = document.createElement('div');
     div.textContent = str == null ? '' : String(str);
     return div.innerHTML;
+  }
+
+  function ytId(url) {
+    var m;
+    m = url.match(/youtube\.com\/watch\?[^&\s]*&?v=([a-zA-Z0-9_-]{6,})/);
+    if (m) { return m[1]; }
+    m = url.match(/youtube\.com\/(?:embed|shorts|live|v)\/([a-zA-Z0-9_-]{6,})/);
+    if (m) { return m[1]; }
+    m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/);
+    return m ? m[1] : null;
   }
 
   /* ---------- upload pane: previews + auto cover capture ---------- */
@@ -110,7 +108,35 @@
     if (files.length) { previewBox.style.display = 'flex'; }
   }
 
-  mediaInput.addEventListener('change', function () { renderPreviews(mediaInput.files); });
+  if (mediaInput) {
+    mediaInput.addEventListener('change', function () { renderPreviews(mediaInput.files); });
+  }
+
+  /* ---------- youtube preview ---------- */
+  var ytUrl = document.getElementById('youtube_url');
+  var ytPreview = document.getElementById('ytPreview');
+  var ytCoverInput = document.getElementById('youtube_cover');
+  var ytCoverPreview = document.getElementById('ytCoverPreview');
+
+  if (ytUrl) {
+    ytUrl.addEventListener('input', function () {
+      var id = ytId(ytUrl.value.trim());
+      if (id) {
+        ytPreview.innerHTML = '<img src="https://i.ytimg.com/vi/' + esc(id) + '/hqdefault.jpg" alt="YouTube preview">'
+          + '<div>Will play as a vertical reel (YouTube Shorts render best).</div>';
+      } else {
+        ytPreview.innerHTML = '';
+      }
+    });
+  }
+
+  if (ytCoverInput) {
+    ytCoverInput.addEventListener('change', function () {
+      ytCoverPreview.innerHTML = ytCoverInput.files.length
+        ? '<img src="' + URL.createObjectURL(ytCoverInput.files[0]) + '" alt="Cover preview">'
+        : '';
+    });
+  }
 
   /* ---------- progress ---------- */
   var progressWrap = document.getElementById('progressWrap');
@@ -139,38 +165,50 @@
     });
   }
 
-  /* ---------- upload submit ---------- */
-  var uploadForm = document.getElementById('uploadForm');
+  /* ---------- submit ---------- */
+  if (!form) { return; }
   var publishBtn = document.getElementById('publishBtn');
 
-  uploadForm.addEventListener('submit', function (e) {
+  form.addEventListener('submit', function (e) {
+    var rawUrl = ytUrl ? ytUrl.value.trim() : '';
+    var id = ytId(rawUrl);
+
+    if (rawUrl !== '' && !id) {
+      alert("That YouTube link doesn't look valid.");
+      e.preventDefault();
+      return;
+    }
+    if (rawUrl === '' && !mediaInput.files.length) {
+      alert('Paste a YouTube link or choose a photo/video.');
+      e.preventDefault();
+      return;
+    }
+
+    /* Everything is valid. If the file field is empty or a link is present,
+       let the browser submit natively (POST /admin/media?action=create) so
+       posting still works even if this script later throws. */
+    if (rawUrl !== '' || mediaInput.files.length === 0) {
+      return;
+    }
+
     e.preventDefault();
-    if (!mediaInput.files.length) { alert('Choose a photo or video to upload.'); return; }
 
-    var fd = new FormData();
-    fd.append('_csrf', csrfToken);
-    fd.append('source', 'upload');
-    fd.append('caption', uploadForm.querySelector('textarea[name="caption"]').value || '');
-    var pub = uploadForm.querySelector('input[name="is_published"]');
-    if (pub && pub.checked) { fd.append('is_published', 'on'); }
-    uploadForm.querySelectorAll('input[name="categories[]"]:checked').forEach(function (c) { fd.append('categories[]', c.value); });
-
-    Array.prototype.forEach.call(mediaInput.files, function (file, i) { fd.append('media[]', file, file.name); });
+    var fd = new FormData(form);
     videoCovers.forEach(function (blob, i) { fd.append('cover_' + i, blob, 'cover_' + i + '.jpg'); });
 
     publishBtn.disabled = true;
     setProgress(0, 'Uploading… 0%');
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/admin/media?action=upload');
-    xhr.upload.addEventListener('progress', function (e) {
-      if (e.lengthComputable) {
-        var pct = Math.round((e.loaded / e.total) * 100);
+    xhr.upload.addEventListener('progress', function (ev) {
+      if (ev.lengthComputable) {
+        var pct = Math.round((ev.loaded / ev.total) * 100);
         setProgress(pct, 'Uploading… ' + pct + '%');
       }
     });
     xhr.addEventListener('load', function () {
       var data;
-      try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
+      try { data = JSON.parse(xhr.responseText); } catch (err) { data = null; }
       if (data && data.status === 'success') {
         setProgress(100, 'Published! Converting videos in the background…');
         backgroundProcess(data.pending);
@@ -183,84 +221,6 @@
     xhr.addEventListener('error', function () {
       publishBtn.disabled = false;
       setProgress(100, 'Network error while uploading.');
-    });
-    xhr.send(fd);
-  });
-
-  /* ---------- youtube pane ---------- */
-  var ytUrl = document.getElementById('youtube_url');
-  var ytPreview = document.getElementById('ytPreview');
-  var ytCoverInput = document.getElementById('youtube_cover');
-  var ytCoverPreview = document.getElementById('ytCoverPreview');
-
-  function ytId(url) {
-    var m;
-    m = url.match(/youtube\.com\/watch\?[^&\s]*&?v=([a-zA-Z0-9_-]{6,})/);
-    if (m) { return m[1]; }
-    m = url.match(/youtube\.com\/(?:embed|shorts|live|v)\/([a-zA-Z0-9_-]{6,})/);
-    if (m) { return m[1]; }
-    m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/);
-    return m ? m[1] : null;
-  }
-
-  ytUrl.addEventListener('input', function () {
-    var id = ytId(ytUrl.value.trim());
-    if (id) {
-      ytPreview.innerHTML = '<img src="https://i.ytimg.com/vi/' + esc(id) + '/hqdefault.jpg" alt="YouTube preview">'
-        + '<div>Will play as a vertical reel (YouTube Shorts render best).</div>';
-    } else {
-      ytPreview.innerHTML = '';
-    }
-  });
-
-  ytCoverInput.addEventListener('change', function () {
-    if (ytCoverInput.files.length) {
-      ytCoverPreview.innerHTML = '<img src="' + URL.createObjectURL(ytCoverInput.files[0]) + '" alt="Cover preview">';
-    } else {
-      ytCoverPreview.innerHTML = '';
-    }
-  });
-
-  var youtubeForm = document.getElementById('youtubeForm');
-  youtubeForm.addEventListener('submit', function (e) {
-    e.preventDefault();
-    if (!ytId(ytUrl.value.trim())) { alert('Paste a valid YouTube link first.'); return; }
-
-    var fd = new FormData();
-    fd.append('_csrf', csrfToken);
-    fd.append('source', 'youtube');
-    fd.append('youtube_url', ytUrl.value.trim());
-    fd.append('caption', youtubeForm.querySelector('textarea[name="caption"]').value || '');
-    var pub = youtubeForm.querySelector('input[name="is_published"]');
-    if (pub && pub.checked) { fd.append('is_published', 'on'); }
-    youtubeForm.querySelectorAll('input[name="categories[]"]:checked').forEach(function (c) { fd.append('categories[]', c.value); });
-    if (ytCoverInput.files.length) { fd.append('youtube_cover', ytCoverInput.files[0], ytCoverInput.files[0].name); }
-
-    var btn = youtubeForm.querySelector('button[type="submit"]');
-    btn.disabled = true;
-    setProgress(0, 'Saving… 0%');
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/admin/media?action=upload');
-    xhr.upload.addEventListener('progress', function (ev) {
-      if (ev.lengthComputable) {
-        var p = Math.round((ev.loaded / ev.total) * 100);
-        setProgress(p, 'Saving… ' + p + '%');
-      }
-    });
-    xhr.addEventListener('load', function () {
-      var d;
-      try { d = JSON.parse(xhr.responseText); } catch (err) { d = null; }
-      if (d && d.status === 'success') {
-        setProgress(100, 'Published!');
-        setTimeout(function () { window.location.href = '/admin/media'; }, 800);
-      } else {
-        btn.disabled = false;
-        setProgress(100, (d && d.message) || 'Could not publish.');
-      }
-    });
-    xhr.addEventListener('error', function () {
-      btn.disabled = false;
-      setProgress(100, 'Network error.');
     });
     xhr.send(fd);
   });

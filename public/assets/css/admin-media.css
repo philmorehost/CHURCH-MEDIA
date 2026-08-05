@@ -1,15 +1,12 @@
-/* Admin media composer — tabs, preview grid, auto cover capture, upload progress. */
+/* Admin media composer — upload/YouTube sections, preview grid, auto cover capture, upload progress. */
 
 .composer{max-width:720px;}
-.composer-tabs{display:flex; gap:8px; margin-bottom:22px; border-bottom:1px solid var(--border);}
-.composer-tabs .tab{
-  padding:10px 16px; background:none; border:none; color:var(--ink-dim); font-size:13.5px;
-  font-weight:600; cursor:pointer; border-bottom:2px solid transparent; font-family:inherit;
-}
-.composer-tabs .tab:hover{color:var(--ink);}
-.composer-tabs .tab.active{color:var(--gold-soft); border-bottom-color:var(--gold);}
-.pane[hidden]{display:none;}
 .composer .hint{font-size:12px; color:var(--ink-faint); margin:-8px 0 14px;}
+.media-zone{
+  padding:16px; margin-bottom:20px; border:1px solid var(--border); border-radius:14px;
+  background:#0f0d1f66;
+}
+.media-zone > label:first-child{font-weight:700; color:var(--gold-soft);}
 
 .media-preview{display:none; flex-wrap:wrap; gap:10px; margin:2px 0 14px;}
 .media-preview:empty{display:none;}
