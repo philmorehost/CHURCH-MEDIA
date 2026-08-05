@@ -67,6 +67,8 @@ $categories = Database::getInstance()->getConnection()
         <button type="button" class="reel-more">more</button>
       </div>
       <div class="reel-music"><span class="reel-note">♪</span><span>Original audio</span></div>
+      <div class="reel-date"></div>
+      <div class="reel-cats"></div>
     </div>
 
     <div class="reel-actions">

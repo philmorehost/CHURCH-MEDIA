@@ -47,7 +47,7 @@ $isLive = !empty($s['livestream_is_live']);
     <?php else: ?>
       <div class="grid grid-4">
         <?php foreach ($recentPosts as $p): ?>
-          <a href="/feed" class="media-card">
+          <a href="/feed?post=<?= (int) $p['id'] ?>" class="media-card">
             <?php $img = $p['cover_type'] === 'video' ? $p['cover_thumb'] : $p['cover_path']; ?>
             <?php if ($img): ?><img src="<?= e(uploadUrl($img)) ?>" alt="" loading="lazy"><?php endif; ?>
             <span class="badge-type"><?= $p['cover_type'] === 'video' ? '▶ Reel' : 'Photo' ?></span>

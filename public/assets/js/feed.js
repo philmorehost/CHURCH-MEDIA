@@ -7,27 +7,27 @@
   if (!scroller || !template) { return; }
 
   var endpoint = scroller.getAttribute('data-endpoint');
-  var state = { page: 1, hasMore: true, loading: false, category: '', view: 'all', seenIds: new Set() };
+  var state = { page: 1, hasMore: true, loading: false, category: '', view: 'all', seenIds: new Set(), seenPosts: new Set() };
   var muted = true;
   var currentVideo = null;
   var activeSlideEl = null;
   var commentPost = { id: null, slide: null };
+  var deepPostId = (function () {
+    try {
+      var n = parseInt(new URLSearchParams(window.location.search).get('post') || '', 10);
+      return n > 0 ? n : null;
+    } catch (e) { return null; }
+  })();
 
   var slideObserver = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
       var slide = entry.target;
       if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
         activeSlideEl = slide;
-        var video = slide.querySelector('video');
-        var yt = slide.querySelector('iframe.reel-youtube');
-        if (video) { playVideo(video); }
-        if (yt) { setYoutube(yt, yt.dataset.videoId, true, muted); }
+        activateMedia(slide, true);
         pingView(slide.getAttribute('data-post-id'));
       } else {
-        var v = slide.querySelector('video');
-        var y = slide.querySelector('iframe.reel-youtube');
-        if (v) { v.pause(); }
-        if (y) { setYoutube(y, y.dataset.videoId, false, muted); }
+        activateMedia(slide, false);
         if (activeSlideEl === slide) { activeSlideEl = null; }
       }
     });
@@ -47,6 +47,16 @@
     return String(n);
   }
 
+  function formatPostedAt(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) { return ''; }
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var h = d.getHours() % 12 || 12;
+    var ampm = d.getHours() >= 12 ? 'PM' : 'AM';
+    var min = ('0' + d.getMinutes()).slice(-2);
+    return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' · ' + h + ':' + min + ' ' + ampm;
+  }
+
   function youtubeEmbed(id, playing, isMuted) {
     return 'https://www.youtube.com/embed/' + encodeURIComponent(id) +
       '?autoplay=' + (playing ? 1 : 0) +
@@ -56,7 +66,7 @@
   }
 
   function setYoutube(iframe, id, playing, isMuted) {
-    if (!iframe) { return; }
+    if (!iframe || !id) { return; }
     iframe.src = youtubeEmbed(id, playing, isMuted);
   }
 
@@ -65,6 +75,16 @@
     video.muted = muted;
     video.play().catch(function () {});
     currentVideo = video;
+  }
+
+  function activateMedia(slide, playing) {
+    if (!slide) { return; }
+    var video = slide.querySelector('video');
+    var yt = slide.querySelector('iframe.reel-youtube');
+    if (video) {
+      if (playing) { playVideo(video); } else { video.pause(); }
+    }
+    if (yt) { setYoutube(yt, yt.dataset.videoId, playing, muted); }
   }
 
   function pingView(postId) {
@@ -177,7 +197,6 @@
     slide.classList.add('show-hint');
     setTimeout(function () { slide.classList.remove('show-hint'); }, 1400);
   }
-
   function burstLike(slide) {
     var burst = slide.querySelector('.reel-heart-burst');
     burst.classList.remove('burst');
@@ -213,7 +232,7 @@
   }
 
   function share(post) {
-    var url = window.location.origin + '/feed#post-' + post.id;
+    var url = window.location.origin + '/feed?post=' + post.id;
     if (navigator.share) {
       navigator.share({ title: post.caption || 'Check this out', url: url }).catch(function () {});
     } else if (navigator.clipboard) {
@@ -325,6 +344,21 @@
       node.querySelector('.reel-more').textContent = open ? 'less' : 'more';
     });
 
+    // date / time + feed info
+    var dateEl = node.querySelector('.reel-date');
+    if (dateEl) { dateEl.textContent = formatPostedAt(post.created_at); }
+    var catsEl = node.querySelector('.reel-cats');
+    if (catsEl) {
+      var cats = post.categories || [];
+      cats.forEach(function (c) {
+        var chip = document.createElement('span');
+        chip.className = 'reel-cat';
+        chip.textContent = c.name || '';
+        catsEl.appendChild(chip);
+      });
+      if (!cats.length) { catsEl.style.display = 'none'; }
+    }
+
     // follow
     var followBtn = node.querySelector('.reel-follow');
     var uname = '@' + (post.author_username || '');
@@ -386,11 +420,24 @@
         if (oldSentinel) { sentinelObserver.unobserve(oldSentinel); oldSentinel.remove(); }
 
         (data.data || []).forEach(function (post) {
+          var key = String(post.id);
+          if (state.seenPosts.has(key)) { return; }
+          state.seenPosts.add(key);
           scroller.appendChild(buildSlide(post));
         });
 
         state.hasMore = !!data.has_more;
         state.page += 1;
+
+        /* Guarantee the top slide is playing when the feed is first shown
+           (fresh access, tab switch, or category switch). */
+        if (!deepPostId && state.page === 2) {
+          var top = scroller.querySelector('.reel-slide');
+          if (top) {
+            scroller.scrollTop = 0;
+            setTimeout(function () { activateMedia(top, true); }, 60);
+          }
+        }
 
         if (state.hasMore) {
           var sentinel = document.createElement('div');
@@ -417,6 +464,7 @@
     state.page = 1;
     state.hasMore = true;
     state.seenIds = new Set();
+    state.seenPosts = new Set();
     scroller.querySelectorAll('.reel-slide, .feed-sentinel, .feed-end').forEach(function (el) { el.remove(); });
     loadingEl = document.getElementById('feedLoading');
     if (!loadingEl) {
@@ -447,5 +495,36 @@
     });
   });
 
-  loadPage();
+  /* ---------- deep link: /feed?post=ID opens the exact post first ---------- */
+  function loadDeepPost(id) {
+    fetch('/api/post?id=' + encodeURIComponent(id))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (loadingEl) { loadingEl.remove(); loadingEl = null; }
+        if (data.status === 'success' && data.data) {
+          var post = data.data;
+          state.seenPosts.add(String(post.id));
+          var deepNode = buildSlide(post);
+          scroller.appendChild(deepNode);
+          var slide = deepNode.querySelector('.reel-slide');
+          requestAnimationFrame(function () {
+            scroller.scrollTop = slide ? slide.offsetTop : 0;
+            setTimeout(function () { activateMedia(slide, true); }, 120);
+          });
+        }
+        deepPostId = null;
+        loadPage();
+      })
+      .catch(function () { deepPostId = null; loadPage(); });
+  }
+
+  function start() {
+    if (deepPostId) {
+      loadDeepPost(deepPostId);
+    } else {
+      loadPage();
+    }
+  }
+
+  start();
 })();
