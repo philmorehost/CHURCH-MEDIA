@@ -128,38 +128,6 @@ function storeMediaItems(PDO $pdo, int $postId, array $items, ?array $covers): a
     return $convertible;
 }
 
-/** Converts a stored original video to a vertical 9:16 reel; returns its new status ('ready'|'failed'|'missing'). */
-function convertOriginalVideo(PDO $pdo, int $itemId): string
-{
-    $stmt = $pdo->prepare("SELECT i.* FROM media_post_items i WHERE i.id = ? AND i.type = 'video' AND i.source = 'upload' AND i.file_path LIKE 'originals/%'");
-    $stmt->execute([$itemId]);
-    $item = $stmt->fetch();
-    if (!$item) {
-        return 'missing';
-    }
-    $sourcePath = UPLOADS_PATH . '/' . $item['file_path'];
-    if (!is_file($sourcePath)) {
-        $pdo->prepare('UPDATE media_post_items SET processing_status = ? WHERE id = ?')->execute(['failed', $itemId]);
-        return 'failed';
-    }
-
-    $hasCover = $item['thumbnail_path'] && is_file(UPLOADS_PATH . '/' . $item['thumbnail_path']);
-    $result = MediaProcessor::processVideoToReel($sourcePath, UPLOADS_REELS_PATH, UPLOADS_THUMBS_PATH, null, !$hasCover);
-
-    if ($result['status'] !== 'ready') {
-        // The original already plays as-is; keep it and stay ready.
-        return 'ready';
-    }
-
-    $newThumb = $hasCover ? $item['thumbnail_path'] : ($result['thumbnail'] ? 'thumbs/' . $result['thumbnail'] : null);
-
-    $pdo->prepare('UPDATE media_post_items SET file_path = ?, thumbnail_path = ?, processing_status = ? WHERE id = ?')
-        ->execute(['reels/' . $result['file'], $newThumb, 'ready', $itemId]);
-
-    @unlink($sourcePath); // originals only live until the reel is ready
-    return 'ready';
-}
-
 if ($action === 'category_create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $name = trim($_POST['name'] ?? '');
@@ -266,7 +234,7 @@ if ($action === 'process' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     set_time_limit(600);
     @ignore_user_abort(true);
-    $status = convertOriginalVideo($pdo, $id);
+    $status = MediaProcessor::convertOriginalVideo($pdo, $id);
     jsonResponse(['status' => $status === 'ready' ? 'success' : 'error', 'processing_status' => $status]);
 }
 
@@ -280,7 +248,7 @@ if ($action === 'reprocess' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
     $done = 0;
     foreach ($ids as $itemId) {
-        if (convertOriginalVideo($pdo, (int) $itemId) === 'ready') {
+        if (MediaProcessor::convertOriginalVideo($pdo, (int) $itemId) === 'ready') {
             $done++;
         }
     }

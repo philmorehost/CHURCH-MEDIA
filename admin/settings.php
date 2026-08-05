@@ -159,4 +159,22 @@ require __DIR__ . '/partials/layout-open.php';
   <button class="btn" type="submit">Save Settings</button>
 </form>
 
+<div class="card">
+  <h2>Video Conversion (Cron Job)</h2>
+  <p class="sub">Uploaded videos play instantly in the feed. If FFmpeg is installed, a background job crops them into the vertical 9:16 reel format — this runs automatically right after you publish, and the cron below is the safety net that guarantees every video is processed even if a browser closes mid-upload.</p>
+
+  <h3>Set it up in cPanel</h3>
+  <ol style="margin:0 0 14px 1.2em;line-height:1.7;">
+    <li>Log in to cPanel and open <strong>Advanced &rarr; Cron Jobs</strong>.</li>
+    <li>Under "Add New Cron Job", set the interval to <strong>every 5 minutes</strong>:
+      <code>Minute: */5 &nbsp;Hour: * &nbsp;Day: * &nbsp;Month: * &nbsp;Weekday: *</code>
+    </li>
+    <li>Paste this as the command (path shown is for this server):</li>
+  </ol>
+  <pre style="background:#1a1530;color:#e8e4f0;padding:12px;border-radius:8px;overflow-x:auto;line-height:1.6;"><code>/usr/bin/php <?= e((string) realpath(__DIR__ . '/../cli/media_worker.php')) ?> &gt;&gt; <?= e(STORAGE_PATH . '/logs/media_worker.log') ?> 2&gt;&amp;1</code></pre>
+  <p class="hint">
+    If <code>/usr/bin/php</code> isn't found on your host, run <code>which php</code> in cPanel's Terminal to find it (often <code>/usr/local/bin/php</code>). Each run converts whatever originals are still waiting and stops after ~4 minutes; it is safe to run more often. Progress is logged to <code><?= e(STORAGE_PATH . '/logs/media_worker.log') ?></code>.
+  </p>
+</div>
+
 <?php require __DIR__ . '/partials/layout-close.php'; ?>

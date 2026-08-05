@@ -126,6 +126,43 @@ class MediaProcessor
         ];
     }
 
+    /**
+     * Converts one uploaded video item still stored under originals/ to a
+     * vertical 9:16 reel. Shared by the admin web flow and the cron worker so
+     * both paths behave identically. Returns its status after the attempt:
+     * 'ready' (converted, or original kept playable), 'failed', or 'missing'.
+     */
+    public static function convertOriginalVideo(PDO $pdo, int $itemId): string
+    {
+        $stmt = $pdo->prepare("SELECT i.* FROM media_post_items i WHERE i.id = ? AND i.type = 'video' AND i.source = 'upload' AND i.file_path LIKE 'originals/%'");
+        $stmt->execute([$itemId]);
+        $item = $stmt->fetch();
+        if (!$item) {
+            return 'missing';
+        }
+        $sourcePath = UPLOADS_PATH . '/' . $item['file_path'];
+        if (!is_file($sourcePath)) {
+            $pdo->prepare('UPDATE media_post_items SET processing_status = ? WHERE id = ?')->execute(['failed', $itemId]);
+            return 'failed';
+        }
+
+        $hasCover = $item['thumbnail_path'] && is_file(UPLOADS_PATH . '/' . $item['thumbnail_path']);
+        $result = self::processVideoToReel($sourcePath, UPLOADS_REELS_PATH, UPLOADS_THUMBS_PATH, null, !$hasCover);
+
+        if ($result['status'] !== 'ready') {
+            // The original already plays as-is; keep it and stay ready.
+            return 'ready';
+        }
+
+        $newThumb = $hasCover ? $item['thumbnail_path'] : ($result['thumbnail'] ? 'thumbs/' . $result['thumbnail'] : null);
+
+        $pdo->prepare('UPDATE media_post_items SET file_path = ?, thumbnail_path = ?, processing_status = ? WHERE id = ?')
+            ->execute(['reels/' . $result['file'], $newThumb, 'ready', $itemId]);
+
+        @unlink($sourcePath); // originals only live until the reel is ready
+        return 'ready';
+    }
+
     private static function ffmpegBinary(): ?string
     {
         $path = setting('ffmpeg_path', null);
