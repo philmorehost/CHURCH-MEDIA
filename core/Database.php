@@ -74,6 +74,82 @@ class Database
         return $this->connection;
     }
 
+    /**
+     * Runs idempotent in-place migrations for already-installed databases
+     * (the installer only applies schema.sql once, so later feature columns
+     * must be added here). Each migration runs at most once and the result is
+     * stamped to storage/migrations.json. Failures are logged, never fatal.
+     */
+    public static function migrate(): void
+    {
+        try {
+            $stampFile = STORAGE_PATH . '/migrations.json';
+            $done = [];
+            if (is_file($stampFile)) {
+                $decoded = json_decode((string) file_get_contents($stampFile), true);
+                $done = is_array($decoded) ? $decoded : [];
+            }
+            $pdo = self::getInstance()->getConnection();
+            foreach (self::migrations() as $name => $fn) {
+                if (in_array($name, $done, true)) {
+                    continue;
+                }
+                $fn($pdo);
+                $done[] = $name;
+                @file_put_contents($stampFile, json_encode($done));
+            }
+        } catch (Throwable $e) {
+            error_log('Database::migrate skipped: ' . $e->getMessage());
+        }
+    }
+
+    private static function migrations(): array
+    {
+        return [
+            '2026_01_media_source' => function (PDO $pdo): void {
+                self::addColumnIfMissing($pdo, 'media_post_items', 'source', "ENUM('upload','youtube') NOT NULL DEFAULT 'upload'", 'type');
+            },
+            '2026_01_media_saves' => function (PDO $pdo): void {
+                self::addColumnIfMissing($pdo, 'media_posts', 'saves_count', 'INT NOT NULL DEFAULT 0', 'views_count');
+            },
+            '2026_01_media_engagement' => function (PDO $pdo): void {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `post_saves` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `media_post_id` INT NOT NULL,
+                    `fingerprint_hash` VARCHAR(64) NOT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY `uniq_save_post_fingerprint` (`media_post_id`, `fingerprint_hash`),
+                    FOREIGN KEY (`media_post_id`) REFERENCES `media_posts`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `post_comments` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `media_post_id` INT NOT NULL,
+                    `name` VARCHAR(100) NULL,
+                    `message` TEXT NOT NULL,
+                    `fingerprint_hash` VARCHAR(64) NULL,
+                    `is_published` TINYINT(1) NOT NULL DEFAULT 1,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (`media_post_id`) REFERENCES `media_posts`(`id`) ON DELETE CASCADE,
+                    INDEX `idx_comment_post` (`media_post_id`, `created_at`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            },
+        ];
+    }
+
+    private static function addColumnIfMissing(PDO $pdo, string $table, string $column, string $definition, ?string $after): void
+    {
+        $check = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+        $check->execute([$table, $column]);
+        if ((int) $check->fetchColumn() > 0) {
+            return;
+        }
+        $sql = 'ALTER TABLE `' . $table . '` ADD COLUMN `' . $column . '` ' . $definition;
+        if ($after) {
+            $sql .= ' AFTER `' . $after . '`';
+        }
+        $pdo->exec($sql);
+    }
+
     /** Builds a fresh PDO from arbitrary credentials without touching the singleton — used by the installer. */
     public static function testConnection(string $host, int $port, string $database, string $username, string $password): PDO
     {

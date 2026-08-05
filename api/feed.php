@@ -12,6 +12,8 @@ $page = max(1, (int) ($_GET['page'] ?? 1));
 $perPage = min(30, max(1, (int) ($_GET['per_page'] ?? 10)));
 $offset = ($page - 1) * $perPage;
 $categorySlug = trim((string) ($_GET['category'] ?? ''));
+$savedOnly = !empty($_GET['saved']) && $_GET['saved'] === '1';
+$fingerprint = Fingerprint::hash();
 
 $where = 'p.is_published = 1';
 $params = [];
@@ -19,9 +21,14 @@ if ($categorySlug !== '') {
     $where .= ' AND EXISTS (SELECT 1 FROM media_post_categories mpc JOIN media_categories c ON c.id = mpc.media_category_id WHERE mpc.media_post_id = p.id AND c.slug = :slug)';
     $params['slug'] = $categorySlug;
 }
+if ($savedOnly) {
+    $where .= ' AND EXISTS (SELECT 1 FROM post_saves ps WHERE ps.media_post_id = p.id AND ps.fingerprint_hash = :fp)';
+    $params['fp'] = $fingerprint;
+}
 
 $stmt = $pdo->prepare("
-    SELECT p.id, p.slug, p.caption, p.post_type, p.likes_count, p.views_count, p.created_at, u.name AS author_name
+    SELECT p.id, p.slug, p.caption, p.post_type, p.likes_count, p.views_count, p.saves_count, p.created_at, u.name AS author_name, u.username AS author_username,
+      (SELECT COUNT(*) FROM post_comments pc WHERE pc.media_post_id = p.id AND pc.is_published = 1) AS comments_count
     FROM media_posts p JOIN users u ON u.id = p.user_id
     WHERE $where
     ORDER BY p.created_at DESC
@@ -39,9 +46,10 @@ $hasMore = count($posts) > $perPage;
 $posts = array_slice($posts, 0, $perPage);
 
 $fingerprint = Fingerprint::hash();
-$itemStmt = $pdo->prepare('SELECT type, file_path, thumbnail_path, alt_text, processing_status FROM media_post_items WHERE media_post_id = ? ORDER BY sort_order ASC');
+$itemStmt = $pdo->prepare('SELECT type, source, file_path, thumbnail_path, alt_text, processing_status FROM media_post_items WHERE media_post_id = ? ORDER BY sort_order ASC');
 $catStmt = $pdo->prepare('SELECT c.id, c.name, c.slug FROM media_categories c JOIN media_post_categories mpc ON mpc.media_category_id = c.id WHERE mpc.media_post_id = ?');
 $likedStmt = $pdo->prepare('SELECT 1 FROM post_likes WHERE media_post_id = ? AND fingerprint_hash = ?');
+$savedStmt = $pdo->prepare('SELECT 1 FROM post_saves WHERE media_post_id = ? AND fingerprint_hash = ?');
 
 foreach ($posts as &$post) {
     $itemStmt->execute([$post['id']]);
@@ -58,9 +66,15 @@ foreach ($posts as &$post) {
     $likedStmt->execute([$post['id'], $fingerprint]);
     $post['liked_by_viewer'] = (bool) $likedStmt->fetchColumn();
 
+    $savedStmt->execute([$post['id'], $fingerprint]);
+    $post['saved_by_viewer'] = (bool) $savedStmt->fetchColumn();
+
+    $post['author_username'] = (string) $post['author_username'];
     $post['id'] = (int) $post['id'];
     $post['likes_count'] = (int) $post['likes_count'];
     $post['views_count'] = (int) $post['views_count'];
+    $post['saves_count'] = (int) $post['saves_count'];
+    $post['comments_count'] = (int) $post['comments_count'];
 }
 unset($post);
 

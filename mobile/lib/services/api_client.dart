@@ -40,8 +40,12 @@ class ApiClient {
     return (json['data'] as List<dynamic>? ?? []).map((e) => Category.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  Future<({List<Post> posts, bool hasMore})> fetchFeed({int page = 1, String? category}) async {
-    final json = await _get('/api/feed', {'page': page, 'category': category});
+  Future<({List<Post> posts, bool hasMore})> fetchFeed({int page = 1, String? category, bool saved = false}) async {
+    final json = await _get('/api/feed', {
+      'page': page,
+      'category': category,
+      if (saved) 'saved': '1',
+    });
     final posts = (json['data'] as List<dynamic>? ?? []).map((e) => Post.fromJson(e as Map<String, dynamic>)).toList();
     return (posts: posts, hasMore: json['has_more'] as bool? ?? false);
   }
@@ -51,6 +55,21 @@ class ApiClient {
   Future<({bool liked, int likesCount})> toggleLike(int postId) async {
     final json = await _post('/api/like', {'post_id': postId});
     return (liked: json['liked'] as bool? ?? false, likesCount: json['likes_count'] as int? ?? 0);
+  }
+
+  Future<({bool saved, int savesCount})> toggleSave(int postId) async {
+    final json = await _post('/api/save', {'post_id': postId});
+    return (saved: json['saved'] as bool? ?? false, savesCount: json['saves_count'] as int? ?? 0);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchComments(int postId) async {
+    final json = await _get('/api/comments', {'post_id': postId});
+    return (json['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> postComment({required int postId, String? name, required String message}) async {
+    final json = await _post('/api/comments', {'post_id': postId, 'name': name, 'message': message});
+    return (json['data'] as Map<String, dynamic>?) ?? {};
   }
 
   Future<({List<ChurchEvent> events, bool hasMore})> fetchEvents({String scope = 'upcoming', int page = 1}) async {

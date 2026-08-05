@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS `media_posts` (
   `post_type` ENUM('single_image','carousel','vertical_reel') NOT NULL,
   `likes_count` INT NOT NULL DEFAULT 0,
   `views_count` INT NOT NULL DEFAULT 0,
+  `saves_count` INT NOT NULL DEFAULT 0,
   `is_published` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
@@ -98,13 +99,35 @@ CREATE TABLE IF NOT EXISTS `media_post_items` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `media_post_id` INT NOT NULL,
   `type` ENUM('image','video') NOT NULL,
-  `file_path` VARCHAR(255) NOT NULL,
-  `thumbnail_path` VARCHAR(255) NULL,
+  `source` ENUM('upload','youtube') NOT NULL DEFAULT 'upload',
+  `file_path` VARCHAR(500) NOT NULL,
+  `thumbnail_path` VARCHAR(500) NULL,
   `alt_text` VARCHAR(255) NULL,
   `processing_status` ENUM('ready','pending','failed') NOT NULL DEFAULT 'ready',
   `sort_order` INT NOT NULL DEFAULT 0,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`media_post_id`) REFERENCES `media_posts`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `post_saves` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `media_post_id` INT NOT NULL,
+  `fingerprint_hash` VARCHAR(64) NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uniq_save_post_fingerprint` (`media_post_id`, `fingerprint_hash`),
+  FOREIGN KEY (`media_post_id`) REFERENCES `media_posts`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `post_comments` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `media_post_id` INT NOT NULL,
+  `name` VARCHAR(100) NULL,
+  `message` TEXT NOT NULL,
+  `fingerprint_hash` VARCHAR(64) NULL,
+  `is_published` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`media_post_id`) REFERENCES `media_posts`(`id`) ON DELETE CASCADE,
+  INDEX `idx_comment_post` (`media_post_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `media_post_categories` (
@@ -203,3 +226,17 @@ INSERT INTO `media_categories` (`name`, `slug`) VALUES
   ('Events', 'events'),
   ('Behind the Scenes', 'behind-the-scenes')
 ON DUPLICATE KEY UPDATE `name` = `name`;
+
+-- In-place migration guard for databases created before these columns/tables
+-- existed. Each block checks the schema first so re-running the file is safe.
+SET @has_source = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'media_post_items' AND COLUMN_NAME = 'source');
+SET @mig_source = IF(@has_source = 0, 'ALTER TABLE `media_post_items` ADD COLUMN `source` ENUM(''upload'',''youtube'') NOT NULL DEFAULT ''upload'' AFTER `type`', 'SELECT 1');
+PREPARE mig_source FROM @mig_source;
+EXECUTE mig_source;
+DEALLOCATE PREPARE mig_source;
+
+SET @has_saves = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'media_posts' AND COLUMN_NAME = 'saves_count');
+SET @mig_saves = IF(@has_saves = 0, 'ALTER TABLE `media_posts` ADD COLUMN `saves_count` INT NOT NULL DEFAULT 0 AFTER `views_count`', 'SELECT 1');
+PREPARE mig_saves FROM @mig_saves;
+EXECUTE mig_saves;
+DEALLOCATE PREPARE mig_saves;

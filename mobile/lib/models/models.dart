@@ -3,15 +3,24 @@ library;
 
 class MediaItem {
   final String type; // 'image' | 'video'
+  final String source; // 'upload' | 'youtube'
   final String? fileUrl;
   final String? thumbnailUrl;
   final String? altText;
   final String processingStatus;
 
-  MediaItem({required this.type, this.fileUrl, this.thumbnailUrl, this.altText, this.processingStatus = 'ready'});
+  MediaItem({
+    required this.type,
+    this.source = 'upload',
+    this.fileUrl,
+    this.thumbnailUrl,
+    this.altText,
+    this.processingStatus = 'ready',
+  });
 
   factory MediaItem.fromJson(Map<String, dynamic> json) => MediaItem(
         type: json['type'] as String? ?? 'image',
+        source: json['source'] as String? ?? 'upload',
         fileUrl: json['file_url'] as String?,
         thumbnailUrl: json['thumbnail_url'] as String?,
         altText: json['alt_text'] as String?,
@@ -35,11 +44,15 @@ class Post {
   final String postType;
   final int likesCount;
   final int viewsCount;
+  int savesCount;
+  int commentsCount;
   final String createdAt;
   final String authorName;
+  final String authorUsername;
   final List<MediaItem> mediaItems;
   final List<Category> categories;
   bool likedByViewer;
+  bool savedByViewer;
 
   Post({
     required this.id,
@@ -48,11 +61,15 @@ class Post {
     required this.postType,
     required this.likesCount,
     required this.viewsCount,
+    this.savesCount = 0,
+    this.commentsCount = 0,
     required this.createdAt,
     required this.authorName,
+    this.authorUsername = '',
     required this.mediaItems,
     required this.categories,
     required this.likedByViewer,
+    this.savedByViewer = false,
   });
 
   factory Post.fromJson(Map<String, dynamic> json) => Post(
@@ -62,8 +79,11 @@ class Post {
         postType: json['post_type'] as String? ?? 'single_image',
         likesCount: json['likes_count'] as int? ?? 0,
         viewsCount: json['views_count'] as int? ?? 0,
+        savesCount: json['saves_count'] as int? ?? 0,
+        commentsCount: json['comments_count'] as int? ?? 0,
         createdAt: json['created_at'] as String? ?? '',
         authorName: json['author_name'] as String? ?? '',
+        authorUsername: json['author_username'] as String? ?? '',
         mediaItems: (json['media_items'] as List<dynamic>? ?? [])
             .map((e) => MediaItem.fromJson(e as Map<String, dynamic>))
             .toList(),
@@ -71,6 +91,7 @@ class Post {
             .map((e) => Category.fromJson(e as Map<String, dynamic>))
             .toList(),
         likedByViewer: json['liked_by_viewer'] as bool? ?? false,
+        savedByViewer: json['saved_by_viewer'] as bool? ?? false,
       );
 }
 

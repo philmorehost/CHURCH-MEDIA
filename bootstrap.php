@@ -67,6 +67,12 @@ if ($lockExists && !Database::isReachable()) {
 }
 define('APP_IS_INSTALLED', $lockExists);
 
+// Bring already-installed databases up to date with the latest schema
+// (feature columns/tables added after first install). Stamped, idempotent.
+if (APP_IS_INSTALLED) {
+    Database::migrate();
+}
+
 // Site-wide IP/country gate — runs before any route handles the request.
 // Fails open (logs and continues) if the DB isn't reachable, rather than
 // taking the whole site down on a transient connection issue.

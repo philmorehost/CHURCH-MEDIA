@@ -58,7 +58,7 @@ class MediaProcessor
     }
 
     /** Generates a WebP poster frame + a vertical 9:16 reel; returns null values for whichever step FFmpeg can't do. */
-    public static function processVideoToReel(string $sourcePath, string $destinationDirectory, string $thumbDirectory): array
+    public static function processVideoToReel(string $sourcePath, string $destinationDirectory, string $thumbDirectory, ?string $coverSource = null, bool $extractThumb = true): array
     {
         $ffmpeg = self::ffmpegBinary();
         if (!is_dir($destinationDirectory)) {
@@ -68,12 +68,21 @@ class MediaProcessor
             mkdir($thumbDirectory, 0775, true);
         }
 
+        // A cover frame captured client-side (or uploaded by the admin) always
+        // wins over an FFmpeg-extracted frame — it's the "default cover" the
+        // admin sees, and it keeps a poster available even without FFmpeg.
+        $thumbName = null;
+        if ($coverSource && is_file($coverSource)) {
+            $coverFile = self::processImage($coverSource, $thumbDirectory, 82);
+            $thumbName = $coverFile ? $coverFile : null;
+        }
+
         if (!$ffmpeg) {
             // No FFmpeg configured: keep the original file, let the admin know it needs re-processing.
             $filename = uniqid('reel_', true) . '.' . pathinfo($sourcePath, PATHINFO_EXTENSION);
             $destPath = $destinationDirectory . '/' . $filename;
             copy($sourcePath, $destPath);
-            return ['file' => $filename, 'thumbnail' => null, 'status' => 'pending'];
+            return ['file' => $filename, 'thumbnail' => $thumbName, 'status' => 'pending'];
         }
 
         $filename = uniqid('reel_', true) . '.mp4';
@@ -90,21 +99,26 @@ class MediaProcessor
         if ($exitCode !== 0 || !is_file($outputPath)) {
             $filename = uniqid('reel_', true) . '.' . pathinfo($sourcePath, PATHINFO_EXTENSION);
             copy($sourcePath, $destinationDirectory . '/' . $filename);
-            return ['file' => $filename, 'thumbnail' => null, 'status' => 'pending'];
+            return ['file' => $filename, 'thumbnail' => $thumbName, 'status' => 'pending'];
         }
 
-        $thumbName = uniqid('thumb_', true) . '.webp';
-        $thumbCmd = sprintf(
-            '%s -y -i %s -ss 00:00:00.5 -frames:v 1 %s 2>&1',
-            escapeshellarg($ffmpeg),
-            escapeshellarg($outputPath),
-            escapeshellarg($thumbDirectory . '/' . $thumbName)
-        );
-        exec($thumbCmd, $__, $thumbExit);
+        if (!$thumbName && $extractThumb) {
+            $thumbName = uniqid('thumb_', true) . '.webp';
+            $thumbCmd = sprintf(
+                '%s -y -i %s -ss 00:00:00.5 -frames:v 1 %s 2>&1',
+                escapeshellarg($ffmpeg),
+                escapeshellarg($outputPath),
+                escapeshellarg($thumbDirectory . '/' . $thumbName)
+            );
+            exec($thumbCmd, $__, $thumbExit);
+            if ($thumbExit !== 0 || !is_file($thumbDirectory . '/' . $thumbName)) {
+                $thumbName = null;
+            }
+        }
 
         return [
             'file' => $filename,
-            'thumbnail' => $thumbExit === 0 && is_file($thumbDirectory . '/' . $thumbName) ? $thumbName : null,
+            'thumbnail' => $thumbName,
             'status' => 'ready',
         ];
     }

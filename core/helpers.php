@@ -170,6 +170,31 @@ function embedUrl(?string $url): ?string
     return $url;
 }
 
+/** Extracts a YouTube video id from watch/shorts/embed/live/share URLs, or null. */
+function youtubeVideoId(?string $url): ?string
+{
+    if (!$url) {
+        return null;
+    }
+    $patterns = [
+        '#youtube\.com/watch\?[^&\s]*&?v=([a-zA-Z0-9_-]{6,})#',
+        '#youtube\.com/(?:embed|shorts|live|v)/([a-zA-Z0-9_-]{6,})#',
+        '#youtu\.be/([a-zA-Z0-9_-]{6,})#',
+    ];
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, trim($url), $m)) {
+            return $m[1];
+        }
+    }
+    return null;
+}
+
+/** Public thumbnail URL for a YouTube video id. */
+function youtubeThumbnailUrl(?string $videoId): string
+{
+    return $videoId ? 'https://i.ytimg.com/vi/' . $videoId . '/hqdefault.jpg' : '';
+}
+
 function formatCount(int $count): string
 {
     if ($count >= 1000000) {
