@@ -13,6 +13,13 @@ $allowedImageMime = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'imag
 $allowedVideoMime = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm'];
 $maxUploadBytes = 200 * 1024 * 1024; // 200MB per file — raise upload_max_filesize/post_max_size in php.ini to match
 
+// media.php is require()d inside Router::dispatchFlatFile(), so its top-level
+// variables live in method scope — NOT the global scope. Functions in this file
+// cannot read them via `global`; expose them as constants instead.
+define('MEDIA_ALLOWED_IMAGE_MIME', $allowedImageMime);
+define('MEDIA_ALLOWED_VIDEO_MIME', $allowedVideoMime);
+define('MEDIA_MAX_UPLOAD_BYTES', $maxUploadBytes);
+
 function mediaSlug(PDO $pdo, string $caption): string
 {
     $base = slugify($caption !== '' ? mb_substr($caption, 0, 60) : 'post');
@@ -31,7 +38,6 @@ function mediaSlug(PDO $pdo, string $caption): string
 /** Normalizes $_FILES['media'] into ['kind'=>'image'|'video', 'tmp'=>...] items, collecting any errors. */
 function collectMediaFiles(?array $files, array &$errors): array
 {
-    global $allowedImageMime, $allowedVideoMime, $maxUploadBytes;
     $items = [];
     if (!$files || !is_array($files['tmp_name'])) {
         return $items;
@@ -41,14 +47,14 @@ function collectMediaFiles(?array $files, array &$errors): array
             continue;
         }
         $name = $files['name'][$i] ?? 'file';
-        if ((int) $files['size'][$i] > $maxUploadBytes) {
-            $errors[] = $name . ' is too large (max ' . round($maxUploadBytes / 1024 / 1024) . 'MB).';
+        if ((int) $files['size'][$i] > MEDIA_MAX_UPLOAD_BYTES) {
+            $errors[] = $name . ' is too large (max ' . round(MEDIA_MAX_UPLOAD_BYTES / 1024 / 1024) . 'MB).';
             continue;
         }
         $mime = (new finfo(FILEINFO_MIME_TYPE))->file($tmpName);
-        if (in_array($mime, $allowedImageMime, true)) {
+        if (in_array($mime, MEDIA_ALLOWED_IMAGE_MIME, true)) {
             $items[] = ['kind' => 'image', 'tmp' => $tmpName];
-        } elseif (in_array($mime, $allowedVideoMime, true)) {
+        } elseif (in_array($mime, MEDIA_ALLOWED_VIDEO_MIME, true)) {
             $items[] = ['kind' => 'video', 'tmp' => $tmpName];
         } else {
             $errors[] = $name . ' has an unsupported file type.';

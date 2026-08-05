@@ -195,7 +195,7 @@
 
   function ytId(url) {
     var m;
-    m = url.match(/youtube\.com\/watch\?.*(?:^|&)v=([a-zA-Z0-9_-]{6,})/);
+    m = url.match(/youtube\.com\/watch\?[^&\s]*&?v=([a-zA-Z0-9_-]{6,})/);
     if (m) { return m[1]; }
     m = url.match(/youtube\.com\/(?:embed|shorts|live|v)\/([a-zA-Z0-9_-]{6,})/);
     if (m) { return m[1]; }
