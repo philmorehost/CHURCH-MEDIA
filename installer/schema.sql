@@ -230,13 +230,13 @@ ON DUPLICATE KEY UPDATE `name` = `name`;
 -- In-place migration guard for databases created before these columns/tables
 -- existed. Each block checks the schema first so re-running the file is safe.
 SET @has_source = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'media_post_items' AND COLUMN_NAME = 'source');
-SET @mig_source = IF(@has_source = 0, 'ALTER TABLE `media_post_items` ADD COLUMN `source` ENUM(''upload'',''youtube'') NOT NULL DEFAULT ''upload'' AFTER `type`', 'SELECT 1');
+SET @mig_source = IF(@has_source = 0, 'ALTER TABLE `media_post_items` ADD COLUMN `source` ENUM(''upload'',''youtube'') NOT NULL DEFAULT ''upload'' AFTER `type`', 'DO 0');
 PREPARE mig_source FROM @mig_source;
 EXECUTE mig_source;
 DEALLOCATE PREPARE mig_source;
 
 SET @has_saves = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'media_posts' AND COLUMN_NAME = 'saves_count');
-SET @mig_saves = IF(@has_saves = 0, 'ALTER TABLE `media_posts` ADD COLUMN `saves_count` INT NOT NULL DEFAULT 0 AFTER `views_count`', 'SELECT 1');
+SET @mig_saves = IF(@has_saves = 0, 'ALTER TABLE `media_posts` ADD COLUMN `saves_count` INT NOT NULL DEFAULT 0 AFTER `views_count`', 'DO 0');
 PREPARE mig_saves FROM @mig_saves;
 EXECUTE mig_saves;
 DEALLOCATE PREPARE mig_saves;

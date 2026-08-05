@@ -22,6 +22,7 @@ class Database
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
         ]);
     }
 
@@ -156,6 +157,7 @@ class Database
         $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, $port, $database);
         return new PDO($dsn, $username, $password, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
         ]);
     }
 
@@ -166,7 +168,10 @@ class Database
         $sql = preg_replace('/^--.*$/m', '', $sql); // strip line comments
         $statements = array_filter(array_map('trim', explode(';', $sql)));
         foreach ($statements as $statement) {
-            $pdo->exec($statement);
+            // query()+fetchAll() consumes any result set (e.g. an EXECUTE of a
+            // SELECT) so the next statement never trips MySQL's "unbuffered
+            // query active" (SQLSTATE 2014) error.
+            $pdo->query($statement)->fetchAll();
         }
     }
 }
