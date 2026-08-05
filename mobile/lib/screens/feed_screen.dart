@@ -1,11 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../models/models.dart';
 import '../services/api_client.dart';
+import '../services/share_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 
@@ -385,7 +385,15 @@ class _FeedSlideState extends State<_FeedSlide> {
                   onTap: _openComments,
                 ),
                 const SizedBox(height: 18),
-                _actionButton(icon: Icons.ios_share, label: '', onTap: () => SharePlus.instance.share(ShareParams(text: post.caption ?? 'Check this out', uri: Uri.parse('${ApiClient.baseUrl}/feed'))), iconOnly: true),
+                _actionButton(
+                  icon: Icons.ios_share,
+                  label: '',
+                  onTap: () => ShareService.share(
+                    text: post.caption ?? 'Check this out',
+                    uri: '${ApiClient.baseUrl}/feed',
+                  ),
+                  iconOnly: true,
+                ),
                 const SizedBox(height: 18),
                 _actionButton(
                   icon: post.savedByViewer ? Icons.bookmark : Icons.bookmark_border,
