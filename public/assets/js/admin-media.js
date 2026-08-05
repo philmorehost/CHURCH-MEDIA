@@ -210,7 +210,7 @@
       var data;
       try { data = JSON.parse(xhr.responseText); } catch (err) { data = null; }
       if (data && data.status === 'success') {
-        setProgress(100, 'Published! Converting videos in the background…');
+        setProgress(100, 'Published! Optimizing video crops in the background…');
         backgroundProcess(data.pending);
         setTimeout(function () { window.location.href = '/admin/media?processed=1'; }, 1500);
       } else {

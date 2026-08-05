@@ -139,7 +139,7 @@
         v.loop = true;
         v.muted = muted;
         v.playsInline = true;
-        v.preload = 'metadata';
+        v.preload = 'auto';
         if (item.thumbnail_url) { v.poster = item.thumbnail_url; }
         mediaEl.appendChild(v);
         if (slide === activeSlideEl) { playVideo(v); }

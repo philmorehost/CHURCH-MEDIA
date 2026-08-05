@@ -17,12 +17,13 @@ mobile app.
   rail — like (double-tap also works), comment, share, save, and a “For You /
   Saved” tab switcher plus category chips.
 - **Media sources** — every post item is either an `upload` (image or video) or a
-  `youtube` embed. Uploaded landscape videos are auto-cropped to 9:16 reels; the
-  first frame is captured as the cover and the poster can override it per item.
-- **Instant uploads** — admin uploads post items immediately (videos are stored
-  as originals and marked `processing_status = pending`); background conversion
-  runs over HTTP via `admin/media?action=process`, kicked off with
-  `navigator.sendBeacon` from the composer.
+  `youtube` embed. Uploaded landscape videos are auto-cropped to 9:16 reels when
+  FFmpeg is available; otherwise the original plays as-is (browsers handle it) so
+  a reel is never stuck “converting”.
+- **Instant uploads** — admin uploads are fast and the post is ready to play
+  immediately: videos are stored as `ready` originals and, when FFmpeg is
+  configured, cropped to a 9:16 reel in the background right after upload via
+  `admin/media?action=process` (kicked off with `navigator.sendBeacon`).
 - **Engagement** — anonymous per-visitor likes, saves, and comments keyed by a
   fingerprint cookie; all three are rate-limited.
 - **Admin composer** (`/admin/media`) — Upload / YouTube tabs, live preview grid,
@@ -36,9 +37,9 @@ mobile app.
 - PHP 8.2+ with `pdo_mysql`, `mbstring`, `gd` (webp support) enabled
 - MariaDB 10.4+ / MySQL 5.7+
 - Apache (or any server honoring `.htaccess`) or the PHP built-in server
-- Optional: `ffmpeg` binary for GPU/CPU video reels — set `ffmpeg_path` in
-  `config/site.php` or via `/admin/settings` (defaults to a graceful
-  “pending” state when missing)
+- Optional: `ffmpeg` binary for true 9:16 reel cropping — set `ffmpeg_path` in
+  `config/site.php` or via `/admin/settings`. Without it, uploaded videos still
+  play immediately as their original file.
 - Flutter SDK 3.44+ to build `mobile/`
 
 ## Quick start (XAMPP)

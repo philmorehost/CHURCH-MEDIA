@@ -44,7 +44,11 @@
 .reels-chips .chip.active{background:#fff; color:#000; border-color:#fff;}
 
 /* feed */
-.reels-scroller{flex:1; overflow-y:auto; scroll-snap-type:y mandatory; scroll-behavior:smooth; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;}
+.reels-scroller{
+  flex:1; overflow-y:auto; scroll-snap-type:y mandatory; scroll-behavior:smooth; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+  scrollbar-width:none; -ms-overflow-style:none;
+}
+.reels-scroller::-webkit-scrollbar{display:none;}
 .feed-loading{height:100%; display:flex; align-items:center; justify-content:center; color:#7a7a7a; font-size:14px;}
 
 .reel-slide{

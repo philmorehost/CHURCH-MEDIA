@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 /**
  * Image → WebP compression (GD) and video → vertical 9:16 reel conversion
- * (FFmpeg, optional). Video processing degrades gracefully when no FFmpeg
- * binary is configured: the original upload is kept and the item is marked
- * "pending" rather than failing the whole post.
+ * (FFmpeg, optional). Video uploads are stored as their original file and
+ * marked "ready" so they play immediately in the feed; FFmpeg is only used to
+ * polish them into a true 9:16 crop, never as a gate for playback.
  */
 class MediaProcessor
 {
@@ -78,11 +78,13 @@ class MediaProcessor
         }
 
         if (!$ffmpeg) {
-            // No FFmpeg configured: keep the original file, let the admin know it needs re-processing.
+            // No FFmpeg configured: keep a copy of the original as the playable
+            // source. It's "ready" — browsers can play the original file, so the
+            // feed never blocks a reel on a conversion step.
             $filename = uniqid('reel_', true) . '.' . pathinfo($sourcePath, PATHINFO_EXTENSION);
             $destPath = $destinationDirectory . '/' . $filename;
             copy($sourcePath, $destPath);
-            return ['file' => $filename, 'thumbnail' => $thumbName, 'status' => 'pending'];
+            return ['file' => $filename, 'thumbnail' => $thumbName, 'status' => 'ready'];
         }
 
         $filename = uniqid('reel_', true) . '.mp4';
@@ -97,9 +99,10 @@ class MediaProcessor
         exec($cmd, $__, $exitCode);
 
         if ($exitCode !== 0 || !is_file($outputPath)) {
+            // Conversion failed — keep the original file as the playable source.
             $filename = uniqid('reel_', true) . '.' . pathinfo($sourcePath, PATHINFO_EXTENSION);
             copy($sourcePath, $destinationDirectory . '/' . $filename);
-            return ['file' => $filename, 'thumbnail' => $thumbName, 'status' => 'pending'];
+            return ['file' => $filename, 'thumbnail' => $thumbName, 'status' => 'ready'];
         }
 
         if (!$thumbName && $extractThumb) {

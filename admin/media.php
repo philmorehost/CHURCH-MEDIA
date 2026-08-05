@@ -35,13 +35,20 @@ function mediaSlug(PDO $pdo, string $caption): string
     }
 }
 
-/** Normalizes $_FILES['media'] into ['kind'=>'image'|'video', 'tmp'=>...] items, collecting any errors. */
+/** Normalizes $_FILES['media'] into ['kind'=>'image'|'video', 'tmp'=>..., 'ext'=>...] items, collecting any errors. */
 function collectMediaFiles(?array $files, array &$errors): array
 {
     $items = [];
     if (!$files || !is_array($files['tmp_name'])) {
         return $items;
     }
+    $videoExt = [
+        'video/mp4' => 'mp4',
+        'video/quicktime' => 'mov',
+        'video/x-msvideo' => 'avi',
+        'video/x-matroska' => 'mkv',
+        'video/webm' => 'webm',
+    ];
     foreach ($files['tmp_name'] as $i => $tmpName) {
         if ($tmpName === '' || !is_uploaded_file($tmpName)) {
             continue;
@@ -55,7 +62,7 @@ function collectMediaFiles(?array $files, array &$errors): array
         if (in_array($mime, MEDIA_ALLOWED_IMAGE_MIME, true)) {
             $items[] = ['kind' => 'image', 'tmp' => $tmpName];
         } elseif (in_array($mime, MEDIA_ALLOWED_VIDEO_MIME, true)) {
-            $items[] = ['kind' => 'video', 'tmp' => $tmpName];
+            $items[] = ['kind' => 'video', 'tmp' => $tmpName, 'ext' => $videoExt[$mime] ?? 'mp4'];
         } else {
             $errors[] = $name . ' has an unsupported file type.';
         }
@@ -64,14 +71,15 @@ function collectMediaFiles(?array $files, array &$errors): array
 }
 
 /**
- * Inserts media_post_items for a post. With $instant=true, video uploads are
- * saved as originals and marked 'pending' (converted later in the background)
- * so the admin is never blocked on FFmpeg. Returns the ids of pending items.
+ * Inserts media_post_items for a post. Uploaded videos are stored as their
+ * original file and marked 'ready' so they play in the feed immediately —
+ * uploads are never blocked on FFmpeg. If FFmpeg is available later, the
+ * returned ids are queued for a background 9:16 crop via action=process.
  */
-function storeMediaItems(PDO $pdo, int $postId, array $items, ?array $covers, bool $instant): array
+function storeMediaItems(PDO $pdo, int $postId, array $items, ?array $covers): array
 {
     $itemStmt = $pdo->prepare('INSERT INTO media_post_items (media_post_id, type, source, file_path, thumbnail_path, processing_status, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    $pending = [];
+    $convertible = [];
 
     foreach ($items as $order => $item) {
         $coverTmp = null;
@@ -98,44 +106,32 @@ function storeMediaItems(PDO $pdo, int $postId, array $items, ?array $covers, bo
                 }
             }
             $itemStmt->execute([$postId, 'video', 'youtube', $item['url'], $thumb, 'ready', $order]);
-        } else { // video upload
-            if ($instant) {
-                if (!is_dir(UPLOADS_ORIGINALS_PATH)) {
-                    mkdir(UPLOADS_ORIGINALS_PATH, 0775, true);
-                }
-                $origName = uniqid('orig_', true) . '.' . (pathinfo($item['tmp'], PATHINFO_EXTENSION) ?: 'mp4');
-                if (!move_uploaded_file($item['tmp'], UPLOADS_ORIGINALS_PATH . '/' . $origName)) {
-                    throw new RuntimeException('Could not save the uploaded video.');
-                }
-                $thumb = null;
-                if ($coverTmp) {
-                    $coverFile = MediaProcessor::processImage($coverTmp, UPLOADS_THUMBS_PATH, 82);
-                    if ($coverFile) {
-                        $thumb = 'thumbs/' . $coverFile;
-                    }
-                }
-                $itemStmt->execute([$postId, 'video', 'upload', 'originals/' . $origName, $thumb, 'pending', $order]);
-                $pending[] = (int) $pdo->lastInsertId();
-            } else {
-                $result = MediaProcessor::processVideoToReel($item['tmp'], UPLOADS_REELS_PATH, UPLOADS_THUMBS_PATH, $coverTmp, true);
-                $itemStmt->execute([
-                    $postId, 'video', 'upload', 'reels/' . $result['file'],
-                    $result['thumbnail'] ? 'thumbs/' . $result['thumbnail'] : null,
-                    $result['status'], $order,
-                ]);
-                if ($result['status'] === 'pending') {
-                    $pending[] = (int) $pdo->lastInsertId();
+        } else { // video upload — keep the original so it is ready to play right away
+            if (!is_dir(UPLOADS_ORIGINALS_PATH)) {
+                mkdir(UPLOADS_ORIGINALS_PATH, 0775, true);
+            }
+            $origName = uniqid('orig_', true) . '.' . ($item['ext'] ?? 'mp4');
+            if (!move_uploaded_file($item['tmp'], UPLOADS_ORIGINALS_PATH . '/' . $origName)) {
+                throw new RuntimeException('Could not save the uploaded video.');
+            }
+            $thumb = null;
+            if ($coverTmp) {
+                $coverFile = MediaProcessor::processImage($coverTmp, UPLOADS_THUMBS_PATH, 82);
+                if ($coverFile) {
+                    $thumb = 'thumbs/' . $coverFile;
                 }
             }
+            $itemStmt->execute([$postId, 'video', 'upload', 'originals/' . $origName, $thumb, 'ready', $order]);
+            $convertible[] = (int) $pdo->lastInsertId();
         }
     }
-    return $pending;
+    return $convertible;
 }
 
-/** Converts a single pending video item to a vertical reel; returns its new status. */
-function convertPendingItem(PDO $pdo, int $itemId): string
+/** Converts a stored original video to a vertical 9:16 reel; returns its new status ('ready'|'failed'|'missing'). */
+function convertOriginalVideo(PDO $pdo, int $itemId): string
 {
-    $stmt = $pdo->prepare("SELECT i.* FROM media_post_items i WHERE i.id = ? AND i.type = 'video' AND i.source = 'upload' AND i.processing_status = 'pending'");
+    $stmt = $pdo->prepare("SELECT i.* FROM media_post_items i WHERE i.id = ? AND i.type = 'video' AND i.source = 'upload' AND i.file_path LIKE 'originals/%'");
     $stmt->execute([$itemId]);
     $item = $stmt->fetch();
     if (!$item) {
@@ -149,15 +145,19 @@ function convertPendingItem(PDO $pdo, int $itemId): string
 
     $hasCover = $item['thumbnail_path'] && is_file(UPLOADS_PATH . '/' . $item['thumbnail_path']);
     $result = MediaProcessor::processVideoToReel($sourcePath, UPLOADS_REELS_PATH, UPLOADS_THUMBS_PATH, null, !$hasCover);
+
+    if ($result['status'] !== 'ready') {
+        // The original already plays as-is; keep it and stay ready.
+        return 'ready';
+    }
+
     $newThumb = $hasCover ? $item['thumbnail_path'] : ($result['thumbnail'] ? 'thumbs/' . $result['thumbnail'] : null);
 
     $pdo->prepare('UPDATE media_post_items SET file_path = ?, thumbnail_path = ?, processing_status = ? WHERE id = ?')
-        ->execute(['reels/' . $result['file'], $newThumb, $result['status'], $itemId]);
+        ->execute(['reels/' . $result['file'], $newThumb, 'ready', $itemId]);
 
-    if ($result['status'] === 'ready') {
-        @unlink($sourcePath); // originals only live until the reel is ready
-    }
-    return $result['status'];
+    @unlink($sourcePath); // originals only live until the reel is ready
+    return 'ready';
 }
 
 if ($action === 'category_create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -171,7 +171,7 @@ if ($action === 'category_create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 /** Shared by both the classic form POST and the instant XHR upload. */
-function handleCreatePost(PDO $pdo, array $user, bool $instant): array
+function handleCreatePost(PDO $pdo, array $user): array
 {
     $caption = trim($_POST['caption'] ?? '');
     $categoryIds = array_map('intval', $_POST['categories'] ?? []);
@@ -218,7 +218,7 @@ function handleCreatePost(PDO $pdo, array $user, bool $instant): array
         $stmt->execute([$user['id'], mediaSlug($pdo, $caption), $caption, $postType, $isPublished]);
         $postId = (int) $pdo->lastInsertId();
 
-        $pending = storeMediaItems($pdo, $postId, $items, $covers, $instant);
+        $pending = storeMediaItems($pdo, $postId, $items, $covers);
 
         if ($categoryIds) {
             $catStmt = $pdo->prepare('INSERT IGNORE INTO media_post_categories (media_post_id, media_category_id) VALUES (?, ?)');
@@ -237,7 +237,7 @@ function handleCreatePost(PDO $pdo, array $user, bool $instant): array
 
 if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
-    $result = handleCreatePost($pdo, $user, false);
+    $result = handleCreatePost($pdo, $user);
     if ($result['errors']) {
         $errors = $result['errors'];
         keepOld(['caption' => trim($_POST['caption'] ?? '')]);
@@ -250,7 +250,7 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 /** Instant XHR upload — saves originals immediately, converts in the background. */
 if ($action === 'upload' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
-    $result = handleCreatePost($pdo, $user, true);
+    $result = handleCreatePost($pdo, $user);
     if ($result['errors']) {
         jsonResponse(['status' => 'error', 'message' => implode(' ', $result['errors'])], 422);
     }
@@ -266,7 +266,7 @@ if ($action === 'process' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     set_time_limit(600);
     @ignore_user_abort(true);
-    $status = convertPendingItem($pdo, $id);
+    $status = convertOriginalVideo($pdo, $id);
     jsonResponse(['status' => $status === 'ready' ? 'success' : 'error', 'processing_status' => $status]);
 }
 
@@ -275,12 +275,12 @@ if ($action === 'reprocess' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $id = (int) ($_POST['id'] ?? 0);
     set_time_limit(600);
-    $stmt = $pdo->prepare("SELECT id FROM media_post_items WHERE media_post_id = ? AND type = 'video' AND source = 'upload' AND processing_status = 'pending'");
+    $stmt = $pdo->prepare("SELECT id FROM media_post_items WHERE media_post_id = ? AND type = 'video' AND source = 'upload' AND file_path LIKE 'originals/%'");
     $stmt->execute([$id]);
     $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
     $done = 0;
     foreach ($ids as $itemId) {
-        if (convertPendingItem($pdo, (int) $itemId) === 'ready') {
+        if (convertOriginalVideo($pdo, (int) $itemId) === 'ready') {
             $done++;
         }
     }
