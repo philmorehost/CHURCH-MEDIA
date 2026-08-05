@@ -32,11 +32,12 @@ if (RateLimiter::attemptConfigured('views', $fingerprint)) {
     }
 }
 
-$itemStmt = $pdo->prepare('SELECT type, source, file_path, thumbnail_path, alt_text, processing_status FROM media_post_items WHERE media_post_id = ? ORDER BY sort_order ASC');
+$itemStmt = $pdo->prepare('SELECT type, source, file_path, thumbnail_path, alt_text, processing_status, converted_at FROM media_post_items WHERE media_post_id = ? ORDER BY sort_order ASC');
 $itemStmt->execute([$post['id']]);
 $post['media_items'] = array_map(function ($item) {
     $item['file_url'] = uploadUrl($item['file_path']);
     $item['thumbnail_url'] = uploadUrl($item['thumbnail_path']);
+    $item['conversion_status'] = videoConversionStatus($item);
     unset($item['file_path'], $item['thumbnail_path']);
     return $item;
 }, $itemStmt->fetchAll());

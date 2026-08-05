@@ -313,7 +313,8 @@ $posts = $action === 'list' ? $pdo->query('
       (SELECT thumbnail_path FROM media_post_items WHERE media_post_id = p.id ORDER BY sort_order ASC LIMIT 1) AS cover_thumb,
       (SELECT type FROM media_post_items WHERE media_post_id = p.id ORDER BY sort_order ASC LIMIT 1) AS cover_type,
       (SELECT IF(source = \'youtube\', thumbnail_path, NULL) FROM media_post_items WHERE media_post_id = p.id ORDER BY sort_order ASC LIMIT 1) AS cover_source,
-      (SELECT COUNT(*) FROM media_post_items WHERE media_post_id = p.id AND processing_status = \'pending\') AS pending_count
+      (SELECT file_path FROM media_post_items WHERE media_post_id = p.id AND type = \'video\' AND source = \'upload\' ORDER BY sort_order ASC LIMIT 1) AS video_path,
+      (SELECT converted_at FROM media_post_items WHERE media_post_id = p.id AND type = \'video\' AND source = \'upload\' ORDER BY sort_order ASC LIMIT 1) AS video_converted_at
     FROM media_posts p JOIN users u ON u.id = p.user_id
     ORDER BY p.created_at DESC LIMIT 60
 ')->fetchAll() : [];
@@ -459,8 +460,15 @@ require __DIR__ . '/partials/layout-open.php';
           <td><?= e(mb_strimwidth((string) $p['caption'], 0, 50, '…')) ?: '<em>No caption</em>' ?></td>
           <td>
             <span class="badge info"><?= e(str_replace('_', ' ', $p['post_type'])) ?></span>
-            <?php if ((int) $p['pending_count'] > 0): ?>
-              <span class="badge warn" title="Waiting for background conversion"><?= (int) $p['pending_count'] ?> pending</span>
+            <?php if ($p['video_path']): ?>
+              <?php $vstatus = videoConversionStatus(['type' => 'video', 'source' => 'upload', 'file_path' => (string) $p['video_path'], 'converted_at' => $p['video_converted_at']]); ?>
+              <?php if ($vstatus === 'converted'): ?>
+                <span class="badge ok" title="Crop finished <?= e($p['video_converted_at']) ?>">converted</span>
+              <?php elseif ($vstatus === 'pending'): ?>
+                <span class="badge warn" title="Still stored as the original; conversion queued">converting…</span>
+              <?php else: ?>
+                <span class="badge" title="Plays the original video as-is">original</span>
+              <?php endif; ?>
             <?php endif; ?>
           </td>
           <td>
@@ -476,7 +484,7 @@ require __DIR__ . '/partials/layout-open.php';
           <td><?= (int) $p['saves_count'] ?></td>
           <td><?= e(timeAgo($p['created_at'])) ?></td>
           <td style="white-space:nowrap;">
-            <?php if ((int) $p['pending_count'] > 0): ?>
+            <?php if ($p['video_path'] && ($vstatus ?? '') === 'pending'): ?>
               <form method="post" action="/admin/media?action=reprocess" style="display:inline;" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='…';">
                 <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $p['id'] ?>">
                 <button type="submit" class="btn sm">Process</button>

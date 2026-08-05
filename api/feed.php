@@ -46,7 +46,7 @@ $hasMore = count($posts) > $perPage;
 $posts = array_slice($posts, 0, $perPage);
 
 $fingerprint = Fingerprint::hash();
-$itemStmt = $pdo->prepare('SELECT type, source, file_path, thumbnail_path, alt_text, processing_status FROM media_post_items WHERE media_post_id = ? ORDER BY sort_order ASC');
+$itemStmt = $pdo->prepare('SELECT type, source, file_path, thumbnail_path, alt_text, processing_status, converted_at FROM media_post_items WHERE media_post_id = ? ORDER BY sort_order ASC');
 $catStmt = $pdo->prepare('SELECT c.id, c.name, c.slug FROM media_categories c JOIN media_post_categories mpc ON mpc.media_category_id = c.id WHERE mpc.media_post_id = ?');
 $likedStmt = $pdo->prepare('SELECT 1 FROM post_likes WHERE media_post_id = ? AND fingerprint_hash = ?');
 $savedStmt = $pdo->prepare('SELECT 1 FROM post_saves WHERE media_post_id = ? AND fingerprint_hash = ?');
@@ -56,6 +56,7 @@ foreach ($posts as &$post) {
     $post['media_items'] = array_map(function ($item) {
         $item['file_url'] = uploadUrl($item['file_path']);
         $item['thumbnail_url'] = uploadUrl($item['thumbnail_path']);
+        $item['conversion_status'] = videoConversionStatus($item);
         unset($item['file_path'], $item['thumbnail_path']);
         return $item;
     }, $itemStmt->fetchAll());

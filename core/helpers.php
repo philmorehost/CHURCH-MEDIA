@@ -205,3 +205,28 @@ function formatCount(int $count): string
     }
     return (string) $count;
 }
+
+/**
+ * Conversion state of one media item row (media_post_items).
+ * 'converted'  — a real 9:16 crop finished (converted_at set)
+ * 'pending'    — uploaded original waiting to be processed (no crop yet)
+ * 'original'   — plays the original as-is (crop unavailable/failed); never converted
+ * 'youtube'    — a YouTube embed, no conversion involved
+ * 'image'      — a photo, no conversion involved
+ */
+function videoConversionStatus(array $item): string
+{
+    if (($item['type'] ?? '') === 'image') {
+        return 'image';
+    }
+    if (($item['source'] ?? '') === 'youtube') {
+        return 'youtube';
+    }
+    if (!empty($item['converted_at'])) {
+        return 'converted';
+    }
+    if (str_starts_with((string) ($item['file_path'] ?? ''), 'originals/')) {
+        return 'pending';
+    }
+    return 'original';
+}

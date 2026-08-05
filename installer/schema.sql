@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS `media_post_items` (
   `thumbnail_path` VARCHAR(500) NULL,
   `alt_text` VARCHAR(255) NULL,
   `processing_status` ENUM('ready','pending','failed') NOT NULL DEFAULT 'ready',
+  `converted_at` DATETIME NULL,
   `sort_order` INT NOT NULL DEFAULT 0,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`media_post_id`) REFERENCES `media_posts`(`id`) ON DELETE CASCADE
@@ -240,3 +241,9 @@ SET @mig_saves = IF(@has_saves = 0, 'ALTER TABLE `media_posts` ADD COLUMN `saves
 PREPARE mig_saves FROM @mig_saves;
 EXECUTE mig_saves;
 DEALLOCATE PREPARE mig_saves;
+
+SET @has_converted_at = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'media_post_items' AND COLUMN_NAME = 'converted_at');
+SET @mig_converted_at = IF(@has_converted_at = 0, 'ALTER TABLE `media_post_items` ADD COLUMN `converted_at` DATETIME NULL AFTER `processing_status`', 'DO 0');
+PREPARE mig_converted_at FROM @mig_converted_at;
+EXECUTE mig_converted_at;
+DEALLOCATE PREPARE mig_converted_at;

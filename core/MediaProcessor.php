@@ -84,7 +84,7 @@ class MediaProcessor
             $filename = uniqid('reel_', true) . '.' . pathinfo($sourcePath, PATHINFO_EXTENSION);
             $destPath = $destinationDirectory . '/' . $filename;
             copy($sourcePath, $destPath);
-            return ['file' => $filename, 'thumbnail' => $thumbName, 'status' => 'ready'];
+            return ['file' => $filename, 'thumbnail' => $thumbName, 'status' => 'ready', 'converted' => false];
         }
 
         $filename = uniqid('reel_', true) . '.mp4';
@@ -102,7 +102,7 @@ class MediaProcessor
             // Conversion failed — keep the original file as the playable source.
             $filename = uniqid('reel_', true) . '.' . pathinfo($sourcePath, PATHINFO_EXTENSION);
             copy($sourcePath, $destinationDirectory . '/' . $filename);
-            return ['file' => $filename, 'thumbnail' => $thumbName, 'status' => 'ready'];
+            return ['file' => $filename, 'thumbnail' => $thumbName, 'status' => 'ready', 'converted' => false];
         }
 
         if (!$thumbName && $extractThumb) {
@@ -123,6 +123,7 @@ class MediaProcessor
             'file' => $filename,
             'thumbnail' => $thumbName,
             'status' => 'ready',
+            'converted' => true,
         ];
     }
 
@@ -156,8 +157,12 @@ class MediaProcessor
 
         $newThumb = $hasCover ? $item['thumbnail_path'] : ($result['thumbnail'] ? 'thumbs/' . $result['thumbnail'] : null);
 
-        $pdo->prepare('UPDATE media_post_items SET file_path = ?, thumbnail_path = ?, processing_status = ? WHERE id = ?')
-            ->execute(['reels/' . $result['file'], $newThumb, 'ready', $itemId]);
+        // Only a real 9:16 crop marks the item as converted; a no-ffmpeg (or
+        // failed) copy keeps converted_at NULL so the UI can tell them apart.
+        $convertedAt = !empty($result['converted']) ? date('Y-m-d H:i:s') : null;
+
+        $pdo->prepare('UPDATE media_post_items SET file_path = ?, thumbnail_path = ?, processing_status = ?, converted_at = ? WHERE id = ?')
+            ->execute(['reels/' . $result['file'], $newThumb, 'ready', $convertedAt, $itemId]);
 
         @unlink($sourcePath); // originals only live until the reel is ready
         return 'ready';

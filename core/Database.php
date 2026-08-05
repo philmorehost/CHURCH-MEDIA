@@ -134,6 +134,11 @@ class Database
                     INDEX `idx_comment_post` (`media_post_id`, `created_at`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             },
+            '2026_08_media_converted_at' => function (PDO $pdo): void {
+                // Set when an uploaded video finishes its 9:16 crop. NULL means it
+                // still plays the original (conversion pending or ffmpeg absent).
+                self::addColumnIfMissing($pdo, 'media_post_items', 'converted_at', 'DATETIME NULL', 'processing_status');
+            },
         ];
     }
 
