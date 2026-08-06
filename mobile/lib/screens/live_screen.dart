@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../models/models.dart';
 import '../services/api_client.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 
-/// Opens the livestream in an external player (YouTube/Facebook app or
-/// browser) rather than embedding a WebView, keeping the app dependency-light.
+/// Embeds the livestream in-app via WebView (YouTube/Facebook embed URLs),
+/// with an "open externally" fallback so viewers can still launch the native
+/// YouTube app if they prefer.
 class LiveScreen extends StatefulWidget {
   const LiveScreen({super.key});
   @override
@@ -15,13 +17,44 @@ class LiveScreen extends StatefulWidget {
 
 class _LiveScreenState extends State<LiveScreen> {
   ChurchSettings? _settings;
+  WebViewController? _controller;
+  String? _embedUrl;
 
   @override
   void initState() {
     super.initState();
     ApiClient().fetchSettings().then((s) {
-      if (mounted) setState(() => _settings = s);
+      if (!mounted) return;
+      final embed = toEmbedUrl(s.livestreamEmbedUrl);
+      setState(() {
+        _settings = s;
+        _embedUrl = embed;
+        if (embed != null) {
+          _controller = WebViewController()
+            ..setJavaScriptMode(JavaScriptMode.unrestricted)
+            ..setBackgroundColor(Colors.black)
+            ..loadRequest(Uri.parse('$embed?autoplay=1&playsinline=1&rel=0'));
+        }
+      });
     });
+  }
+
+  /// Converts a YouTube watch / youtu.be / live URL to an embeddable URL.
+  /// Non-YouTube links (e.g. Facebook Live embeds) pass through unchanged.
+  static String? toEmbedUrl(String? url) {
+    if (url == null || url.trim().isEmpty) return null;
+    final trimmed = url.trim();
+
+    final watch = RegExp(r'youtube\.com/watch\?.*[?&]v=([A-Za-z0-9_-]{6,})').firstMatch(trimmed);
+    if (watch != null) return 'https://www.youtube.com/embed/${watch.group(1)}';
+
+    final be = RegExp(r'youtu\.be/([A-Za-z0-9_-]{6,})').firstMatch(trimmed);
+    if (be != null) return 'https://www.youtube.com/embed/${be.group(1)}';
+
+    final path = RegExp(r'youtube\.com/(?:embed|live|shorts|v)/([A-Za-z0-9_-]{6,})').firstMatch(trimmed);
+    if (path != null) return 'https://www.youtube.com/embed/${path.group(1)}';
+
+    return trimmed;
   }
 
   @override
@@ -53,14 +86,24 @@ class _LiveScreenState extends State<LiveScreen> {
             style: const TextStyle(color: AppColors.inkDim),
           ),
           const SizedBox(height: 24),
-          if (s.livestreamEmbedUrl != null)
-            ElevatedButton.icon(
-              onPressed: () => launchUrl(Uri.parse(s.livestreamEmbedUrl!), mode: LaunchMode.externalApplication),
-              icon: const Icon(Icons.play_circle_fill),
-              label: const Text('Watch Stream'),
+          if (_embedUrl != null && _controller != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: WebViewWidget(controller: _controller!),
+              ),
             )
           else
             const EmptyState(message: 'No stream configured yet.'),
+          if (_embedUrl != null) ...[
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: () => launchUrl(Uri.parse(_embedUrl!), mode: LaunchMode.externalApplication),
+              icon: const Icon(Icons.open_in_new),
+              label: const Text('Open in YouTube app'),
+            ),
+          ],
           if (s.serviceTimes.isNotEmpty) ...[
             const SizedBox(height: 30),
             Text('Service Times', style: Theme.of(context).textTheme.titleLarge),

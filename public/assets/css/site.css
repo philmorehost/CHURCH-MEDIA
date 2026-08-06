@@ -187,3 +187,34 @@ p{margin:0 0 1em;}
 .chip{padding:8px 16px; border-radius:999px; border:1px solid var(--border-soft); font-size:13px; color:var(--ink-dim); cursor:pointer;}
 .chip.active{background:var(--gold-dim); border-color:#e8b95f55; color:var(--gold-soft);}
 .pagination{display:flex; justify-content:center; gap:10px; margin-top:36px;}
+
+/* ============ Responsive polish ============ */
+@media (max-width:768px){
+  .container{padding:0 18px;}
+  .nav-row{padding:14px 18px;}
+  .hero{min-height:84vh;}
+  .hero-content{padding:96px 20px 64px;}
+  .hero-actions{width:100%; flex-direction:column; align-items:stretch;}
+  .hero-actions .btn{width:100%;}
+  .section-head{margin-bottom:30px;}
+  .service-pill{min-width:0; width:100%; flex:1 1 100%;}
+  .footer-bottom{flex-direction:column; text-align:center;}
+}
+@media (max-width:480px){
+  .container{padding:0 16px;}
+  .nav-brand{font-size:15px;}
+  .nav-links{inset:60px 0 0 0; padding:12px;}
+  .section{padding:48px 0;}
+  .grid{gap:16px;}
+  .hero-content h1{font-size:clamp(32px,9vw,40px);}
+  .btn{padding:13px 22px;}
+  .info-card .body{padding:16px;}
+}
+/* Prevent iOS Safari auto-zoom when focusing inputs */
+@media (max-width:768px){
+  input,select,textarea{font-size:16px;}
+}
+/* Safe-area / dynamic viewport support for iOS + Android mobile browsers */
+@supports (height:100dvh){
+  .reels-page{height:100dvh;}
+}

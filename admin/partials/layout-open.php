@@ -31,7 +31,8 @@ $navItemsSystem = [
 </head>
 <body>
 <div class="admin-shell">
-  <aside class="sidebar">
+  <div class="sidebar-overlay" data-admin-overlay></div>
+  <aside class="sidebar" data-admin-sidebar>
     <div class="brand">
       <div class="mark">C</div>
       <span><?= e(setting('site_title')) ?><br><small style="color:var(--ink-faint);font-weight:400;">Admin</small></span>
@@ -53,7 +54,10 @@ $navItemsSystem = [
   </aside>
   <div class="main">
     <div class="topbar">
-      <h1><?= e($pageTitle) ?></h1>
+      <div class="topbar-left">
+        <button class="menu-toggle" data-admin-toggle aria-label="Menu">☰</button>
+        <h1><?= e($pageTitle) ?></h1>
+      </div>
       <div class="actions">
         <a href="/admin/account" style="color:var(--ink-dim);font-size:13px;"><?= e($adminUser['name'] ?? '') ?> · <span style="color:var(--gold-soft);text-transform:capitalize;"><?= e($adminUser['role'] ?? '') ?></span></a>
       </div>

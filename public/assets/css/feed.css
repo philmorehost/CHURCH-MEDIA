@@ -5,6 +5,7 @@
 .reels-page{
   height:100vh; display:flex; flex-direction:column; background:#000; position:relative;
 }
+@supports (height:100dvh){ .reels-page{height:100dvh;} }
 @media (min-width:620px){
   .reels-page{max-width:470px; margin:0 auto; border-left:1px solid #1f1f1f; border-right:1px solid #1f1f1f;}
   body{background:#0a0a0a;}
@@ -68,17 +69,6 @@
 }
 .reel-dots span{width:4px; height:16px; border-radius:4px; background:#ffffff80; transition:background .2s,height .2s;}
 .reel-dots span.on{background:#fff; height:22px;}
-
-.reel-spinner{
-  position:absolute; top:14px; left:14px; z-index:6; display:flex; align-items:center; gap:8px;
-  background:#0009; color:#fff; padding:6px 12px; border-radius:999px; font-size:11.5px; font-weight:600;
-  backdrop-filter:blur(6px);
-}
-.spinner-ring{
-  width:14px; height:14px; border-radius:50%; border:2px solid #ffffff55; border-top-color:#fff;
-  animation:spin .8s linear infinite;
-}
-@keyframes spin{to{transform:rotate(360deg);}}
 
 /* bottom-left info */
 .reel-info{position:absolute; left:14px; right:84px; bottom:22px; z-index:4; color:#fff;}

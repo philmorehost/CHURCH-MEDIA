@@ -52,7 +52,6 @@ $categories = Database::getInstance()->getConnection()
     <div class="reel-media"></div>
     <div class="reel-scrim"></div>
     <div class="reel-dots"></div>
-    <div class="reel-spinner" hidden><div class="spinner-ring"></div><span>Converting…</span></div>
 
     <div class="reel-info">
       <div class="reel-author-row">

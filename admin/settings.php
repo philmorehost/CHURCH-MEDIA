@@ -138,8 +138,8 @@ require __DIR__ . '/partials/layout-open.php';
       <div><label for="youtube_url">YouTube URL</label><input type="url" id="youtube_url" name="youtube_url" value="<?= e((string) $row['youtube_url']) ?>"></div>
       <div><label for="tiktok_url">TikTok URL</label><input type="url" id="tiktok_url" name="tiktok_url" value="<?= e((string) $row['tiktok_url']) ?>"></div>
     </div>
-    <label for="livestream_embed_url">Livestream Embed URL (YouTube/Facebook Live)</label>
-    <input type="url" id="livestream_embed_url" name="livestream_embed_url" value="<?= e((string) $row['livestream_embed_url']) ?>">
+    <label for="livestream_embed_url">Livestream YouTube Link (paste your channel's live video URL)</label>
+    <input type="url" id="livestream_embed_url" name="livestream_embed_url" value="<?= e((string) $row['livestream_embed_url']) ?>" placeholder="https://www.youtube.com/watch?v=... or https://www.youtube.com/live/...">
     <div class="checkbox-row">
       <input type="checkbox" id="livestream_is_live" name="livestream_is_live" <?= !empty($row['livestream_is_live']) ? 'checked' : '' ?>>
       <label for="livestream_is_live" style="margin:0;">We are live right now (shows "LIVE" badge site-wide)</label>

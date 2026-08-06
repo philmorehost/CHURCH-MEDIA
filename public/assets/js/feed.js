@@ -106,8 +106,6 @@
     var items = post.media_items && post.media_items.length ? post.media_items : [];
     if (!items.length) { return; }
     var activeIndex = 0;
-    var pending = items.some(function (i) { return i.processing_status === 'pending'; });
-    if (pending) { slide.querySelector('.reel-spinner').hidden = false; }
 
     function render(index) {
       mediaEl.innerHTML = '';
