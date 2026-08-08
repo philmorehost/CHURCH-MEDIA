@@ -64,7 +64,7 @@ class MediaProcessor
      * smaller of the two. Animated GIFs are stored untouched (conversion would
      * flatten them to a single frame). Accepts JPEG, PNG, GIF, WebP, BMP, AVIF.
      */
-    public static function compressImage(string $sourcePath, string $destinationDirectory, int $maxEdge = 1280, int $quality = 78): ?string
+    public static function compressImage(string $sourcePath, string $destinationDirectory, int $maxEdge = 1280, int $quality = 78, string $prefix = 'form_'): ?string
     {
         if (!is_file($sourcePath)) {
             return null;
@@ -79,7 +79,7 @@ class MediaProcessor
             if (!is_dir($destinationDirectory)) {
                 mkdir($destinationDirectory, 0775, true);
             }
-            $name = uniqid('form_', true) . '.gif';
+            $name = uniqid($prefix, true) . '.gif';
             copy($sourcePath, $destinationDirectory . '/' . $name);
             return $name;
         }
@@ -117,7 +117,7 @@ class MediaProcessor
         if (!is_dir($destinationDirectory)) {
             mkdir($destinationDirectory, 0775, true);
         }
-        $name = uniqid('form_', true) . '.webp';
+        $name = uniqid($prefix, true) . '.webp';
         $outPath = $destinationDirectory . '/' . $name;
         $ok = imagewebp($image, $outPath, $quality);
         imagedestroy($image);
@@ -129,7 +129,7 @@ class MediaProcessor
         // Keep whichever representation is smaller on disk.
         if (filesize($outPath) >= filesize($sourcePath)) {
             $ext = preg_replace('/[^a-z0-9]/', '', strtolower((string) pathinfo($sourcePath, PATHINFO_EXTENSION))) ?: 'img';
-            $keepName = uniqid('form_', true) . '.' . $ext;
+            $keepName = uniqid($prefix, true) . '.' . $ext;
             copy($sourcePath, $destinationDirectory . '/' . $keepName);
             @unlink($outPath);
             return $keepName;

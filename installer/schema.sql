@@ -11,6 +11,12 @@ CREATE TABLE IF NOT EXISTS `settings` (
   `favicon_path` VARCHAR(255) NULL,
   `hero_tagline` VARCHAR(255) NULL,
   `hero_scripture` VARCHAR(255) NULL,
+  `hero_eyebrow` VARCHAR(120) NULL,
+  `hero_image_path` VARCHAR(255) NULL,
+  `hero_cta_primary_label` VARCHAR(60) NULL,
+  `hero_cta_primary_url` VARCHAR(500) NULL,
+  `hero_cta_secondary_label` VARCHAR(60) NULL,
+  `hero_cta_secondary_url` VARCHAR(500) NULL,
   `contact_email` VARCHAR(150) NULL,
   `contact_phone` VARCHAR(50) NULL,
   `address` VARCHAR(255) NULL,
@@ -254,6 +260,32 @@ CREATE TABLE IF NOT EXISTS `form_submissions` (
   FOREIGN KEY (`form_id`) REFERENCES `forms`(`id`) ON DELETE CASCADE,
   INDEX `idx_submission_form_time` (`form_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- CMS pages — editable site pages (About, new pages), content is a JSON array
+-- of design sections (hero / text / columns / image / quote / cta).
+CREATE TABLE IF NOT EXISTS `pages` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `title` VARCHAR(200) NOT NULL,
+  `slug` VARCHAR(220) NOT NULL UNIQUE,
+  `eyebrow` VARCHAR(120) NULL,
+  `content` LONGTEXT NULL COMMENT 'JSON array of content sections',
+  `meta_description` VARCHAR(255) NULL,
+  `in_nav` TINYINT(1) NOT NULL DEFAULT 0,
+  `nav_label` VARCHAR(60) NULL,
+  `is_published` TINYINT(1) NOT NULL DEFAULT 1,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_page_nav` (`is_published`, `in_nav`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Seed the About page so the existing /about link has CMS content.
+INSERT INTO `pages` (`title`, `slug`, `eyebrow`, `content`, `meta_description`, `in_nav`, `nav_label`)
+SELECT 'About Us', 'about', 'Our Story',
+  '[{"type":"text","heading":"Welcome to Grace \u0026 Life Church","body":"We are a family of believers on a journey together — growing in faith, building community, and serving our city with the love of Christ.","align":"center"},{"type":"columns","heading":"Why We Exist","columns":[{"heading":"Our Mission","body":"To lead people into a growing relationship with God, build authentic community, and serve our city with the love of Christ."},{"heading":"Our Vision","body":"A church without walls — reaching every generation, in the room and online, with hope that lasts."},{"heading":"Our Values","body":"Grace first. People over programs. Faith in action. Generosity, humility, and love in everything we do."}]},{"type":"quote","quote":"Wherever you are on your journey, you are welcome here — exactly as you are.","source":"Grace \u0026 Life Church"},{"type":"cta","title":"Come worship with us this weekend","subtitle":"Every Sunday — in the room and online.","label":"Plan a Visit","url":"/contact"}]',
+  'Learn about our story, mission, vision, and values.', 1, 'About',
+  (SELECT COUNT(*) FROM `pages` WHERE `slug` = 'about')
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM `pages` WHERE `slug` = 'about');
 
 -- Seed a starter set of media categories so the admin composer isn't empty on first login.
 INSERT INTO `media_categories` (`name`, `slug`) VALUES

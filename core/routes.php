@@ -33,7 +33,11 @@ $router->get('/sermons/{slug}', function (array $params) {
 });
 
 $router->get('/about', function () {
-    render('about');
+    render('page', ['slug' => 'about']);
+});
+
+$router->get('/page/{slug}', function (array $params) {
+    render('page', ['slug' => $params['slug']]);
 });
 
 $router->get('/contact', function () {

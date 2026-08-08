@@ -317,3 +317,116 @@ function videoConversionStatus(array $item): string
     }
     return 'original';
 }
+
+/**
+ * Renders a page's content sections into the public design templates. Each
+ * section is one block in the JSON stored on `pages.content`:
+ * hero / text / columns / image / quote / cta.
+ */
+function renderPageSections(array $sections): void
+{
+    foreach ($sections as $section) {
+        if (!is_array($section)) {
+            continue;
+        }
+        switch ($section['type'] ?? 'text') {
+            case 'hero':
+                $img = !empty($section['image']) ? uploadUrl((string) $section['image']) : null;
+                echo '<section class="page-hero' . ($img ? ' has-img' : '') . '">';
+                if ($img) {
+                    echo '<img src="' . e($img) . '" alt="' . e((string) ($section['alt'] ?? '')) . '" loading="eager">';
+                    echo '<div class="page-hero-shade"></div>';
+                }
+                echo '<div class="page-hero-inner">';
+                if (!empty($section['eyebrow'])) {
+                    echo '<span class="eyebrow">' . e((string) $section['eyebrow']) . '</span>';
+                }
+                if (!empty($section['title'])) {
+                    echo '<h1>' . e((string) $section['title']) . '</h1>';
+                }
+                if (!empty($section['subtitle'])) {
+                    echo '<p class="page-hero-sub">' . e((string) $section['subtitle']) . '</p>';
+                }
+                echo '</div></section>';
+                break;
+
+            case 'text':
+                $center = ($section['align'] ?? '') === 'center' ? ' center' : '';
+                echo '<section class="section page-text' . $center . '"><div class="container" style="max-width:780px;">';
+                if (!empty($section['heading'])) {
+                    echo '<h2 class="page-heading">' . e((string) $section['heading']) . '</h2>';
+                }
+                foreach (preg_split('/\n{2,}/', trim((string) ($section['body'] ?? ''))) ?: [] as $para) {
+                    if (trim($para) !== '') {
+                        echo '<p class="page-body">' . nl2br(e(trim($para))) . '</p>';
+                    }
+                }
+                echo '</div></section>';
+                break;
+
+            case 'columns':
+                $cols = array_values(array_filter($section['columns'] ?? [], 'is_array'));
+                echo '<section class="section"><div class="container">';
+                if (!empty($section['heading'])) {
+                    echo '<div class="section-head"><span class="eyebrow">' . e((string) ($section['eyebrow'] ?? '')) . '</span><h2>' . e((string) $section['heading']) . '</h2></div>';
+                }
+                $n = min(4, max(1, count($cols)));
+                echo '<div class="grid grid-' . $n . '">';
+                foreach ($cols as $col) {
+                    echo '<div class="glass-card" style="padding:26px;">';
+                    if (!empty($col['heading'])) {
+                        echo '<h3 style="margin:0 0 10px;">' . e((string) $col['heading']) . '</h3>';
+                    }
+                    if (!empty($col['body'])) {
+                        echo '<p style="color:var(--ink-dim); margin:0;">' . nl2br(e((string) $col['body'])) . '</p>';
+                    }
+                    echo '</div>';
+                }
+                echo '</div></div></section>';
+                break;
+
+            case 'image':
+                if (empty($section['image'])) {
+                    break;
+                }
+                echo '<section class="section"><div class="container">';
+                echo '<figure class="page-figure"><img src="' . e(uploadUrl((string) $section['image'])) . '" alt="' . e((string) ($section['alt'] ?? '')) . '" loading="lazy">';
+                if (!empty($section['caption'])) {
+                    echo '<figcaption>' . e((string) $section['caption']) . '</figcaption>';
+                }
+                echo '</figure></div></section>';
+                break;
+
+            case 'quote':
+                if (empty($section['quote'])) {
+                    break;
+                }
+                echo '<section class="section"><div class="container">';
+                echo '<blockquote class="page-quote">';
+                echo '<span class="q-mark">”</span><p>' . e((string) $section['quote']) . '</p>';
+                if (!empty($section['source'])) {
+                    echo '<footer>— ' . e((string) $section['source']) . '</footer>';
+                }
+                echo '</blockquote></div></section>';
+                break;
+
+            case 'cta':
+                echo '<section class="section"><div class="container" style="text-align:center;">';
+                if (!empty($section['title'])) {
+                    echo '<h2 class="page-cta-title">' . e((string) $section['title']) . '</h2>';
+                }
+                if (!empty($section['subtitle'])) {
+                    echo '<p class="page-cta-sub">' . e((string) $section['subtitle']) . '</p>';
+                }
+                if (!empty($section['label'])) {
+                    $url = (string) ($section['url'] ?? '#');
+                    if (!preg_match('#^https?://#', $url) && !str_starts_with($url, '/')) {
+                        $url = '/' . $url;
+                    }
+                    echo '<div class="hero-actions" style="margin-top:24px;"><a class="btn btn-gold" href="' . e($url) . '">' . e((string) $section['label']) . '</a></div>';
+                }
+                echo '</div></section>';
+                break;
+        }
+    }
+}

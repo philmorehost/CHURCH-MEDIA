@@ -24,6 +24,10 @@ foreach ($pdo->query('SELECT slug, created_at AS ts FROM events WHERE is_publish
 foreach ($pdo->query('SELECT slug, published_at AS ts FROM sermons WHERE is_published = 1') as $row) {
     $urls[] = ['loc' => baseUrl('sermons/' . $row['slug']), 'priority' => '0.6', 'lastmod' => $row['ts']];
 }
+foreach ($pdo->query('SELECT slug, updated_at AS ts FROM pages WHERE is_published = 1') as $row) {
+    $href = $row['slug'] === 'about' ? 'about' : 'page/' . $row['slug'];
+    $urls[] = ['loc' => baseUrl($href), 'priority' => '0.5', 'lastmod' => $row['ts']];
+}
 
 echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";

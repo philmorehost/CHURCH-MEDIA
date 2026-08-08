@@ -13,6 +13,12 @@ return [
     'favicon_path'         => null,
     'hero_tagline'         => 'Where Faith Comes Alive',
     'hero_scripture'       => '"For where two or three gather in my name, there am I with them." — Matthew 18:20',
+    'hero_eyebrow'         => 'Welcome Home',
+    'hero_image_path'      => null,
+    'hero_cta_primary_label'   => 'Plan Your Visit',
+    'hero_cta_primary_url'     => '/about',
+    'hero_cta_secondary_label' => 'Watch the Feed',
+    'hero_cta_secondary_url'   => '/feed',
     'contact_email'        => 'contact@example.org', // replace at /admin/settings after install
     'contact_phone'        => null,
     'address'              => null,

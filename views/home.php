@@ -18,18 +18,22 @@ $serviceTimes = $s['service_times'] ? (json_decode((string) $s['service_times'],
 $isLive = !empty($s['livestream_is_live']);
 ?>
 
-<section class="hero">
+<section class="hero<?= $s['hero_image_path'] ? ' has-image' : '' ?>">
+  <?php if ($s['hero_image_path']): ?>
+    <img class="hero-img" src="<?= e(uploadUrl($s['hero_image_path'])) ?>" alt="" fetchpriority="high">
+    <div class="hero-shade"></div>
+  <?php endif; ?>
   <div class="hero-content">
-    <span class="eyebrow">Welcome Home</span>
+    <span class="eyebrow"><?= e($s['hero_eyebrow'] ?? 'Welcome Home') ?></span>
     <h1><?= e($s['hero_tagline'] ?? $s['site_tagline'] ?? $s['site_title']) ?></h1>
     <?php if ($s['hero_scripture'] ?? null): ?><p class="scripture"><?= e($s['hero_scripture']) ?></p><?php endif; ?>
     <div class="hero-actions">
       <?php if ($isLive): ?>
         <a href="/live" class="btn btn-gold">▶ Watch Live Now</a>
       <?php else: ?>
-        <a href="/about" class="btn btn-gold">Plan Your Visit</a>
+        <a href="<?= e($s['hero_cta_primary_url'] ?? '/about') ?>" class="btn btn-gold"><?= e($s['hero_cta_primary_label'] ?? 'Plan Your Visit') ?></a>
       <?php endif; ?>
-      <a href="/feed" class="btn btn-ghost">Watch the Feed</a>
+      <a href="<?= e($s['hero_cta_secondary_url'] ?? '/feed') ?>" class="btn btn-ghost"><?= e($s['hero_cta_secondary_label'] ?? 'Watch the Feed') ?></a>
     </div>
   </div>
   <div class="hero-scroll">Scroll</div>

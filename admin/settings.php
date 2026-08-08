@@ -16,6 +16,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'site_tagline' => trim($_POST['site_tagline'] ?? ''),
         'hero_tagline' => trim($_POST['hero_tagline'] ?? ''),
         'hero_scripture' => trim($_POST['hero_scripture'] ?? ''),
+        'hero_eyebrow' => trim($_POST['hero_eyebrow'] ?? ''),
+        'hero_cta_primary_label' => trim($_POST['hero_cta_primary_label'] ?? ''),
+        'hero_cta_primary_url' => trim($_POST['hero_cta_primary_url'] ?? ''),
+        'hero_cta_secondary_label' => trim($_POST['hero_cta_secondary_label'] ?? ''),
+        'hero_cta_secondary_url' => trim($_POST['hero_cta_secondary_url'] ?? ''),
         'contact_email' => trim($_POST['contact_email'] ?? ''),
         'contact_phone' => trim($_POST['contact_phone'] ?? ''),
         'address' => trim($_POST['address'] ?? ''),
@@ -57,6 +62,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $fields['favicon_path'] = 'webp/' . $filename;
             }
         }
+        if (isset($_POST['remove_hero_image'])) {
+            $fields['hero_image_path'] = null;
+        } elseif (!empty($_FILES['hero_image']['tmp_name']) && is_uploaded_file($_FILES['hero_image']['tmp_name'])) {
+            $filename = MediaProcessor::processImage($_FILES['hero_image']['tmp_name'], UPLOADS_WEBP_PATH, 80);
+            if ($filename) {
+                $fields['hero_image_path'] = 'webp/' . $filename;
+            }
+        }
 
         $setSql = implode(', ', array_map(fn ($k) => "$k = :$k", array_keys($fields)));
         $pdo->prepare("UPDATE settings SET $setSql WHERE id = :id")->execute([...$fields, 'id' => $row['id']]);
@@ -93,10 +106,6 @@ require __DIR__ . '/partials/layout-open.php';
         <input type="text" id="site_tagline" name="site_tagline" value="<?= e((string) $row['site_tagline']) ?>">
       </div>
     </div>
-    <label for="hero_tagline">Homepage Hero Tagline</label>
-    <input type="text" id="hero_tagline" name="hero_tagline" value="<?= e((string) $row['hero_tagline']) ?>">
-    <label for="hero_scripture">Homepage Hero Scripture</label>
-    <input type="text" id="hero_scripture" name="hero_scripture" value="<?= e((string) $row['hero_scripture']) ?>">
     <div class="row two">
       <div>
         <label for="logo">Logo <?= $row['logo_path'] ? '(currently set)' : '' ?></label>
@@ -107,6 +116,48 @@ require __DIR__ . '/partials/layout-open.php';
         <label for="favicon">Favicon <?= $row['favicon_path'] ? '(currently set)' : '' ?></label>
         <input type="file" id="favicon" name="favicon" accept="image/*">
         <?php if ($row['favicon_path']): ?><img src="<?= e(uploadUrl($row['favicon_path'])) ?>" class="thumb" alt=""><?php endif; ?>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Homepage Hero</h2>
+    <p class="sub">The large banner at the top of the homepage. Upload a background image (compressed to WebP automatically) and edit the text that sits on top of it.</p>
+    <label for="hero_image">Hero Background Image <?= $row['hero_image_path'] ? '(currently set)' : '' ?></label>
+    <input type="file" id="hero_image" name="hero_image" accept="image/*">
+    <?php if ($row['hero_image_path']): ?>
+      <div style="display:flex; align-items:center; gap:14px; margin:10px 0;">
+        <img src="<?= e(uploadUrl($row['hero_image_path'])) ?>" class="thumb" alt="" style="width:120px; height:68px; object-fit:cover; border-radius:10px;">
+        <label class="checkbox-row" style="margin:0;">
+          <input type="checkbox" id="remove_hero_image" name="remove_hero_image">
+          <label for="remove_hero_image" style="margin:0;">Remove current image (back to the animated gradient)</label>
+        </label>
+      </div>
+    <?php endif; ?>
+    <label for="hero_eyebrow">Eyebrow Text <small>(small label above the headline)</small></label>
+    <input type="text" id="hero_eyebrow" name="hero_eyebrow" value="<?= e((string) $row['hero_eyebrow']) ?>" placeholder="Welcome Home">
+    <label for="hero_tagline2">Headline (Hero Tagline)</label>
+    <input type="text" id="hero_tagline2" name="hero_tagline" value="<?= e((string) $row['hero_tagline']) ?>" placeholder="Where Faith Comes Alive">
+    <label for="hero_scripture2">Scripture Line</label>
+    <input type="text" id="hero_scripture2" name="hero_scripture" value="<?= e((string) $row['hero_scripture']) ?>">
+    <div class="row two">
+      <div>
+        <label for="hero_cta_primary_label">Primary Button Label</label>
+        <input type="text" id="hero_cta_primary_label" name="hero_cta_primary_label" value="<?= e((string) $row['hero_cta_primary_label']) ?>" placeholder="Plan Your Visit">
+      </div>
+      <div>
+        <label for="hero_cta_primary_url">Primary Button Link</label>
+        <input type="text" id="hero_cta_primary_url" name="hero_cta_primary_url" value="<?= e((string) $row['hero_cta_primary_url']) ?>" placeholder="/about or https://…">
+      </div>
+    </div>
+    <div class="row two">
+      <div>
+        <label for="hero_cta_secondary_label">Secondary Button Label</label>
+        <input type="text" id="hero_cta_secondary_label" name="hero_cta_secondary_label" value="<?= e((string) $row['hero_cta_secondary_label']) ?>" placeholder="Watch the Feed">
+      </div>
+      <div>
+        <label for="hero_cta_secondary_url">Secondary Button Link</label>
+        <input type="text" id="hero_cta_secondary_url" name="hero_cta_secondary_url" value="<?= e((string) $row['hero_cta_secondary_url']) ?>" placeholder="/feed or https://…">
       </div>
     </div>
   </div>

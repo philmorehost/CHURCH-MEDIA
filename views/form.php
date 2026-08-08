@@ -40,13 +40,25 @@ $metaRobots = 'noindex, nofollow';
       </div>
     <?php elseif (!$accepting): ?>
       <div class="form-closed">
-        <div class="form-check closed">✕</div>
-        <h1 class="form-title center">This form is closed</h1>
+        <div class="form-check closed">
+          <svg viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="24" fill="none"/>
+            <path class="x1" fill="none" d="M17 17l18 18"/>
+            <path class="x2" fill="none" d="M35 17L17 35"/>
+          </svg>
+        </div>
+        <span class="eyebrow">Response Window Closed</span>
+        <h1 class="form-title center">This form has closed</h1>
         <?php if (formsExpired($form)): ?>
-          <p class="form-desc center">This form stopped accepting responses on <strong><?= e(date('F j, Y \a\t g:i A', strtotime((string) $form['end_at']))) ?></strong>.</p>
+          <p class="form-desc center">It stopped accepting responses on <strong><?= e(date('F j, Y \a\t g:i A', strtotime((string) $form['end_at']))) ?></strong>.</p>
         <?php else: ?>
-          <p class="form-desc center">This form is no longer available.</p>
+          <p class="form-desc center">This form is no longer accepting responses.</p>
         <?php endif; ?>
+        <p class="form-desc center" style="margin-top:2px;">Thank you for your interest — if you'd like to reach us, we'd love to hear from you.</p>
+        <div class="form-closed-actions">
+          <a class="form-submit" href="/contact">Contact Us</a>
+          <a class="form-submit ghost" href="/">Back to Homepage</a>
+        </div>
       </div>
     <?php else: ?>
       <div class="form-banner">

@@ -16,4 +16,5 @@ define('UPLOADS_WEBP_PATH', UPLOADS_PATH . '/webp');
 define('UPLOADS_REELS_PATH', UPLOADS_PATH . '/reels');
 define('UPLOADS_THUMBS_PATH', UPLOADS_PATH . '/thumbs');
 define('UPLOADS_FORM_PATH', UPLOADS_PATH . '/form-files');
+define('UPLOADS_CMS_PATH', UPLOADS_PATH . '/cms');
 define('INSTALL_LOCK_FILE', STORAGE_PATH . '/installed.lock');

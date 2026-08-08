@@ -18,6 +18,16 @@ $navLinks = [
     '/about' => 'About',
     '/contact' => 'Contact',
 ];
+try {
+    $navPages = Database::getInstance()->getConnection()
+        ->query('SELECT slug, nav_label, title FROM pages WHERE is_published = 1 AND in_nav = 1 ORDER BY sort_order ASC, id ASC');
+    foreach ($navPages->fetchAll() as $pg) {
+        $href = $pg['slug'] === 'about' ? '/about' : '/page/' . rawurlencode((string) $pg['slug']);
+        $navLinks[$href] = $pg['nav_label'] ?: $pg['title'];
+    }
+} catch (Throwable $e) {
+    error_log('CMS nav skipped: ' . $e->getMessage());
+}
 ?><!doctype html>
 <html lang="en">
 <head>

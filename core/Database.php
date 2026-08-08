@@ -179,6 +179,50 @@ class Database
                 // Widens form_fields.field_type to accept the new 'image' upload type.
                 $pdo->exec("ALTER TABLE `form_fields` MODIFY COLUMN `field_type` ENUM('text','textarea','email','phone','number','date','url','select','radio','checkbox','image') NOT NULL DEFAULT 'text'");
             },
+            '2026_08_pages' => function (PDO $pdo): void {
+                // Homepage hero: editable eyebrow text, background image, and CTA labels/links.
+                self::addColumnIfMissing($pdo, 'settings', 'hero_eyebrow', "VARCHAR(120) NULL", 'hero_scripture');
+                self::addColumnIfMissing($pdo, 'settings', 'hero_image_path', "VARCHAR(255) NULL", 'hero_eyebrow');
+                self::addColumnIfMissing($pdo, 'settings', 'hero_cta_primary_label', "VARCHAR(60) NULL", 'hero_image_path');
+                self::addColumnIfMissing($pdo, 'settings', 'hero_cta_primary_url', "VARCHAR(500) NULL", 'hero_cta_primary_label');
+                self::addColumnIfMissing($pdo, 'settings', 'hero_cta_secondary_label', "VARCHAR(60) NULL", 'hero_cta_primary_url');
+                self::addColumnIfMissing($pdo, 'settings', 'hero_cta_secondary_url', "VARCHAR(500) NULL", 'hero_cta_secondary_label');
+
+                // CMS pages table (JSON section-based content rendered into a template).
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `pages` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `title` VARCHAR(200) NOT NULL,
+                    `slug` VARCHAR(220) NOT NULL UNIQUE,
+                    `eyebrow` VARCHAR(120) NULL,
+                    `content` LONGTEXT NULL COMMENT 'JSON array of content sections',
+                    `meta_description` VARCHAR(255) NULL,
+                    `in_nav` TINYINT(1) NOT NULL DEFAULT 0,
+                    `nav_label` VARCHAR(60) NULL,
+                    `is_published` TINYINT(1) NOT NULL DEFAULT 1,
+                    `sort_order` INT NOT NULL DEFAULT 0,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX `idx_page_nav` (`is_published`, `in_nav`, `sort_order`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                // Seed the About page so the existing /about link has CMS content.
+                $check = $pdo->prepare('SELECT COUNT(*) FROM pages WHERE slug = ?');
+                $check->execute(['about']);
+                if (!(int) $check->fetchColumn()) {
+                    $content = json_encode([
+                        ['type' => 'text', 'heading' => 'Welcome to Grace & Life Church', 'body' => 'We are a family of believers on a journey together — growing in faith, building community, and serving our city with the love of Christ.', 'align' => 'center'],
+                        ['type' => 'columns', 'heading' => 'Why We Exist', 'columns' => [
+                            ['heading' => 'Our Mission', 'body' => 'To lead people into a growing relationship with God, build authentic community, and serve our city with the love of Christ.'],
+                            ['heading' => 'Our Vision', 'body' => 'A church without walls — reaching every generation, in the room and online, with hope that lasts.'],
+                            ['heading' => 'Our Values', 'body' => 'Grace first. People over programs. Faith in action. Generosity, humility, and love in everything we do.'],
+                        ]],
+                        ['type' => 'quote', 'quote' => 'Wherever you are on your journey, you are welcome here — exactly as you are.', 'source' => 'Grace & Life Church'],
+                        ['type' => 'cta', 'title' => 'Come worship with us this weekend', 'subtitle' => 'Every Sunday — in the room and online.', 'label' => 'Plan a Visit', 'url' => '/contact'],
+                    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    $pdo->prepare('INSERT INTO pages (title, slug, eyebrow, content, meta_description, in_nav, nav_label, sort_order) VALUES (?, ?, ?, ?, ?, 1, ?, 10)')
+                        ->execute(['About Us', 'about', 'Our Story', $content, 'Learn about our story, mission, vision, and values.', 'About']);
+                }
+            },
         ];
     }
 
