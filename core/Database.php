@@ -250,17 +250,67 @@ class Database
         ]);
     }
 
-    /** Naive but sufficient statement splitter for our own schema.sql (no stored procs/triggers with embedded ';'). */
+    /**
+     * Naive but sufficient statement splitter for our own schema.sql. Splits on
+     * ';' outside of string literals and backticks, so semicolons inside column
+     * COMMENTS and seeded data can't break the import.
+     */
     public static function importSqlFile(PDO $pdo, string $path): void
     {
         $sql = (string) file_get_contents($path);
         $sql = preg_replace('/^--.*$/m', '', $sql); // strip line comments
-        $statements = array_filter(array_map('trim', explode(';', $sql)));
-        foreach ($statements as $statement) {
+        foreach (self::splitStatements($sql) as $statement) {
             // query()+fetchAll() consumes any result set (e.g. an EXECUTE of a
             // SELECT) so the next statement never trips MySQL's "unbuffered
             // query active" (SQLSTATE 2014) error.
             $pdo->query($statement)->fetchAll();
         }
+    }
+
+    /** Splits SQL into statements, honouring '...' and `...` with '' / `` / \\ escapes. */
+    private static function splitStatements(string $sql): array
+    {
+        $statements = [];
+        $buffer = '';
+        $length = strlen($sql);
+        $quote = null;
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote !== null) {
+                $buffer .= $char;
+                if ($char === $quote) {
+                    // MySQL escapes a quote inside a string by doubling it ('' or ``).
+                    if ($i + 1 < $length && $sql[$i + 1] === $quote) {
+                        $buffer .= $sql[$i + 1];
+                        $i++;
+                    } else {
+                        $quote = null;
+                    }
+                } elseif ($char === '\\' && $i + 1 < $length) {
+                    $buffer .= $sql[$i + 1];
+                    $i++;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '`') {
+                $quote = $char;
+                $buffer .= $char;
+                continue;
+            }
+            if ($char === ';') {
+                $trimmed = trim($buffer);
+                if ($trimmed !== '') {
+                    $statements[] = $trimmed;
+                }
+                $buffer = '';
+                continue;
+            }
+            $buffer .= $char;
+        }
+        $trimmed = trim($buffer);
+        if ($trimmed !== '') {
+            $statements[] = $trimmed;
+        }
+        return $statements;
     }
 }

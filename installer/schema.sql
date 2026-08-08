@@ -230,7 +230,7 @@ CREATE TABLE IF NOT EXISTS `forms` (
   `slug` VARCHAR(220) NOT NULL UNIQUE,
   `description` TEXT NULL,
   `submit_label` VARCHAR(100) NOT NULL DEFAULT 'Submit',
-  `end_at` DATETIME NULL COMMENT 'Optional validity end date; NULL = open-ended',
+    `end_at` DATETIME NULL COMMENT 'Optional validity end date (NULL = open-ended)',
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -280,9 +280,9 @@ CREATE TABLE IF NOT EXISTS `pages` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Seed the About page so the existing /about link has CMS content.
-INSERT INTO `pages` (`title`, `slug`, `eyebrow`, `content`, `meta_description`, `in_nav`, `nav_label`)
+INSERT INTO `pages` (`title`, `slug`, `eyebrow`, `content`, `meta_description`, `in_nav`, `nav_label`, `sort_order`)
 SELECT 'About Us', 'about', 'Our Story',
-  '[{"type":"text","heading":"Welcome to Grace \u0026 Life Church","body":"We are a family of believers on a journey together — growing in faith, building community, and serving our city with the love of Christ.","align":"center"},{"type":"columns","heading":"Why We Exist","columns":[{"heading":"Our Mission","body":"To lead people into a growing relationship with God, build authentic community, and serve our city with the love of Christ."},{"heading":"Our Vision","body":"A church without walls — reaching every generation, in the room and online, with hope that lasts."},{"heading":"Our Values","body":"Grace first. People over programs. Faith in action. Generosity, humility, and love in everything we do."}]},{"type":"quote","quote":"Wherever you are on your journey, you are welcome here — exactly as you are.","source":"Grace \u0026 Life Church"},{"type":"cta","title":"Come worship with us this weekend","subtitle":"Every Sunday — in the room and online.","label":"Plan a Visit","url":"/contact"}]',
+  '[{"type":"text","heading":"Welcome to Grace & Life Church","body":"We are a family of believers on a journey together — growing in faith, building community, and serving our city with the love of Christ.","align":"center"},{"type":"columns","heading":"Why We Exist","columns":[{"heading":"Our Mission","body":"To lead people into a growing relationship with God, build authentic community, and serve our city with the love of Christ."},{"heading":"Our Vision","body":"A church without walls — reaching every generation, in the room and online, with hope that lasts."},{"heading":"Our Values","body":"Grace first. People over programs. Faith in action. Generosity, humility, and love in everything we do."}]},{"type":"quote","quote":"Wherever you are on your journey, you are welcome here — exactly as you are.","source":"Grace & Life Church"},{"type":"cta","title":"Come worship with us this weekend","subtitle":"Every Sunday — in the room and online.","label":"Plan a Visit","url":"/contact"}]',
   'Learn about our story, mission, vision, and values.', 1, 'About',
   (SELECT COUNT(*) FROM `pages` WHERE `slug` = 'about')
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM `pages` WHERE `slug` = 'about');
