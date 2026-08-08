@@ -57,6 +57,101 @@ class MediaProcessor
         return $ok ? $filename : null;
     }
 
+    /**
+     * Compresses an uploaded image down to a small WebP (max edge capped, so
+     * oversized photos shrink dramatically). Falls back to the original file
+     * when WebP would be larger than the source — the result is always the
+     * smaller of the two. Animated GIFs are stored untouched (conversion would
+     * flatten them to a single frame). Accepts JPEG, PNG, GIF, WebP, BMP, AVIF.
+     */
+    public static function compressImage(string $sourcePath, string $destinationDirectory, int $maxEdge = 1280, int $quality = 78): ?string
+    {
+        if (!is_file($sourcePath)) {
+            return null;
+        }
+        $info = @getimagesize($sourcePath);
+        if (!$info) {
+            return null;
+        }
+        $mime = $info['mime'];
+
+        if ($mime === 'image/gif' && self::isAnimatedGif($sourcePath)) {
+            if (!is_dir($destinationDirectory)) {
+                mkdir($destinationDirectory, 0775, true);
+            }
+            $name = uniqid('form_', true) . '.gif';
+            copy($sourcePath, $destinationDirectory . '/' . $name);
+            return $name;
+        }
+
+        $image = match ($mime) {
+            'image/jpeg' => @imagecreatefromjpeg($sourcePath),
+            'image/png' => @imagecreatefrompng($sourcePath),
+            'image/gif' => @imagecreatefromgif($sourcePath),
+            'image/webp' => @imagecreatefromwebp($sourcePath),
+            'image/bmp' => function_exists('imagecreatefrombmp') ? @imagecreatefrombmp($sourcePath) : false,
+            'image/avif' => function_exists('imagecreatefromavif') ? @imagecreatefromavif($sourcePath) : false,
+            default => false,
+        };
+        if ($image === false) {
+            return null;
+        }
+
+        // Downscale so nothing large reaches disk (keeps storage tiny).
+        $width = imagesx($image);
+        $height = imagesy($image);
+        if (max($width, $height) > $maxEdge) {
+            $scale = $maxEdge / max($width, $height);
+            $newWidth = (int) round($width * $scale);
+            $newHeight = (int) round($height * $scale);
+            $resized = imagecreatetruecolor($newWidth, $newHeight);
+            imagealphablending($resized, false);
+            imagesavealpha($resized, true);
+            imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+            imagedestroy($image);
+            $image = $resized;
+        }
+        imagealphablending($image, true);
+        imagesavealpha($image, true);
+
+        if (!is_dir($destinationDirectory)) {
+            mkdir($destinationDirectory, 0775, true);
+        }
+        $name = uniqid('form_', true) . '.webp';
+        $outPath = $destinationDirectory . '/' . $name;
+        $ok = imagewebp($image, $outPath, $quality);
+        imagedestroy($image);
+
+        if (!$ok || !is_file($outPath)) {
+            return null;
+        }
+
+        // Keep whichever representation is smaller on disk.
+        if (filesize($outPath) >= filesize($sourcePath)) {
+            $ext = preg_replace('/[^a-z0-9]/', '', strtolower((string) pathinfo($sourcePath, PATHINFO_EXTENSION))) ?: 'img';
+            $keepName = uniqid('form_', true) . '.' . $ext;
+            copy($sourcePath, $destinationDirectory . '/' . $keepName);
+            @unlink($outPath);
+            return $keepName;
+        }
+        return $name;
+    }
+
+    private static function isAnimatedGif(string $path): bool
+    {
+        $handle = @fopen($path, 'rb');
+        if (!$handle) {
+            return false;
+        }
+        $count = 0;
+        while (!feof($handle) && $count < 2) {
+            $chunk = fread($handle, 1024 * 1024);
+            $count += substr_count((string) $chunk, "\x00\x21\xF9\x04");
+        }
+        fclose($handle);
+        return $count > 1;
+    }
+
     /** Generates a WebP poster frame + a vertical 9:16 reel; returns null values for whichever step FFmpeg can't do. */
     public static function processVideoToReel(string $sourcePath, string $destinationDirectory, string $thumbDirectory, ?string $coverSource = null, bool $extractThumb = true): array
     {

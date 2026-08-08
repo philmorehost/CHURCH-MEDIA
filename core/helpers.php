@@ -206,6 +206,93 @@ function formatCount(int $count): string
     return (string) $count;
 }
 
+/** Parses the "one option per line" textarea into a clean list (select/radio/checkbox). */
+function formFieldOptions(array $field): array
+{
+    $options = array_filter(array_map('trim', explode("\n", (string) ($field['options'] ?? ''))));
+    return array_values($options);
+}
+
+/** True when a form has an end date that has already passed (validity window closed). */
+function formsExpired(array $form): bool
+{
+    if (empty($form['end_at'])) {
+        return false;
+    }
+    return strtotime((string) $form['end_at']) <= time();
+}
+
+/** True when a form is currently accepting responses (active + not past its end date). */
+function formsAccepting(array $form): bool
+{
+    return !empty($form['is_active']) && !formsExpired($form);
+}
+
+/** Stashes the raw POST payload so the public form can repopulate inputs after a validation error. */
+function keepFormOld(array $input): void
+{
+    $_SESSION['_form_old'] = $input;
+}
+
+/** Returns the previously submitted value for a form input (string for scalar fields, array for checkbox). */
+function formOld(string $key, mixed $default = ''): mixed
+{
+    $old = $_SESSION['_form_old'] ?? [];
+    return array_key_exists($key, $old) ? $old[$key] : $default;
+}
+
+function clearFormOld(): void
+{
+    unset($_SESSION['_form_old']);
+}
+
+/** Normalizes PHP's $_FILES shape (single vs. multiple) into a flat per-key list of file arrays. */
+function normalizeUploadedFiles(array $files): array
+{
+    $out = [];
+    foreach ($files as $key => $file) {
+        if (!is_array($file['name'] ?? null)) {
+            $out[$key][] = $file;
+            continue;
+        }
+        foreach ($file['name'] as $i => $_) {
+            $out[$key][] = [
+                'name' => $file['name'][$i],
+                'type' => $file['type'][$i] ?? '',
+                'tmp_name' => $file['tmp_name'][$i] ?? '',
+                'error' => $file['error'][$i] ?? UPLOAD_ERR_NO_FILE,
+                'size' => $file['size'][$i] ?? 0,
+            ];
+        }
+    }
+    return $out;
+}
+
+/**
+ * Validates + compresses one uploaded image for a form field. Accepts any image
+ * format (JPG/PNG/GIF/WebP/BMP/AVIF), auto-shrinks it, and returns the stored
+ * relative path ('form-files/xxx') or null when the file isn't a usable image.
+ * Throws RuntimeException for a recoverable violation (too large).
+ */
+function storeFormImageUpload(array $file): ?string
+{
+    if (empty($file['tmp_name']) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        return null;
+    }
+    if (!is_uploaded_file($file['tmp_name'])) {
+        return null;
+    }
+    $maxBytes = 8 * 1024 * 1024;
+    if ((int) ($file['size'] ?? 0) > $maxBytes) {
+        throw new RuntimeException('Image "' . $file['name'] . '" is too large — max 8MB per file.');
+    }
+    $name = MediaProcessor::compressImage($file['tmp_name'], UPLOADS_FORM_PATH);
+    if (!$name) {
+        return null;
+    }
+    return 'form-files/' . $name;
+}
+
 /**
  * Conversion state of one media item row (media_post_items).
  * 'converted'  — a real 9:16 crop finished (converted_at set)

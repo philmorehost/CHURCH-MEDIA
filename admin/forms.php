@@ -1,0 +1,420 @@
+<?php
+declare(strict_types=1);
+
+Auth::requireRole('admin', 'editor');
+$pdo = Database::getInstance()->getConnection();
+$action = $_GET['action'] ?? 'list';
+$id = (int) ($_GET['id'] ?? 0);
+$errors = [];
+
+const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'number', 'date', 'url', 'select', 'radio', 'checkbox', 'image'];
+
+function formSlug(PDO $pdo, string $title, int $ignoreId = 0): string
+{
+    $base = slugify($title);
+    $slug = $base;
+    $i = 1;
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM forms WHERE slug = ? AND id != ?');
+    while (true) {
+        $stmt->execute([$slug, $ignoreId]);
+        if (!$stmt->fetchColumn()) {
+            return $slug;
+        }
+        $slug = $base . '-' . (++$i);
+    }
+}
+
+function formFieldsFor(PDO $pdo, int $formId): array
+{
+    $stmt = $pdo->prepare('SELECT * FROM form_fields WHERE form_id = ? ORDER BY sort_order ASC, id ASC');
+    $stmt->execute([$formId]);
+    return $stmt->fetchAll();
+}
+
+function decodeFieldsPayload(string $raw): ?array
+{
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : null;
+}
+
+/** Normalizes + validates the field array posted by the builder. Returns [cleanFields, errors]. */
+function validateFieldPayload(array $fields): array
+{
+    $clean = [];
+    $errors = [];
+    $i = 0;
+    foreach ($fields as $field) {
+        $i++;
+        if (!is_array($field)) {
+            $errors[] = 'Field #' . $i . ' is malformed.';
+            continue;
+        }
+        $label = trim((string) ($field['label'] ?? ''));
+        $type = (string) ($field['type'] ?? '');
+        if ($label === '') {
+            $errors[] = 'Field #' . $i . ' is missing a label.';
+            continue;
+        }
+        if (!in_array($type, FORM_FIELD_TYPES, true)) {
+            $errors[] = 'Field #' . $i . ' has an invalid type.';
+            continue;
+        }
+        $options = trim((string) ($field['options'] ?? ''));
+        if (in_array($type, ['select', 'radio', 'checkbox'], true)) {
+            $optionLines = array_filter(array_map('trim', explode("\n", $options)));
+            if (!$optionLines) {
+                $errors[] = '"' . $label . '" needs at least one option (one per line).';
+                continue;
+            }
+        }
+        $clean[] = [
+            'label' => mb_substr($label, 0, 255),
+            'field_type' => $type,
+            'placeholder' => mb_substr(trim((string) ($field['placeholder'] ?? '')), 0, 255),
+            'options' => mb_substr($options, 0, 5000),
+            'required' => !empty($field['required']) ? 1 : 0,
+            'sort_order' => $i,
+        ];
+    }
+    return [$clean, $errors];
+}
+
+if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $title = trim($_POST['title'] ?? '');
+    $slug = trim($_POST['slug'] ?? '');
+    $description = trim($_POST['description'] ?? '');
+    $submitLabel = trim($_POST['submit_label'] ?? '');
+    $endAt = trim($_POST['end_at'] ?? '');
+    $isActive = isset($_POST['is_active']) ? 1 : 0;
+    $fieldsJson = trim((string) ($_POST['fields_json'] ?? ''));
+
+    if ($title === '') {
+        $errors[] = 'Form title is required.';
+    }
+
+    [$fields, $fieldErrors] = decodeFieldsPayload($fieldsJson) !== null
+        ? validateFieldPayload(decodeFieldsPayload($fieldsJson))
+        : [[], ['The fields payload is missing or invalid — please re-open the form and try again.']];
+    $errors = array_merge($errors, $fieldErrors);
+
+    if (!$errors) {
+        $slug = $slug === '' ? formSlug($pdo, $title, $action === 'edit' ? $id : 0) : $slug;
+        if (!preg_match('/^[a-z0-9-]+$/', $slug)) {
+            $errors[] = 'Slug may only contain lowercase letters, numbers, and dashes.';
+        } else {
+            $check = $pdo->prepare('SELECT id FROM forms WHERE slug = ? AND id != ? LIMIT 1');
+            $check->execute([$slug, $action === 'edit' ? $id : 0]);
+            if ($check->fetchColumn()) {
+                $errors[] = 'That slug is already in use — try another one or leave it blank to auto-generate.';
+            }
+        }
+    }
+
+    if (!$errors) {
+        $endAtValue = $endAt === '' ? null : str_replace('T', ' ', $endAt);
+        $submitLabelValue = $submitLabel === '' ? 'Submit' : $submitLabel;
+
+        if ($action === 'create') {
+            $stmt = $pdo->prepare('INSERT INTO forms (title, slug, description, submit_label, end_at, is_active) VALUES (?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$title, $slug, $description, $submitLabelValue, $endAtValue, $isActive]);
+            $formId = (int) $pdo->lastInsertId();
+            flash('success', 'Form created. Share its link to start collecting responses.');
+        } else {
+            $pdo->prepare('UPDATE forms SET title = ?, slug = ?, description = ?, submit_label = ?, end_at = ?, is_active = ? WHERE id = ?')
+                ->execute([$title, $slug, $description, $submitLabelValue, $endAtValue, $isActive, $id]);
+            $formId = $id;
+            $pdo->prepare('DELETE FROM form_fields WHERE form_id = ?')->execute([$formId]);
+            flash('success', 'Form updated.');
+        }
+
+        $insert = $pdo->prepare('INSERT INTO form_fields (form_id, label, field_type, placeholder, options, required, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        foreach ($fields as $f) {
+            $insert->execute([$formId, $f['label'], $f['field_type'], $f['placeholder'] ?: null, $f['options'] ?: null, $f['required'], $f['sort_order']]);
+        }
+        redirect('/admin/forms?action=edit&id=' . $formId);
+    }
+}
+
+if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $pdo->prepare('DELETE FROM forms WHERE id = ?')->execute([(int) ($_POST['id'] ?? 0)]);
+    flash('success', 'Form and its submissions deleted.');
+    redirect('/admin/forms');
+}
+
+if ($action === 'delete_submission' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $formId = (int) ($_POST['form_id'] ?? 0);
+    $pdo->prepare('DELETE FROM form_submissions WHERE id = ? AND form_id = ?')->execute([(int) ($_POST['sid'] ?? 0), $formId]);
+    flash('success', 'Submission deleted.');
+    redirect('/admin/forms?action=submissions&id=' . $formId);
+}
+
+if ($action === 'clear_submissions' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $formId = (int) ($_POST['form_id'] ?? 0);
+    $pdo->prepare('DELETE FROM form_submissions WHERE form_id = ?')->execute([$formId]);
+    flash('success', 'All submissions cleared.');
+    redirect('/admin/forms?action=submissions&id=' . $formId);
+}
+
+$editing = null;
+$editFields = [];
+$submissionCount = 0;
+if ($action === 'edit') {
+    $stmt = $pdo->prepare('SELECT * FROM forms WHERE id = ?');
+    $stmt->execute([$id]);
+    $editing = $stmt->fetch();
+    if (!$editing) {
+        redirect('/admin/forms');
+    }
+    $editFields = formFieldsFor($pdo, $id);
+    $submissionCount = (int) $pdo->query('SELECT COUNT(*) FROM form_submissions WHERE form_id = ' . (int) $id)->fetchColumn();
+}
+
+$activeForm = null;
+$submissions = [];
+if ($action === 'submissions') {
+    $stmt = $pdo->prepare('SELECT * FROM forms WHERE id = ?');
+    $stmt->execute([$id]);
+    $activeForm = $stmt->fetch();
+    if (!$activeForm) {
+        redirect('/admin/forms');
+    }
+    $stmt = $pdo->prepare('SELECT * FROM form_submissions WHERE form_id = ? ORDER BY created_at DESC LIMIT 500');
+    $stmt->execute([$id]);
+    $submissions = $stmt->fetchAll();
+    $subFields = formFieldsFor($pdo, $id);
+}
+
+if ($action === 'export' && $id) {
+    $stmt = $pdo->prepare('SELECT * FROM forms WHERE id = ?');
+    $stmt->execute([$id]);
+    $form = $stmt->fetch();
+    if (!$form) {
+        redirect('/admin/forms');
+    }
+    $subFields = formFieldsFor($pdo, $id);
+    $stmt = $pdo->prepare('SELECT * FROM form_submissions WHERE form_id = ? ORDER BY created_at ASC');
+    $stmt->execute([$id]);
+    $rows = $stmt->fetchAll();
+
+    $headers = ['Submitted At', 'IP Address'];
+    foreach ($subFields as $f) {
+        $headers[] = $f['label'];
+    }
+
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="form-' . $form['slug'] . '-' . date('Y-m-d') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, $headers);
+    foreach ($rows as $row) {
+        $data = json_decode((string) $row['data'], true) ?: [];
+        $line = [$row['created_at'], $row['ip_address'] ?? ''];
+        foreach ($subFields as $f) {
+            $value = $data[(string) $f['id']] ?? '';
+            if (is_array($value)) {
+                $value = $f['field_type'] === 'image'
+                    ? implode('; ', array_map(fn ($v) => uploadUrl($v), $value))
+                    : implode('; ', $value);
+            } elseif ($f['field_type'] === 'image' && $value !== '') {
+                $value = uploadUrl($value);
+            }
+            $line[] = (string) $value;
+        }
+        fputcsv($out, $line);
+    }
+    fclose($out);
+    exit;
+}
+
+$forms = $action === 'list'
+    ? $pdo->query('SELECT f.*, (SELECT COUNT(*) FROM form_submissions fs WHERE fs.form_id = f.id) AS submission_count FROM forms f ORDER BY f.created_at DESC LIMIT 100')->fetchAll()
+    : [];
+
+$pageTitle = 'Forms';
+$activeNav = 'forms';
+require __DIR__ . '/partials/layout-open.php';
+?>
+
+<?php foreach ($errors as $error): ?><div class="alert error"><?= e($error) ?></div><?php endforeach; ?>
+
+<?php if (in_array($action, ['create', 'edit'], true)): ?>
+  <style>
+    .form-field-row{border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:12px; background:#ffffff04; position:relative; cursor:default;}
+    .form-field-row.dragging{opacity:.55; border-color:var(--gold); border-style:dashed;}
+    .form-field-row.drag-over-top{border-top:3px solid var(--gold);}
+    .drag-grip{
+      position:absolute; top:6px; right:10px; color:var(--ink-faint); font-size:16px; letter-spacing:2px;
+      cursor:grab; user-select:none; padding:2px 6px; border-radius:6px; transition:color .2s;
+    }
+    .drag-grip:hover{color:var(--gold-soft);}
+    .form-field-row .grid-field{display:grid; grid-template-columns:1fr 200px; gap:10px; margin-top:6px;}
+    .form-field-row .mini{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-faint); font-weight:700; margin-bottom:4px;}
+    .field-req{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--ink-dim); margin-top:8px;}
+    .field-req input{width:16px; height:16px;}
+    .row-actions{display:flex; justify-content:space-between; align-items:center; margin-top:10px;}
+    .row-actions .btns{display:flex; gap:8px;}
+    .copy-link{display:flex; gap:8px; align-items:center; margin-top:6px;}
+    .copy-link input{flex:1;}
+  </style>
+  <div class="btn-row" style="margin-bottom:16px;">
+    <a class="btn secondary sm" href="/admin/forms">← Back to forms</a>
+    <?php if ($action === 'edit'): ?>
+      <a class="btn sm" href="<?= e('/forms/' . rawurlencode((string) $editing['slug'])) ?>" target="_blank">Open form ↗</a>
+      <a class="btn secondary sm" href="/admin/forms?action=submissions&id=<?= (int) $editing['id'] ?>">View <?= $submissionCount ?> response<?= $submissionCount === 1 ? '' : 's' ?></a>
+    <?php endif; ?>
+  </div>
+
+  <div class="card" style="max-width:760px;">
+    <h2><?= $action === 'create' ? 'New Form' : 'Edit Form' ?></h2>
+    <p class="sub">Build it like Google Forms — add fields, set a closing date, and share the public link.</p>
+
+    <form method="post" action="/admin/forms?action=<?= $action ?><?= $editing ? '&id=' . (int) $editing['id'] : '' ?>" id="formBuilder">
+      <?= Csrf::field() ?>
+
+      <label for="title">Form title</label>
+      <input type="text" id="title" name="title" value="<?= e($editing['title'] ?? '') ?>" required>
+
+      <label for="slug">Public link slug <span style="color:var(--ink-faint);font-weight:400;">(optional — auto-generated from title)</span></label>
+      <div class="copy-link">
+        <span style="color:var(--ink-faint);">/forms/</span>
+        <input type="text" id="slug" name="slug" value="<?= e($editing['slug'] ?? '') ?>" placeholder="e.g. choir-registration">
+      </div>
+
+      <label for="description">Description / welcome message</label>
+      <textarea id="description" name="description" rows="3" placeholder="Briefly explain what this form is for…"><?= e($editing['description'] ?? '') ?></textarea>
+
+      <div class="row two">
+        <div>
+          <label for="submit_label">Submit button label</label>
+          <input type="text" id="submit_label" name="submit_label" value="<?= e($editing['submit_label'] ?? 'Submit') ?>">
+        </div>
+        <div>
+          <label for="end_at">Stop accepting responses on (optional)</label>
+          <input type="datetime-local" id="end_at" name="end_at" value="<?= e($editing && $editing['end_at'] ? str_replace(' ', 'T', substr((string) $editing['end_at'], 0, 16)) : '') ?>">
+        </div>
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="is_active" name="is_active" <?= $editing === null || !empty($editing['is_active']) ? 'checked' : '' ?>>
+        <label for="is_active" style="margin:0;">Accepting responses</label>
+      </div>
+
+      <h2 style="margin-top:34px;">Form fields</h2>
+      <p class="sub">Add the questions people will answer.</p>
+
+      <div id="fieldsContainer"></div>
+
+      <button type="button" class="btn secondary sm" id="addFieldBtn" style="margin-bottom:24px;">+ Add Field</button>
+
+      <input type="hidden" name="fields_json" id="fieldsJson">
+
+      <div class="btn-row">
+        <button class="btn" type="submit"><?= $action === 'create' ? 'Create Form' : 'Save Changes' ?></button>
+        <a class="btn secondary" href="/admin/forms">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    window.__FORM_FIELDS__ = <?= $editFields ? json_encode($editFields, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) : '[]' ?>;
+  </script>
+  <script src="<?= asset('js/admin-forms.js') ?>"></script>
+
+<?php elseif ($action === 'submissions'): ?>
+  <div class="btn-row" style="margin-bottom:16px;">
+    <a class="btn secondary sm" href="/admin/forms">← Back to forms</a>
+    <a class="btn sm" href="<?= e('/forms/' . rawurlencode((string) $activeForm['slug'])) ?>" target="_blank">Open form ↗</a>
+    <a class="btn secondary sm" href="/admin/forms?action=export&id=<?= (int) $activeForm['id'] ?>">Export CSV</a>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <h2><?= e($activeForm['title']) ?> — Responses</h2>
+        <p class="sub"><?= count($submissions) ?> submission<?= count($submissions) === 1 ? '' : 's' ?></p>
+      </div>
+      <?php if ($submissions): ?>
+        <form method="post" action="/admin/forms?action=clear_submissions" onsubmit="return confirm('Delete ALL submissions for this form?');">
+          <?= Csrf::field() ?><input type="hidden" name="form_id" value="<?= (int) $activeForm['id'] ?>">
+          <button type="submit" class="btn danger sm">Clear all</button>
+        </form>
+      <?php endif; ?>
+    </div>
+
+    <?php if (!$submissions): ?>
+      <div class="empty">No responses yet — share the form link to start collecting them.</div>
+    <?php else: ?>
+      <table>
+        <tr><th>#</th><th>Submitted</th><th>IP</th><th>Answers</th><th></th></tr>
+        <?php foreach ($submissions as $i => $sub): $data = json_decode((string) $sub['data'], true) ?: []; ?>
+        <tr>
+          <td><?= count($submissions) - $i ?></td>
+          <td><?= e(date('M j, Y g:i A', strtotime($sub['created_at']))) ?></td>
+          <td><?= e($sub['ip_address'] ?: '—') ?></td>
+          <td style="max-width:420px;">
+            <?php $preview = []; foreach ($subFields as $f) { $v = $data[(string) $f['id']] ?? ''; if ($f['field_type'] === 'image') { $v = is_array($v) ? $v : ($v === '' ? [] : [$v]); if ($v) { $thumbs = ''; foreach (array_slice($v, 0, 4) as $img) { $thumbs .= '<a href="' . e(uploadUrl($img)) . '" target="_blank" style="display:inline-block;"><img src="' . e(uploadUrl($img)) . '" style="width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--border);margin:2px;" loading="lazy"></a>'; } $preview[] = '<b>' . e($f['label']) . ':</b><br>' . $thumbs; } } else { if (is_array($v)) { $v = implode(', ', $v); } if ($v !== '' && $v !== null) { $preview[] = '<b>' . e($f['label']) . ':</b> ' . e(mb_strimwidth((string) $v, 0, 60, '…')); } } } ?>
+            <?= $preview ? implode('<br>', array_slice($preview, 0, 3)) : '<span style="color:var(--ink-faint);">(empty)</span>' ?>
+          </td>
+          <td>
+            <form method="post" action="/admin/forms?action=delete_submission" onsubmit="return confirm('Delete this submission?');" style="display:inline;">
+              <?= Csrf::field() ?><input type="hidden" name="form_id" value="<?= (int) $activeForm['id'] ?>"><input type="hidden" name="sid" value="<?= (int) $sub['id'] ?>">
+              <button type="submit" class="btn danger sm">Delete</button>
+            </form>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </table>
+    <?php endif; ?>
+  </div>
+
+<?php else: ?>
+  <div class="btn-row" style="margin-bottom:20px;">
+    <a class="btn" href="/admin/forms?action=create">+ New Form</a>
+  </div>
+
+  <div class="card">
+    <?php if (!$forms): ?>
+      <div class="empty">No forms yet — create one to get a shareable public link.</div>
+    <?php else: ?>
+      <table>
+        <tr><th>Form</th><th>Public Link</th><th>Responses</th><th>Valid Until</th><th>Status</th><th></th></tr>
+        <?php foreach ($forms as $f): $expired = formsExpired($f); $fieldCount = count(formFieldsFor($pdo, (int) $f['id'])); ?>
+        <tr>
+          <td>
+            <strong><?= e($f['title']) ?></strong>
+            <div style="color:var(--ink-faint);font-size:12px;"><?= $fieldCount ?> field<?= $fieldCount === 1 ? '' : 's' ?> · created <?= e(date('M j, Y', strtotime($f['created_at']))) ?></div>
+          </td>
+          <td>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <a href="<?= e('/forms/' . rawurlencode((string) $f['slug'])) ?>" target="_blank" style="color:var(--gold-soft);font-size:13px;">/forms/<?= e($f['slug']) ?></a>
+              <button type="button" class="btn secondary sm" data-copy="<?= e(baseUrl('forms/' . $f['slug'])) ?>">Copy</button>
+            </div>
+          </td>
+          <td><?= (int) $f['submission_count'] ?></td>
+          <td><?= $f['end_at'] ? e(date('M j, Y', strtotime((string) $f['end_at']))) : '<span style="color:var(--ink-faint);">No limit</span>' ?></td>
+          <td>
+            <?php if (!$f['is_active']): ?><span class="badge">closed</span>
+            <?php elseif ($expired): ?><span class="badge fail">expired</span>
+            <?php else: ?><span class="badge ok">open</span><?php endif; ?>
+          </td>
+          <td style="white-space:nowrap;">
+            <a class="btn secondary sm" href="/admin/forms?action=submissions&id=<?= (int) $f['id'] ?>">Responses</a>
+            <a class="btn secondary sm" href="/admin/forms?action=edit&id=<?= (int) $f['id'] ?>">Edit</a>
+            <form method="post" action="/admin/forms?action=delete" onsubmit="return confirm('Delete this form and ALL its submissions?');" style="display:inline;">
+              <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $f['id'] ?>">
+              <button type="submit" class="btn danger sm">Delete</button>
+            </form>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </table>
+    <?php endif; ?>
+  </div>
+
+  <script src="<?= asset('js/admin-forms.js') ?>"></script>
+<?php endif; ?>
+
+<?php require __DIR__ . '/partials/layout-close.php'; ?>

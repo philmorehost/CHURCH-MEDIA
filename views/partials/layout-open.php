@@ -2,6 +2,7 @@
 declare(strict_types=1);
 /** @var string $metaTitle */
 /** @var string $metaDescription */
+/** @var string|null $metaRobots */
 $s = settings();
 $path = rtrim((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/') ?: '/';
 $metaTitle ??= $s['site_title'];
@@ -24,6 +25,7 @@ $navLinks = [
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($metaTitle) ?><?= $metaTitle !== $s['site_title'] ? ' · ' . e($s['site_title']) : '' ?></title>
 <meta name="description" content="<?= e($metaDescription) ?>">
+<?php if (!empty($metaRobots)): ?><meta name="robots" content="<?= e($metaRobots) ?>"><?php endif; ?>
 <link rel="canonical" href="<?= e(baseUrl($path === '/' ? '' : ltrim($path, '/'))) ?>">
 <link rel="icon" href="/favicon.ico">
 <meta property="og:title" content="<?= e($metaTitle) ?>">

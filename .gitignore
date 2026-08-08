@@ -16,6 +16,7 @@ public/uploads/originals/*
 public/uploads/reels/*
 public/uploads/thumbs/*
 public/uploads/webp/*
+public/uploads/form-files/*
 !public/uploads/**/.keep
 
 # Static ffmpeg binaries

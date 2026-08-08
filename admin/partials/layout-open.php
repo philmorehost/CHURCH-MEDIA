@@ -14,6 +14,7 @@ $navItems = [
     ['key' => 'team', 'href' => '/admin/team', 'label' => 'Team'],
     ['key' => 'prayer', 'href' => '/admin/prayer', 'label' => 'Prayer Wall'],
     ['key' => 'newsletter', 'href' => '/admin/newsletter', 'label' => 'Newsletter'],
+    ['key' => 'forms', 'href' => '/admin/forms', 'label' => 'Forms'],
 ];
 $navItemsSystem = [
     ['key' => 'security', 'href' => '/admin/security', 'label' => 'Security'],

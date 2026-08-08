@@ -218,6 +218,43 @@ CREATE TABLE IF NOT EXISTS `newsletter_subscribers` (
   `subscribed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS `forms` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `title` VARCHAR(200) NOT NULL,
+  `slug` VARCHAR(220) NOT NULL UNIQUE,
+  `description` TEXT NULL,
+  `submit_label` VARCHAR(100) NOT NULL DEFAULT 'Submit',
+  `end_at` DATETIME NULL COMMENT 'Optional validity end date; NULL = open-ended',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_active_end` (`is_active`, `end_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `form_fields` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `form_id` INT NOT NULL,
+  `label` VARCHAR(255) NOT NULL,
+  `field_type` ENUM('text','textarea','email','phone','number','date','url','select','radio','checkbox','image') NOT NULL DEFAULT 'text',
+  `placeholder` VARCHAR(255) NULL,
+  `options` TEXT NULL COMMENT 'One option per line (select/radio/checkbox)',
+  `required` TINYINT(1) NOT NULL DEFAULT 0,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`form_id`) REFERENCES `forms`(`id`) ON DELETE CASCADE,
+  INDEX `idx_field_form_order` (`form_id`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `form_submissions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `form_id` INT NOT NULL,
+  `data` LONGTEXT NOT NULL COMMENT 'JSON map of field id -> value',
+  `ip_address` VARCHAR(45) NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`form_id`) REFERENCES `forms`(`id`) ON DELETE CASCADE,
+  INDEX `idx_submission_form_time` (`form_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Seed a starter set of media categories so the admin composer isn't empty on first login.
 INSERT INTO `media_categories` (`name`, `slug`) VALUES
   ('Worship', 'worship'),
