@@ -223,6 +223,19 @@ class Database
                         ->execute(['About Us', 'about', 'Our Story', $content, 'Learn about our story, mission, vision, and values.', 'About']);
                 }
             },
+            '2026_08_service_times_seed' => function (PDO $pdo): void {
+                // Store the default service schedule in the settings row so the
+                // DB is the single source of truth for every display spot (home,
+                // footer, contact, live) and the mobile app API. Previously the
+                // public site fell back to config/site.php when this was NULL,
+                // which made the schedule look hardcoded.
+                $count = (int) $pdo->query('SELECT COUNT(*) FROM settings WHERE service_times IS NULL OR service_times = ""')->fetchColumn();
+                if ($count > 0) {
+                    $siteDefaults = require CONFIG_PATH . '/site.php';
+                    $seed = $siteDefaults['service_times'] ?? '[]';
+                    $pdo->prepare('UPDATE settings SET service_times = ? WHERE service_times IS NULL OR service_times = ""')->execute([$seed]);
+                }
+            },
         ];
     }
 

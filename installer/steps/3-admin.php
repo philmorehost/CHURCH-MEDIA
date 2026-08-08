@@ -49,8 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $exists = (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn();
             if ($exists === 0) {
-                $pdo->prepare('INSERT INTO settings (site_title, site_tagline, contact_email, timezone, logo_path, favicon_path, license_key) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                    ->execute([$siteTitle, $siteTagline, $contactEmail ?: $email, $timezone, $logoPath, $faviconPath, $_SESSION['install']['license_key'] ?? null]);
+                $siteDefaults = require CONFIG_PATH . '/site.php';
+                $pdo->prepare('INSERT INTO settings (site_title, site_tagline, contact_email, timezone, logo_path, favicon_path, license_key, service_times) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+                    ->execute([$siteTitle, $siteTagline, $contactEmail ?: $email, $timezone, $logoPath, $faviconPath, $_SESSION['install']['license_key'] ?? null, $siteDefaults['service_times'] ?? '[]']);
             } else {
                 $pdo->prepare('UPDATE settings SET site_title = ?, site_tagline = ?, contact_email = ?, timezone = ?, logo_path = COALESCE(?, logo_path), favicon_path = COALESCE(?, favicon_path) WHERE id = (SELECT id FROM (SELECT id FROM settings LIMIT 1) t)')
                     ->execute([$siteTitle, $siteTagline, $contactEmail ?: $email, $timezone, $logoPath, $faviconPath]);
