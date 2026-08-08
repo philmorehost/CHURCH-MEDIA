@@ -6,7 +6,9 @@ plugins {
 
 android {
     namespace = "com.gracelifechurch.church_media_app"
-    compileSdk = flutter.compileSdkVersion
+    // Pinned so releases always satisfy the Google Play target-API requirement
+    // (Android 16 / API 36), regardless of the installed Flutter SDK default.
+    compileSdk = 36
     ndkVersion = "28.2.13676358"
 
     compileOptions {
@@ -19,8 +21,8 @@ android {
         applicationId = "com.gracelifechurch.church_media_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 24
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
