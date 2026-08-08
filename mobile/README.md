@@ -24,13 +24,13 @@ The API base URL is compile-time configurable (`lib/services/api_client.dart`):
 
 ```bash
 # Production server
-flutter run --dart-define=API_BASE_URL=https://rccgsopyaya.pmhserver.name.ng
+flutter run --dart-define=API_BASE_URL=https://rccglp63yaya.pmhserver.name.ng
 
 # Android emulator (10.0.2.2 is the emulator's alias for your host machine's localhost)
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080
 ```
 
-Without `--dart-define`, it defaults to `https://rccgsopyaya.pmhserver.name.ng` (the production server).
+Without `--dart-define`, it defaults to `https://rccglp63yaya.pmhserver.name.ng` (the production server).
 
 ## Run it
 
@@ -53,7 +53,7 @@ flutter build appbundle --release
 flutter build ios --release
 ```
 
-The release commands above already point at `https://rccgsopyaya.pmhserver.name.ng` by default; pass `--dart-define=API_BASE_URL=...` only if you need to override it for a specific build.
+The release commands above already point at `https://rccglp63yaya.pmhserver.name.ng` by default; pass `--dart-define=API_BASE_URL=...` only if you need to override it for a specific build.
 ```
 
 ## Structure

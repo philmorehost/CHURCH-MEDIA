@@ -104,7 +104,7 @@ flutter build apk --release   # → build/app/outputs/flutter-apk/app-release.ap
 ```
 
 The app targets the production API configured in
-`mobile/lib/services/api_client.dart` (`https://rccgsopyaya.pmhserver.name.ng`).
+`mobile/lib/services/api_client.dart` (`https://rccglp63yaya.pmhserver.name.ng`).
 
 ## Notes
 
