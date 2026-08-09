@@ -22,6 +22,7 @@ class MediaProcessor
             'image/gif' => imagecreatefromgif($sourcePath),
             'image/webp' => imagecreatefromwebp($sourcePath),
             'image/bmp' => function_exists('imagecreatefrombmp') ? imagecreatefrombmp($sourcePath) : false,
+            'image/avif' => function_exists('imagecreatefromavif') ? @imagecreatefromavif($sourcePath) : false,
             default => false,
         };
         if ($image === false) {

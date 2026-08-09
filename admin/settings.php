@@ -50,30 +50,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($fields['site_title'] === '') {
         $errors[] = 'Site title is required.';
     } else {
-        if (!empty($_FILES['logo']['tmp_name']) && is_uploaded_file($_FILES['logo']['tmp_name'])) {
-            $filename = MediaProcessor::processImage($_FILES['logo']['tmp_name'], UPLOADS_WEBP_PATH);
-            if ($filename) {
+        $imageErrors = [];
+        if (!empty($_FILES['logo']['name'])) {
+            if (($_FILES['logo']['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+                $imageErrors[] = 'Logo upload failed — the file may be too large for the server.';
+            } elseif (!is_uploaded_file($_FILES['logo']['tmp_name'] ?? '') || !($filename = MediaProcessor::processImage($_FILES['logo']['tmp_name'], UPLOADS_WEBP_PATH))) {
+                $imageErrors[] = 'Logo could not be processed — use JPG, PNG, GIF, WebP, BMP, or AVIF.';
+            } else {
                 $fields['logo_path'] = 'webp/' . $filename;
             }
         }
-        if (!empty($_FILES['favicon']['tmp_name']) && is_uploaded_file($_FILES['favicon']['tmp_name'])) {
-            $filename = MediaProcessor::processImage($_FILES['favicon']['tmp_name'], UPLOADS_WEBP_PATH);
-            if ($filename) {
+        if (!empty($_FILES['favicon']['name'])) {
+            if (($_FILES['favicon']['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+                $imageErrors[] = 'Favicon upload failed — the file may be too large for the server.';
+            } elseif (!is_uploaded_file($_FILES['favicon']['tmp_name'] ?? '') || !($filename = MediaProcessor::processImage($_FILES['favicon']['tmp_name'], UPLOADS_WEBP_PATH))) {
+                $imageErrors[] = 'Favicon could not be processed — use JPG, PNG, GIF, WebP, BMP, or AVIF.';
+            } else {
                 $fields['favicon_path'] = 'webp/' . $filename;
             }
         }
         if (isset($_POST['remove_hero_image'])) {
             $fields['hero_image_path'] = null;
-        } elseif (!empty($_FILES['hero_image']['tmp_name']) && is_uploaded_file($_FILES['hero_image']['tmp_name'])) {
-            $filename = MediaProcessor::processImage($_FILES['hero_image']['tmp_name'], UPLOADS_WEBP_PATH, 80);
-            if ($filename) {
+        } elseif (!empty($_FILES['hero_image']['name'])) {
+            if (($_FILES['hero_image']['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+                $imageErrors[] = 'Hero image upload failed — the file may be too large for the server (increase upload_max_filesize/post_max_size in php.ini).';
+            } elseif (!is_uploaded_file($_FILES['hero_image']['tmp_name'] ?? '') || !($filename = MediaProcessor::processImage($_FILES['hero_image']['tmp_name'], UPLOADS_WEBP_PATH, 80))) {
+                $imageErrors[] = 'Hero image could not be processed — use JPG, PNG, GIF, WebP, BMP, or AVIF (iPhone HEIC files are not supported).';
+            } else {
                 $fields['hero_image_path'] = 'webp/' . $filename;
             }
         }
 
         $setSql = implode(', ', array_map(fn ($k) => "$k = :$k", array_keys($fields)));
         $pdo->prepare("UPDATE settings SET $setSql WHERE id = :id")->execute([...$fields, 'id' => $row['id']]);
-        flash('success', 'Settings saved.');
+        if ($imageErrors) {
+            flash('error', implode(' ', $imageErrors) . ' Other settings were still saved.');
+        } else {
+            flash('success', 'Settings saved.');
+        }
         redirect('/admin/settings');
     }
 }
