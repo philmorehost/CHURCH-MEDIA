@@ -1,7 +1,9 @@
-name: Build APK
+name: Build APK & AAB
 
 # Builds the Android app automatically whenever code is pushed to main.
-# Find the run + downloadable APK under: Actions → "Build APK" → latest run → artifacts.
+# Find the run + downloadable artifacts under: Actions → "Build APK & AAB" → latest run → artifacts.
+# - church-media-apk: signed release APK (for direct install / sideload)
+# - church-media-aab: signed release App Bundle (for Google Play Console → App → Release)
 on:
   push:
     branches:
@@ -67,6 +69,10 @@ jobs:
         working-directory: mobile
         run: flutter build apk --release
 
+      - name: Build release AAB
+        working-directory: mobile
+        run: flutter build appbundle --release
+
       - name: Verify APK signature
         working-directory: mobile
         run: |
@@ -82,4 +88,11 @@ jobs:
         with:
           name: church-media-apk
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: church-media-aab
+          path: mobile/build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
