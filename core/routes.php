@@ -36,6 +36,10 @@ $router->get('/about', function () {
     render('page', ['slug' => 'about']);
 });
 
+$router->get('/privacy-policy', function () {
+    render('page', ['slug' => 'privacy-policy']);
+});
+
 $router->get('/page/{slug}', function (array $params) {
     render('page', ['slug' => $params['slug']]);
 });

@@ -318,6 +318,35 @@ function videoConversionStatus(array $item): string
     return 'original';
 }
 
+
+/**
+ * Replaces {{token}} placeholders in a page content section with live site
+ * settings (admin-editable at /admin/settings). Supported tokens:
+ * {{site_title}}, {{site_tagline}}, {{contact_email}}, {{contact_phone}},
+ * {{address}}, {{effective_date}}. Returns the section with all string
+ * values resolved.
+ */
+function resolvePageTokens(array $section): array
+{
+    $s = settings();
+    $tokens = [
+        '{{site_title}}'    => (string) ($s['site_title'] ?? ''),
+        '{{site_tagline}}'  => (string) ($s['site_tagline'] ?? ''),
+        '{{contact_email}}' => (string) ($s['contact_email'] ?? ''),
+        '{{contact_phone}}' => (string) ($s['contact_phone'] ?? ''),
+        '{{address}}'       => (string) ($s['address'] ?? ''),
+        '{{effective_date}}' => date('F j, Y'),
+    ];
+    foreach ($section as $key => $value) {
+        if (is_string($value)) {
+            $section[$key] = strtr($value, $tokens);
+        } elseif (is_array($value)) {
+            $section[$key] = resolvePageTokens($value);
+        }
+    }
+    return $section;
+}
+
 /**
  * Renders a page's content sections into the public design templates. Each
  * section is one block in the JSON stored on `pages.content`:
@@ -329,6 +358,7 @@ function renderPageSections(array $sections): void
         if (!is_array($section)) {
             continue;
         }
+        $section = resolvePageTokens($section);
         switch ($section['type'] ?? 'text') {
             case 'hero':
                 $img = !empty($section['image']) ? uploadUrl((string) $section['image']) : null;
