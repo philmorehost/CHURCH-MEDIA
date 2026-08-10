@@ -9,6 +9,10 @@ declare(strict_types=1);
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
     $pdo = Database::getInstance()->getConnection();
     $rows = $pdo->query("SELECT id, name, message, created_at FROM prayer_requests WHERE is_public = 1 AND status != 'archived' ORDER BY created_at DESC LIMIT 30")->fetchAll();
+    foreach ($rows as &$row) {
+        $row['id'] = (int) $row['id'];
+    }
+    unset($row);
     jsonResponse(['status' => 'success', 'data' => $rows]);
 }
 

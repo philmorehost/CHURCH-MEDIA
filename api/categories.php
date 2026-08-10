@@ -15,4 +15,9 @@ $rows = $pdo->query('
     ORDER BY c.name ASC
 ')->fetchAll();
 
+foreach ($rows as &$row) {
+    $row['id'] = (int) $row['id'];
+}
+unset($row);
+
 jsonResponse(['status' => 'success', 'data' => $rows]);

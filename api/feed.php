@@ -62,7 +62,10 @@ foreach ($posts as &$post) {
     }, $itemStmt->fetchAll());
 
     $catStmt->execute([$post['id']]);
-    $post['categories'] = $catStmt->fetchAll();
+    $post['categories'] = array_map(function (array $c): array {
+        $c['id'] = (int) $c['id'];
+        return $c;
+    }, $catStmt->fetchAll());
 
     $likedStmt->execute([$post['id'], $fingerprint]);
     $post['liked_by_viewer'] = (bool) $likedStmt->fetchColumn();

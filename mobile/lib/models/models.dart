@@ -34,7 +34,7 @@ class Category {
   final String slug;
   Category({required this.id, required this.name, required this.slug});
   factory Category.fromJson(Map<String, dynamic> json) =>
-      Category(id: json['id'] as int, name: json['name'] as String, slug: json['slug'] as String);
+      Category(id: int.tryParse(json['id'].toString()) ?? 0, name: json['name'] as String? ?? '', slug: json['slug'] as String? ?? '');
 }
 
 class Post {
@@ -257,9 +257,9 @@ class PrayerRequest {
   final String createdAt;
   PrayerRequest({required this.id, this.name, required this.message, required this.createdAt});
   factory PrayerRequest.fromJson(Map<String, dynamic> json) => PrayerRequest(
-        id: json['id'] as int,
+        id: int.tryParse(json['id'].toString()) ?? 0,
         name: json['name'] as String?,
-        message: json['message'] as String,
-        createdAt: json['created_at'] as String,
+        message: json['message'] as String? ?? '',
+        createdAt: json['created_at'] as String? ?? '',
       );
 }
