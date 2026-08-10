@@ -67,11 +67,17 @@ jobs:
 
       - name: Build release APK
         working-directory: mobile
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release \
+            --build-name "1.0.${{ github.run_number }}" \
+            --build-number "${{ github.run_number }}"
 
       - name: Build release AAB
         working-directory: mobile
-        run: flutter build appbundle --release
+        run: |
+          flutter build appbundle --release \
+            --build-name "1.0.${{ github.run_number }}" \
+            --build-number "${{ github.run_number }}"
 
       - name: Verify APK signature
         working-directory: mobile
@@ -98,7 +104,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload to Google Play
-        if: env.SERVICE_ACCOUNT_JSON != ''
+        if: secrets.SERVICE_ACCOUNT_JSON != ''
         env:
           SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
         uses: r0adkll/upload-google-play@v1
