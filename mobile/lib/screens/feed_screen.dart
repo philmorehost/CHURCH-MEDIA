@@ -16,10 +16,10 @@ import '../widgets/common.dart';
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
   @override
-  State<FeedScreen> createState() => _FeedScreenState();
+  State<FeedScreen> createState() => FeedScreenState();
 }
 
-class _FeedScreenState extends State<FeedScreen> {
+class FeedScreenState extends State<FeedScreen> {
   final _api = ApiClient();
   final _pageController = PageController();
   final List<Post> _posts = [];
@@ -36,6 +36,15 @@ class _FeedScreenState extends State<FeedScreen> {
     super.initState();
     _api.fetchCategories().then((c) => setState(() => _categories = c));
     _loadMore();
+  }
+
+  /// Re-runs the initial load (categories + first feed page). Called by the
+  /// shell when the Feed tab is (re)tapped, and by pull-to-refresh/retry, so a
+  /// silently failed first load recovers without needing an app restart.
+  Future<void> refresh() async {
+    if (_loading) return;
+    _api.fetchCategories().then((c) => setState(() => _categories = c));
+    await _loadMore();
   }
 
   Future<void> _loadMore() async {
@@ -99,7 +108,27 @@ class _FeedScreenState extends State<FeedScreen> {
             if (_categories.isNotEmpty) _buildChips(),
             Expanded(
               child: _posts.isEmpty
-                  ? (_loading ? const LoadingView() : const EmptyState(message: 'No reels in the feed yet.'))
+                  ? (_loading
+                      ? const LoadingView()
+                      : RefreshIndicator(
+                          onRefresh: refresh,
+                          color: AppColors.gold,
+                          child: ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              const SizedBox(height: 80),
+                              const EmptyState(message: 'No reels in the feed yet.'),
+                              const SizedBox(height: 16),
+                              Center(
+                                child: OutlinedButton.icon(
+                                  onPressed: refresh,
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Retry'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ))
                   : PageView.builder(
                       controller: _pageController,
                       scrollDirection: Axis.vertical,

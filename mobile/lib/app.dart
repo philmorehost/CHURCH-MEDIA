@@ -32,14 +32,21 @@ class RootShell extends StatefulWidget {
 
 class _RootShellState extends State<RootShell> {
   int _index = 0;
+  final _feedKey = GlobalKey<FeedScreenState>();
 
-  void _goTo(int index) => setState(() => _index = index);
+  void _goTo(int index) {
+    if (index == _index) {
+      if (index == 1) _feedKey.currentState?.refresh();
+      return;
+    }
+    setState(() => _index = index);
+  }
 
   @override
   Widget build(BuildContext context) {
     final screens = [
       HomeScreen(onNavigate: _goTo),
-      const FeedScreen(),
+      FeedScreen(key: _feedKey),
       const EventsScreen(),
       const SermonsScreen(),
       const MoreScreen(),
