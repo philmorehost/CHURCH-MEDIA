@@ -29,6 +29,8 @@ bin/ffmpeg/
 
 # Build & download artifacts
 *.aab
+*.apk
+*.zip
 *.crdownload
 
 # Browser temp downloads (UUID-named images in project root)
@@ -37,3 +39,4 @@ bin/ffmpeg/
 72e2db5e-87c2-4f64-831c-8fcc41ddc5b4.jpeg
 9d798eb8-fc8b-44b9-b00a-c1e885c5e90d.jpeg
 9e408181-fd4b-41f8-a646-3510b13f0ec0.jpeg
+f34f85cd-3d5f-4730-85d2-0f8a674e438d.jpeg
