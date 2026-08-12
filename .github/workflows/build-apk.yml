@@ -115,4 +115,9 @@ jobs:
           packageName: com.rccglp63yaya.church_media_app
           releaseFiles: mobile/build/app/outputs/bundle/release/app-release.aab
           tracks: production
-          status: completed
+          # Draft keeps the upload from failing the "Precondition check" that
+          # happens when a brand-new app tries to publish a "completed" release
+          # before its Play Console setup (content rating, data safety, store
+          # listing) is finished. Once the app setup is complete, change back
+          # to "completed" to submit for review automatically.
+          status: draft
