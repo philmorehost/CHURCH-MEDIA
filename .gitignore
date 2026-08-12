@@ -23,3 +23,17 @@ public/uploads/cms/*
 # Static ffmpeg binaries
 ffmpeg-9.0/
 bin/ffmpeg/
+
+# Editor / IDE
+.vscode/
+
+# Build & download artifacts
+*.aab
+*.crdownload
+
+# Browser temp downloads (UUID-named images in project root)
+252762d9-97ca-401b-9895-b9c4990fa21d.jpeg
+26de56f5-ccef-43e5-ab0a-c847f587b430.jpeg
+72e2db5e-87c2-4f64-831c-8fcc41ddc5b4.jpeg
+9d798eb8-fc8b-44b9-b00a-c1e885c5e90d.jpeg
+9e408181-fd4b-41f8-a646-3510b13f0ec0.jpeg
