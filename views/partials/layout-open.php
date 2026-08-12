@@ -14,6 +14,7 @@ $navLinks = [
     '/feed' => 'Feed',
     '/events' => 'Events',
     '/sermons' => 'Sermons',
+    '/bible' => 'Bible',
     '/live' => 'Live',
     '/about' => 'About',
     '/contact' => 'Contact',

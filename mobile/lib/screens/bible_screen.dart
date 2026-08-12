@@ -13,6 +13,7 @@ class _BibleScreenState extends State<BibleScreen> {
   String _selectedLang = 'en';
   String _selectedBook = 'Genesis';
   int _selectedChapter = 1;
+  final TextEditingController _verseController = TextEditingController();
   bool _isLoading = false;
   List<dynamic> _verses = [];
   String _errorMessage = '';
@@ -43,11 +44,13 @@ class _BibleScreenState extends State<BibleScreen> {
 
     try {
       final apiClient = ApiClient();
+      final verseText = _verseController.text.trim();
       final response = await apiClient.fetchBible(
         book: _selectedBook,
         chapter: _selectedChapter,
         version: _selectedVersion,
         lang: _selectedLang,
+        verse: verseText.isEmpty ? null : verseText,
       );
 
       if (response['error'] != null) {
@@ -70,6 +73,12 @@ class _BibleScreenState extends State<BibleScreen> {
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _verseController.dispose();
+    super.dispose();
   }
 
   @override
@@ -130,6 +139,15 @@ class _BibleScreenState extends State<BibleScreen> {
                             keyboardType: TextInputType.number,
                             initialValue: '1',
                             onChanged: (val) => setState(() => _selectedChapter = int.tryParse(val) ?? 1),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _verseController,
+                            decoration: const InputDecoration(labelText: 'Verse (optional)'),
+                            keyboardType: TextInputType.number,
+                            hintText: 'All',
                           ),
                         ),
                         const SizedBox(width: 16),

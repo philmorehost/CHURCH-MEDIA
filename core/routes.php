@@ -61,7 +61,10 @@ $router->get('/prayer', function () {
 });
 
 $router->get('/bible', function () {
-    render('bible');
+    render('bible', [
+        'metaTitle' => 'Holy Bible',
+        'metaDescription' => 'Read the Holy Bible in your preferred version and language — KJV, NIV, NLT, NKJV with multi-language support.',
+    ]);
 });
 
 $router->get('/forms/{slug}', function (array $params) {

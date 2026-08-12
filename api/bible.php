@@ -27,12 +27,27 @@ if ($book === '' || $chapter === '' || !ctype_digit($chapter)) {
     exit;
 }
 
+// Bible text changes ~never, so we can cache aggressively. This header lets the
+// browser/CDN serve repeat reads without hitting PHP at all (5 min), and the
+// file cache below makes even brand-new sessions read straight from disk.
+header('Cache-Control: public, max-age=300');
+
+$cacheKey = implode('|', [$source, $version, $lang, $book, $chapter, $verse]);
+$cached = bibleCacheGet($cacheKey);
+if ($cached !== null) {
+    echo $cached;
+    exit;
+}
+
 try {
     if ($source === 'api_bible' && $apiKey !== '') {
-        respond(fetchApiBible($apiKey, $book, (int) $chapter, $verse, $version, $lang));
+        $payload = fetchApiBible($apiKey, $book, (int) $chapter, $verse, $version, $lang);
     } else {
-        respond(fetchKeyless($book, (int) $chapter, $verse, $version, $lang));
+        $payload = fetchKeyless($book, (int) $chapter, $verse, $version, $lang);
     }
+    $body = json_encode($payload);
+    bibleCacheSet($cacheKey, $body, 7 * 86400); // keep for 7 days
+    echo $body;
 } catch (Throwable $e) {
     http_response_code(502);
     echo json_encode(['error' => $e->getMessage()]);
@@ -42,6 +57,41 @@ function respond(array $payload): void
 {
     echo json_encode($payload);
     exit;
+}
+
+/** Directory for the Bible response cache (storage/cache/bible). */
+function bibleCacheDir(): string
+{
+    $dir = STORAGE_PATH . '/cache/bible';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    return $dir;
+}
+
+/** Read a cached payload (JSON body) for the given key, or null when stale/missing. */
+function bibleCacheGet(string $key): ?string
+{
+    $path = bibleCacheDir() . '/' . md5($key) . '.json';
+    if (!is_file($path)) {
+        return null;
+    }
+    $data = @json_decode((string) @file_get_contents($path), true);
+    if (!is_array($data) || !isset($data['expires'], $data['body'])) {
+        return null;
+    }
+    if ((int) $data['expires'] < time()) {
+        @unlink($path);
+        return null;
+    }
+    return (string) $data['body'];
+}
+
+/** Store a payload body under the given key with a TTL in seconds. */
+function bibleCacheSet(string $key, string $body, int $ttl): void
+{
+    $payload = json_encode(['expires' => time() + $ttl, 'body' => $body]);
+    @file_put_contents(bibleCacheDir() . '/' . md5($key) . '.json', $payload, LOCK_EX);
 }
 
 /** Minimal HTTP GET with cURL (or stream fallback). Throws on failure. */
@@ -173,35 +223,55 @@ function fetchApiBible(string $apiKey, string $book, int $chapter, string $verse
 /** Fetch the account's Bible list and pick the best match for version + language. */
 function apiBibleResolveId(string $apiKey, string $version, string $lang, array $headers): ?string
 {
+    // Resolving hits the /bibles endpoint, so cache the result per account+version
+    // for 24h — removes a whole round-trip from every chapter fetch after the first.
+    $cacheKey = 'bibles|' . md5($apiKey) . '|' . $version . '|' . $lang;
+    $cached = bibleCacheGet($cacheKey);
+    if ($cached !== null) {
+        return $cached === '' ? null : $cached;
+    }
+
     $decoded = json_decode(httpRequest('https://api.scripture.api.bible/v1/bibles', $headers), true);
     $bibles = $decoded['data'] ?? [];
-    if (!is_array($bibles) || $bibles === []) {
-        return null;
+    $id = null;
+
+    if (is_array($bibles) && $bibles !== []) {
+        $langMap = ['en' => 'eng', 'es' => 'spa', 'fr' => 'fra', 'de' => 'deu', 'pt' => 'por', 'it' => 'ita', 'ru' => 'rus'];
+        $langId = $langMap[$lang] ?? 'eng';
+
+        // 1) Exact version + language match
+        foreach ($bibles as $b) {
+            if (strcasecmp((string) ($b['abbreviation'] ?? ''), $version) === 0 && ($b['language']['id'] ?? '') === $langId) {
+                $id = $b['id'] ?? null;
+                break;
+            }
+        }
+        // 2) Exact version match in any language
+        if ($id === null) {
+            foreach ($bibles as $b) {
+                if (strcasecmp((string) ($b['abbreviation'] ?? ''), $version) === 0) {
+                    $id = $b['id'] ?? null;
+                    break;
+                }
+            }
+        }
+        // 3) Any bible in the requested language
+        if ($id === null) {
+            foreach ($bibles as $b) {
+                if (($b['language']['id'] ?? '') === $langId) {
+                    $id = $b['id'] ?? null;
+                    break;
+                }
+            }
+        }
+        // 4) First available bible
+        if ($id === null) {
+            $id = $bibles[0]['id'] ?? null;
+        }
     }
 
-    $langMap = ['en' => 'eng', 'es' => 'spa', 'fr' => 'fra', 'de' => 'deu', 'pt' => 'por', 'it' => 'ita', 'ru' => 'rus'];
-    $langId = $langMap[$lang] ?? 'eng';
-
-    // 1) Exact version + language match
-    foreach ($bibles as $b) {
-        if (strcasecmp((string) ($b['abbreviation'] ?? ''), $version) === 0 && ($b['language']['id'] ?? '') === $langId) {
-            return $b['id'] ?? null;
-        }
-    }
-    // 2) Exact version match in any language
-    foreach ($bibles as $b) {
-        if (strcasecmp((string) ($b['abbreviation'] ?? ''), $version) === 0) {
-            return $b['id'] ?? null;
-        }
-    }
-    // 3) Any bible in the requested language
-    foreach ($bibles as $b) {
-        if (($b['language']['id'] ?? '') === $langId) {
-            return $b['id'] ?? null;
-        }
-    }
-    // 4) First available bible
-    return $bibles[0]['id'] ?? null;
+    bibleCacheSet($cacheKey, (string) ($id ?? ''), 24 * 3600);
+    return $id;
 }
 
 /** Recursively walk API.Bible's JSON content tree and collect verses in order. */
