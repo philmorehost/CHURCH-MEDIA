@@ -133,6 +133,13 @@ function httpRequest(string $url, array $headers = []): string
  * ------------------------------------------------------------------------- */
 function fetchKeyless(string $book, int $chapter, string $verse, string $version, string $lang): array
 {
+    // bible-api.com only carries public-domain texts; the Nigerian languages are
+    // not available here and need the API.Bible provider.
+    $langNames = ['yo' => 'Yorùbá', 'ig' => 'Igbo', 'ha' => 'Hausa'];
+    if (isset($langNames[$lang])) {
+        throw new RuntimeException('The ' . $langNames[$lang] . ' Bible is only available through the API.Bible provider. Please enable API.Bible in Admin → Settings.');
+    }
+
     $query = $book . ' ' . $chapter;
     if ($verse !== '' && ctype_digit($verse)) {
         $query .= ':' . $verse;
@@ -236,7 +243,11 @@ function apiBibleResolveId(string $apiKey, string $version, string $lang, array 
     $id = null;
 
     if (is_array($bibles) && $bibles !== []) {
-        $langMap = ['en' => 'eng', 'es' => 'spa', 'fr' => 'fra', 'de' => 'deu', 'pt' => 'por', 'it' => 'ita', 'ru' => 'rus'];
+        // ISO 639-3 codes (API.Bible's language ids). Nigerian languages included.
+        $langMap = [
+            'en' => 'eng', 'es' => 'spa', 'fr' => 'fra', 'de' => 'deu', 'pt' => 'por',
+            'it' => 'ita', 'ru' => 'rus', 'yo' => 'yor', 'ig' => 'ibo', 'ha' => 'hau',
+        ];
         $langId = $langMap[$lang] ?? 'eng';
 
         // 1) Exact version + language match
@@ -246,19 +257,19 @@ function apiBibleResolveId(string $apiKey, string $version, string $lang, array 
                 break;
             }
         }
-        // 2) Exact version match in any language
+        // 2) Any bible in the requested language (language takes priority over version)
         if ($id === null) {
             foreach ($bibles as $b) {
-                if (strcasecmp((string) ($b['abbreviation'] ?? ''), $version) === 0) {
+                if (($b['language']['id'] ?? '') === $langId) {
                     $id = $b['id'] ?? null;
                     break;
                 }
             }
         }
-        // 3) Any bible in the requested language
+        // 3) Exact version match in any language
         if ($id === null) {
             foreach ($bibles as $b) {
-                if (($b['language']['id'] ?? '') === $langId) {
+                if (strcasecmp((string) ($b['abbreviation'] ?? ''), $version) === 0) {
                     $id = $b['id'] ?? null;
                     break;
                 }

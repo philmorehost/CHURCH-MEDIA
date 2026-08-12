@@ -15,6 +15,7 @@ class _BibleScreenState extends State<BibleScreen> {
   int _selectedChapter = 1;
   final TextEditingController _verseController = TextEditingController();
   bool _isLoading = false;
+  bool _showSearch = true;
   List<dynamic> _verses = [];
   String _errorMessage = '';
   String _reference = '';
@@ -63,6 +64,7 @@ class _BibleScreenState extends State<BibleScreen> {
             _verses = verses;
             _reference = (response['reference'] as String? ?? '$_selectedBook $_selectedChapter');
             _translation = response['translation'] as String? ?? '';
+            _showSearch = false; // Hide the search panel once reading starts.
           });
         } else {
           setState(() => _errorMessage = 'No content found.');
@@ -73,6 +75,11 @@ class _BibleScreenState extends State<BibleScreen> {
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  /// Reopens the search panel to pick a new passage.
+  void _openSearch() {
+    setState(() => _showSearch = true);
   }
 
   @override
@@ -88,18 +95,32 @@ class _BibleScreenState extends State<BibleScreen> {
       appBar: AppBar(
         title: const Text('Holy Bible'),
         centerTitle: true,
+        actions: [
+          if (!_showSearch)
+            IconButton(
+              icon: const Icon(Icons.my_location),
+              tooltip: 'Open a new passage',
+              onPressed: _openSearch,
+            ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Selection Controls
-            Card(
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
+            // Selection Controls (hidden after a successful read; reopen via the
+            // locate icon in the app bar).
+            AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: _showSearch
+                  ? Card(
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          children: [
                     Row(
                       children: [
                         Expanded(
@@ -115,7 +136,14 @@ class _BibleScreenState extends State<BibleScreen> {
                           child: DropdownButtonFormField<String>(
                             value: _selectedLang,
                             decoration: const InputDecoration(labelText: 'Language'),
-                            items: ['en', 'es', 'fr'].map((l) => DropdownMenuItem(value: l, child: Text(l == 'en' ? 'English' : (l == 'es' ? 'Spanish' : 'French')))).toList(),
+                            items: const [
+                              DropdownMenuItem(value: 'en', child: Text('English')),
+                              DropdownMenuItem(value: 'es', child: Text('Español')),
+                              DropdownMenuItem(value: 'fr', child: Text('Français')),
+                              DropdownMenuItem(value: 'yo', child: Text('Yorùbá')),
+                              DropdownMenuItem(value: 'ig', child: Text('Igbo')),
+                              DropdownMenuItem(value: 'ha', child: Text('Hausa')),
+                            ],
                             onChanged: (val) => setState(() => _selectedLang = val!),
                           ),
                         ),
@@ -163,6 +191,8 @@ class _BibleScreenState extends State<BibleScreen> {
                   ],
                 ),
               ),
+            )
+                  : const SizedBox(width: double.infinity, height: 0),
             ),
             const SizedBox(height: 20),
             // Scripture Content
@@ -182,7 +212,19 @@ class _BibleScreenState extends State<BibleScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(_reference, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(_reference, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.my_location),
+                                              tooltip: 'Open a new passage',
+                                              visualDensity: VisualDensity.compact,
+                                              onPressed: _openSearch,
+                                            ),
+                                          ],
+                                        ),
                                         if (_translation.isNotEmpty)
                                           Padding(
                                             padding: const EdgeInsets.only(top: 2),

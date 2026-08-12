@@ -1,9 +1,8 @@
 <?php
 /**
  * Bible Page View — YouVersion-style reader.
- * The full book list and a rotating verse-of-the-day are rendered server-side.
- * Results are cached in the browser (sessionStorage) and on the server, so
- * every read feels instant.
+ * The full book list is rendered server-side. Results are cached in the
+ * browser (sessionStorage) and on the server, so every read feels instant.
  */
 $bibleBooks = [
     'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy',
@@ -19,19 +18,6 @@ $bibleBooks = [
     'Titus', 'Philemon', 'Hebrews', 'James', '1 Peter', '2 Peter',
     '1 John', '2 John', '3 John', 'Jude', 'Revelation',
 ];
-
-// Curated verse of the day (public-domain KJV), rotated by day of year.
-$dailyVerses = [
-    ['text' => 'For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.', 'ref' => 'John 3:16'],
-    ['text' => 'I can do all things through Christ which strengtheneth me.', 'ref' => 'Philippians 4:13'],
-    ['text' => 'Trust in the LORD with all thine heart; and lean not unto thine own understanding. In all thy ways acknowledge him, and he shall direct thy paths.', 'ref' => 'Proverbs 3:5–6'],
-    ['text' => 'The LORD is my shepherd; I shall not want.', 'ref' => 'Psalm 23:1'],
-    ['text' => 'For I know the thoughts that I think toward you, saith the LORD, thoughts of peace, and not of evil, to give you an expected end.', 'ref' => 'Jeremiah 29:11'],
-    ['text' => 'And we know that all things work together for good to them that love God, to them who are the called according to his purpose.', 'ref' => 'Romans 8:28'],
-    ['text' => 'Be strong and of a good courage; be not afraid, neither be thou dismayed: for the LORD thy God is with thee whithersoever thou goest.', 'ref' => 'Joshua 1:9'],
-    ['text' => 'But they that wait upon the LORD shall renew their strength; they shall mount up with wings as eagles; they shall run, and not be weary; and they shall walk, and not faint.', 'ref' => 'Isaiah 40:31'],
-];
-$vod = $dailyVerses[(int) date('z') % count($dailyVerses)];
 ?>
 
 <!-- Hero -->
@@ -39,11 +25,6 @@ $vod = $dailyVerses[(int) date('z') % count($dailyVerses)];
   <div class="bible-hero-inner">
     <p class="eyebrow">The Word of God</p>
     <h1 class="bible-hero-title">Holy Bible</h1>
-    <p class="bible-hero-sub">Read scripture in your preferred version and language — free, fast, and beautifully presented.</p>
-    <blockquote class="bible-vod">
-      <p class="bible-vod-text">“<?= e($vod['text']) ?>”</p>
-      <cite class="bible-vod-ref">— <?= e($vod['ref']) ?></cite>
-    </blockquote>
   </div>
 </section>
 
@@ -76,6 +57,9 @@ $vod = $dailyVerses[(int) date('z') % count($dailyVerses)];
             <option value="en">English</option>
             <option value="es">Español</option>
             <option value="fr">Français</option>
+            <option value="yo">Yorùbá</option>
+            <option value="ig">Igbo</option>
+            <option value="ha">Hausa</option>
           </select>
         </div>
         <div class="form-field bible-c-book">
@@ -141,7 +125,7 @@ $vod = $dailyVerses[(int) date('z') % count($dailyVerses)];
 
 <style>
   /* Hero */
-  .bible-hero{position:relative; overflow:hidden; padding:96px 24px 76px; text-align:center;
+  .bible-hero{position:relative; overflow:hidden; padding:56px 24px 44px; text-align:center;
     background:
       radial-gradient(ellipse 70% 55% at 18% -10%, #4a2f8a55, transparent 60%),
       radial-gradient(ellipse 60% 50% at 100% 0%, #8a3f6b33, transparent 60%),
@@ -150,19 +134,19 @@ $vod = $dailyVerses[(int) date('z') % count($dailyVerses)];
     background-image:radial-gradient(#ffffff22 1px, transparent 1px); background-size:34px 34px;
     mask-image:radial-gradient(ellipse 70% 60% at 50% 30%, black, transparent);}
   .bible-hero-inner{position:relative; z-index:2; max-width:720px; margin:0 auto;}
-  .bible-hero .eyebrow{display:inline-block; margin-bottom:16px;}
-  .bible-hero-title{font-size:clamp(40px,7vw,64px); margin:0 0 14px;}
-  .bible-hero-sub{color:var(--ink-dim); font-size:16.5px; max-width:560px; margin:0 auto 34px;}
-  .bible-vod{max-width:640px; margin:0 auto; padding:22px 28px; border:1px solid var(--border-soft); border-left:3px solid var(--gold); border-radius:16px; background:var(--panel);}
-  .bible-vod-text{font-family:var(--serif); font-style:italic; font-size:17px; line-height:1.7; color:var(--ink); margin:0 0 8px;}
-  .bible-vod-ref{font-style:normal; font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold-soft); font-weight:700;}
+  .bible-hero .eyebrow{display:inline-block; margin-bottom:12px;}
+  .bible-hero-title{font-size:clamp(34px,5.5vw,52px); margin:0;}
 
   /* Body + wrap */
-  .bible-body{padding:44px 0 96px;}
+  .bible-body{padding:32px 0 96px;}
   .bible-wrap{max-width:860px; margin:0 auto;}
 
   /* Search panel */
   .bible-panel{background:var(--panel-solid); border:1px solid var(--border); border-radius:var(--radius); padding:26px 26px 12px; margin-bottom:30px; box-shadow:0 30px 70px -40px #000000cc;}
+  /* Keep native dropdown popups readable on the dark theme (white text on white
+     background otherwise) by forcing a dark color-scheme + option colors. */
+  .bible-controls input,.bible-controls select{color-scheme:dark;}
+  .bible-controls select option{background:var(--panel-solid); color:var(--ink);}
   .bible-panel-head{display:flex; align-items:center; gap:10px; margin-bottom:18px;}
   .bible-panel-head svg{width:22px; height:22px; color:var(--gold-soft);}
   .bible-panel-head h2{margin:0; font-size:20px;}
@@ -208,7 +192,7 @@ $vod = $dailyVerses[(int) date('z') % count($dailyVerses)];
   .bible-reader-nav{display:flex; gap:12px; margin-top:26px; padding-top:20px; border-top:1px solid var(--border-soft);}
   .btn-nav{flex:1;}
   @media (max-width:520px){
-    .bible-hero{padding:72px 18px 60px;}
+    .bible-hero{padding:40px 18px 32px;}
     .bible-reader{padding:22px 18px;}
     .bible-reader-head{flex-direction:column; align-items:flex-start;}
     .bible-content{font-size:1.05rem;}
