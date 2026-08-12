@@ -32,6 +32,8 @@ return [
     'giving_url'           => null,
     'footer_about_text'    => 'A place to belong, believe, and become — join us in person or online every week.',
     'meta_description'     => 'Grace & Life Church — sermons, events, and media from our community.',
+    'bible_source'           => 'keyless', // 'keyless' or 'api_bible'
+    'bible_api_key'         => null,
     'license_key'          => null,
     'ffmpeg_path'          => null, // e.g. ROOT_PATH . '/bin/ffmpeg/ffmpeg.exe' once a static build is downloaded
     'timezone'             => 'Africa/Lagos',

@@ -60,6 +60,10 @@ $router->get('/prayer', function () {
     render('prayer');
 });
 
+$router->get('/bible', function () {
+    render('bible');
+});
+
 $router->get('/forms/{slug}', function (array $params) {
     render('form', ['slug' => $params['slug']]);
 });

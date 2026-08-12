@@ -33,6 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'giving_url' => trim($_POST['giving_url'] ?? ''),
         'footer_about_text' => trim($_POST['footer_about_text'] ?? ''),
         'meta_description' => trim($_POST['meta_description'] ?? ''),
+        'bible_source' => trim($_POST['bible_source'] ?? 'keyless'),
+        'bible_api_key' => trim($_POST['bible_api_key'] ?? ''),
     ];
 
     $labels = $_POST['service_label'] ?? [];
