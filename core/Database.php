@@ -236,6 +236,13 @@ class Database
                     $pdo->prepare('UPDATE settings SET service_times = ? WHERE service_times IS NULL OR service_times = ""')->execute([$seed]);
                 }
             },
+            '2026_08_bible_settings' => function (PDO $pdo): void {
+                // Bible page source + API key, chosen by the admin at /admin/settings.
+                // 'keyless' uses public-domain providers (no key); 'api_bible' uses
+                // scripture.api.bible for NIV/NLT/NKJV with the stored access token.
+                self::addColumnIfMissing($pdo, 'settings', 'bible_source', "VARCHAR(20) NOT NULL DEFAULT 'keyless'", 'meta_description');
+                self::addColumnIfMissing($pdo, 'settings', 'bible_api_key', 'VARCHAR(255) NULL', 'bible_source');
+            },
             '2026_08_privacy_policy' => function (PDO $pdo): void {
                 // Seed a comprehensive privacy policy page (served at /privacy-policy).
                 // Content uses {{site_title}} / {{contact_email}} / {{contact_phone}}

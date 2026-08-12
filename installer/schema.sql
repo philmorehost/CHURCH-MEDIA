@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS `settings` (
   `giving_url` VARCHAR(500) NULL,
   `footer_about_text` TEXT NULL,
   `meta_description` VARCHAR(255) NULL,
+  `bible_source` VARCHAR(20) NOT NULL DEFAULT 'keyless' COMMENT 'keyless or api_bible',
+  `bible_api_key` VARCHAR(255) NULL COMMENT 'scripture.api.bible access token',
   `license_key` VARCHAR(120) NULL,
   `timezone` VARCHAR(64) NOT NULL DEFAULT 'Africa/Lagos',
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

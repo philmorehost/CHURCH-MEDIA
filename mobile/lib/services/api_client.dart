@@ -126,4 +126,22 @@ class ApiClient {
     final json = await _post('/api/contact', {'name': name, 'email': email, 'subject': subject, 'message': message});
     return json['message'] as String? ?? '';
   }
+
+  /// Fetches scripture from the Bible page API. Returns a normalized map with
+  /// `reference`, `translation`, `verses` (list of {verse, text}), and `copyright`.
+  Future<Map<String, dynamic>> fetchBible({
+    required String book,
+    required int chapter,
+    String version = 'KJV',
+    String lang = 'en',
+    String? verse,
+  }) async {
+    return _get('/api/bible.php', {
+      'book': book,
+      'chapter': chapter,
+      'version': version,
+      'lang': lang,
+      if (verse != null) 'verse': verse,
+    });
+  }
 }

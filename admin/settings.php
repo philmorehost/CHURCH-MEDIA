@@ -223,8 +223,32 @@ require __DIR__ . '/partials/layout-open.php';
     <textarea id="meta_description" name="meta_description"><?= e((string) $row['meta_description']) ?></textarea>
   </div>
 
+  <div class="card">
+    <h2>Bible</h2>
+    <p class="sub">Choose the source that powers the Bible page (/bible) and the mobile app's Bible screen. The key-less option works with no signup but only provides public-domain translations (KJV/WEB). API.Bible (scripture.api.bible) adds modern translations like NIV, NLT, and NKJV — you'll need to register a free API key at <a href="https://scripture.api.bible/" target="_blank" rel="noopener">scripture.api.bible</a>.</p>
+    <label for="bible_source">Bible Source</label>
+    <select id="bible_source" name="bible_source">
+      <option value="keyless" <?= ($row['bible_source'] ?? 'keyless') === 'keyless' ? 'selected' : '' ?>>Key-less (free — public domain translations)</option>
+      <option value="api_bible" <?= ($row['bible_source'] ?? '') === 'api_bible' ? 'selected' : '' ?>>API.Bible (NIV, NLT, NKJV — requires API key)</option>
+    </select>
+    <div id="bible-api-key-wrap" style="<?= ($row['bible_source'] ?? 'keyless') === 'api_bible' ? '' : 'display:none;' ?>">
+      <label for="bible_api_key">API.Bible API Key</label>
+      <input type="text" id="bible_api_key" name="bible_api_key" value="<?= e((string) ($row['bible_api_key'] ?? '')) ?>" placeholder="Paste your api.bible access token" autocomplete="off">
+    </div>
+  </div>
+
   <button class="btn" type="submit">Save Settings</button>
 </form>
+
+<script>
+(function () {
+  const source = document.getElementById('bible_source');
+  const keyWrap = document.getElementById('bible-api-key-wrap');
+  if (!source || !keyWrap) return;
+  const toggle = () => { keyWrap.style.display = source.value === 'api_bible' ? '' : 'none'; };
+  source.addEventListener('change', toggle);
+})();
+</script>
 
 <div class="card">
   <h2>Video Conversion (Cron Job)</h2>

@@ -12,72 +12,258 @@ header('Content-Type: application/json');
 $pdo = Database::getInstance()->getConnection();
 $row = $pdo->query('SELECT * FROM settings ORDER BY id ASC LIMIT 1')->fetch();
 $source = $row['bible_source'] ?? 'keyless';
-$apiKey = $row['bible_api_key'] ?? null;
+$apiKey = trim((string) ($row['bible_api_key'] ?? ''));
 
 // 2. Get Parameters
-$book = $_GET['book'] ?? '';
-$chapter = $_GET['chapter'] ?? '';
-$verse = $_GET['verse'] ?? ''; // Optional: for specific verse or whole chapter
-$version = $_GET['version'] ?? 'KJV';
-$lang = $_GET['lang'] ?? 'en';
+$book = trim((string) ($_GET['book'] ?? ''));
+$chapter = trim((string) ($_GET['chapter'] ?? ''));
+$verse = trim((string) ($_GET['verse'] ?? '')); // Optional: specific verse within the chapter
+$version = strtoupper(trim((string) ($_GET['version'] ?? 'KJV')));
+$lang = strtolower(trim((string) ($_GET['lang'] ?? 'en')));
 
-if (!$book || !$chapter) {
+if ($book === '' || $chapter === '' || !ctype_digit($chapter)) {
     http_response_code(400);
-    echo json_encode(['error' => 'Book and chapter are required.']);
+    echo json_encode(['error' => 'A valid book and chapter are required.']);
     exit;
 }
 
-// 3. Fetch from Provider
-if ($source === 'api_bible' && $apiKey) {
-    // API.Bible Implementation
-    // Note: API.Bible requires specific Bible IDs for versions.
-    // Mapping for the free tier versions:
-    $versionMapping = [
-        'NIV'  => 'de4e12af bec3-4da3-8d3d-4e8e12afbec3', // Example IDs, would need dynamic lookup
-        'NLT'  => '...', 
-        'NKJV' => '...',
-        'KJV'  => '...',
-    ];
-    
-    $bibleId = $versionMapping[$version] ?? $versionMapping['KJV'];
-    $url = "https://api.scripture.api.bible/v1/bibles/{$bibleId}/chapters/{$book}.{$chapter}";
-    
-    $opts = [
-        'http' => [
-            'method' => 'GET',
-            'header' => "Authorization: Bearer {$apiKey}\r\n"
-        ]
-    ];
-    
-    $context = stream_context_create($opts);
-    $response = @file_get_contents($url, false, $context);
-    
-    if ($response === false) {
-        http_response_code(500);
-        echo json_encode(['error' => 'Failed to fetch from API.Bible']);
-        exit;
+try {
+    if ($source === 'api_bible' && $apiKey !== '') {
+        respond(fetchApiBible($apiKey, $book, (int) $chapter, $verse, $version, $lang));
+    } else {
+        respond(fetchKeyless($book, (int) $chapter, $verse, $version, $lang));
     }
-    
-    echo $response;
-} else {
-    // Key-less implementation (Bible-Api.com)
-    // format: https://bible-api.com/john 3:16
-    $query = "{$book} {$chapter}";
-    if ($verse) {
-        $query .= ":{$verse}";
-    }
-    
-    $url = "https://bible-api.com/" . urlencode($query);
-    if ($lang !== 'en') {
-        $url .= "?translation=" . ($lang === 'es' ? 'rvr1960' : 'web'); 
-    }
-    $response = @file_get_contents($url);
-    
-    if ($response === false) {
-        http_response_code(500);
-        echo json_encode(['error' => 'Failed to fetch from Bible-Api.com']);
-        exit;
-    }
-    
-    echo $response;
+} catch (Throwable $e) {
+    http_response_code(502);
+    echo json_encode(['error' => $e->getMessage()]);
 }
+
+function respond(array $payload): void
+{
+    echo json_encode($payload);
+    exit;
+}
+
+/** Minimal HTTP GET with cURL (or stream fallback). Throws on failure. */
+function httpRequest(string $url, array $headers = []): string
+{
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTPHEADER     => $headers,
+        ]);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+        if ($body === false || $code >= 400) {
+            throw new RuntimeException('Bible provider returned HTTP ' . $code . ($err ? ' (' . $err . ')' : ''));
+        }
+        return (string) $body;
+    }
+
+    $ctx = stream_context_create(['http' => [
+        'method'  => 'GET',
+        'header'  => implode("\r\n", $headers) . "\r\n",
+        'timeout' => 20,
+    ]]);
+    $body = @file_get_contents($url, false, $ctx);
+    if ($body === false) {
+        throw new RuntimeException('Bible provider could not be reached.');
+    }
+    return (string) $body;
+}
+
+/* ---------------------------------------------------------------------------
+ * KEY-LESS provider (bible-api.com) — public-domain translations only
+ * (KJV, WEB, BBE, etc.). No API key required.
+ * ------------------------------------------------------------------------- */
+function fetchKeyless(string $book, int $chapter, string $verse, string $version, string $lang): array
+{
+    $query = $book . ' ' . $chapter;
+    if ($verse !== '' && ctype_digit($verse)) {
+        $query .= ':' . $verse;
+    }
+
+    $translation = 'web';
+    if ($lang === 'es') {
+        $translation = 'rvr1960'; // Spanish Reina-Valera 1960 (only Spanish option here)
+    } else {
+        $translation = match ($version) {
+            'KJV' => 'kjv',
+            'WEB' => 'web',
+            'BBE' => 'bbe',
+            'YLT' => 'ylt',
+            'ASV' => 'asv',
+            'DARBY' => 'darby',
+            default => 'web',
+        };
+    }
+
+    $url = 'https://bible-api.com/' . rawurlencode($query) . '?translation=' . $translation;
+    $decoded = json_decode(httpRequest($url), true);
+
+    $verses = [];
+    foreach (($decoded['verses'] ?? []) as $v) {
+        if (isset($v['verse'], $v['text'])) {
+            $verses[] = ['verse' => (string) $v['verse'], 'text' => $v['text']];
+        }
+    }
+
+    return [
+        'provider'    => 'keyless',
+        'reference'   => $decoded['reference'] ?? ($book . ' ' . $chapter),
+        'translation' => $decoded['translation_name'] ?? $translation,
+        'verses'      => $verses,
+        'copyright'   => 'Public domain',
+    ];
+}
+
+/* ---------------------------------------------------------------------------
+ * API.BIBLE provider (scripture.api.bible) — NIV / NLT / NKJV etc.
+ * Resolves the bible ID dynamically from the account, so any version granted
+ * to the free tier works, and maps to the requested language when available.
+ * ------------------------------------------------------------------------- */
+function fetchApiBible(string $apiKey, string $book, int $chapter, string $verse, string $version, string $lang): array
+{
+    $headers = ['Authorization: Bearer ' . $apiKey];
+
+    $bibleId = apiBibleResolveId($apiKey, $version, $lang, $headers);
+    if ($bibleId === null) {
+        throw new RuntimeException("No matching '" . $version . "' Bible found for the configured API.Bible account.");
+    }
+
+    $bookId = bookToOsisId($book);
+    if ($bookId === null) {
+        throw new RuntimeException("Unknown book: '" . $book . "'");
+    }
+
+    $base = 'https://api.scripture.api.bible/v1/bibles/' . $bibleId;
+
+    if ($verse !== '' && ctype_digit($verse)) {
+        $endpoint = $base . '/verses/' . $bookId . '.' . $chapter . '.' . $verse;
+    } else {
+        $endpoint = $base . '/chapters/' . $bookId . '.' . $chapter;
+    }
+
+    $url = $endpoint . '?content-type=json&include-verse-numbers=true';
+    $decoded = json_decode(httpRequest($url, $headers), true);
+    $data = $decoded['data'] ?? [];
+
+    $verses = [];
+    if (isset($data['content'])) {
+        $nodes = json_decode((string) $data['content'], true);
+        if (is_array($nodes)) {
+            extractApiBibleVerses($nodes, $verses);
+        }
+    }
+
+    return [
+        'provider'    => 'api_bible',
+        'reference'   => $data['reference'] ?? ($book . ' ' . $chapter),
+        'translation' => $data['abbreviation'] ?? $version,
+        'verses'      => $verses,
+        'copyright'   => $data['copyright'] ?? '',
+    ];
+}
+
+/** Fetch the account's Bible list and pick the best match for version + language. */
+function apiBibleResolveId(string $apiKey, string $version, string $lang, array $headers): ?string
+{
+    $decoded = json_decode(httpRequest('https://api.scripture.api.bible/v1/bibles', $headers), true);
+    $bibles = $decoded['data'] ?? [];
+    if (!is_array($bibles) || $bibles === []) {
+        return null;
+    }
+
+    $langMap = ['en' => 'eng', 'es' => 'spa', 'fr' => 'fra', 'de' => 'deu', 'pt' => 'por', 'it' => 'ita', 'ru' => 'rus'];
+    $langId = $langMap[$lang] ?? 'eng';
+
+    // 1) Exact version + language match
+    foreach ($bibles as $b) {
+        if (strcasecmp((string) ($b['abbreviation'] ?? ''), $version) === 0 && ($b['language']['id'] ?? '') === $langId) {
+            return $b['id'] ?? null;
+        }
+    }
+    // 2) Exact version match in any language
+    foreach ($bibles as $b) {
+        if (strcasecmp((string) ($b['abbreviation'] ?? ''), $version) === 0) {
+            return $b['id'] ?? null;
+        }
+    }
+    // 3) Any bible in the requested language
+    foreach ($bibles as $b) {
+        if (($b['language']['id'] ?? '') === $langId) {
+            return $b['id'] ?? null;
+        }
+    }
+    // 4) First available bible
+    return $bibles[0]['id'] ?? null;
+}
+
+/** Recursively walk API.Bible's JSON content tree and collect verses in order. */
+function extractApiBibleVerses(array $nodes, array &$verses): void
+{
+    foreach ($nodes as $node) {
+        if (!is_array($node)) {
+            continue;
+        }
+        $type = (string) ($node['type'] ?? '');
+        if ($type === 'verse') {
+            $text = collectApiBibleText($node['items'] ?? []);
+            $text = trim(preg_replace('/\s+/u', ' ', $text) ?? '');
+            if ($text !== '') {
+                $verses[] = ['verse' => (string) ($node['number'] ?? count($verses) + 1), 'text' => $text];
+            }
+        } else {
+            extractApiBibleVerses($node['items'] ?? [], $verses);
+        }
+    }
+}
+
+function collectApiBibleText(array $items): string
+{
+    $text = '';
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $type = (string) ($item['type'] ?? '');
+        if ($type === 'text') {
+            $text .= (string) ($item['text'] ?? '');
+        } elseif ($type === 'verse') {
+            $text .= collectApiBibleText($item['items'] ?? []);
+        } elseif ($type === 'note') {
+            continue; // footnotes aren't verse text
+        } else {
+            $text .= collectApiBibleText($item['items'] ?? []);
+        }
+    }
+    return $text;
+}
+
+/** Map a full book name ("Genesis", "1 John") to its API.Bible OSIS book ID. */
+function bookToOsisId(string $book): ?string
+{
+    $map = [
+        'genesis' => 'GEN', 'exodus' => 'EXO', 'leviticus' => 'LEV', 'numbers' => 'NUM', 'deuteronomy' => 'DEU',
+        'joshua' => 'JOS', 'judges' => 'JDG', 'ruth' => 'RUT', '1 samuel' => '1SA', '2 samuel' => '2SA',
+        '1 kings' => '1KI', '2 kings' => '2KI', '1 chronicles' => '1CH', '2 chronicles' => '2CH',
+        'ezra' => 'EZR', 'nehemiah' => 'NEH', 'esther' => 'EST', 'job' => 'JOB', 'psalms' => 'PSA', 'psalm' => 'PSA',
+        'proverbs' => 'PRO', 'ecclesiastes' => 'ECC', 'song of solomon' => 'SNG', 'song of songs' => 'SNG', 'songs' => 'SNG',
+        'isaiah' => 'ISA', 'jeremiah' => 'JER', 'lamentations' => 'LAM', 'ezekiel' => 'EZK', 'daniel' => 'DAN',
+        'hosea' => 'HOS', 'joel' => 'JOL', 'amos' => 'AMO', 'obadiah' => 'OBA', 'jonah' => 'JON', 'micah' => 'MIC',
+        'nahum' => 'NAM', 'habakkuk' => 'HAB', 'zephaniah' => 'ZEP', 'haggai' => 'HAG', 'zechariah' => 'ZEC',
+        'malachi' => 'MAL', 'matthew' => 'MAT', 'mark' => 'MRK', 'luke' => 'LUK', 'john' => 'JHN', 'acts' => 'ACT',
+        'romans' => 'ROM', '1 corinthians' => '1CO', '2 corinthians' => '2CO', 'galatians' => 'GAL', 'ephesians' => 'EPH',
+        'philippians' => 'PHP', 'colossians' => 'COL', '1 thessalonians' => '1TH', '2 thessalonians' => '2TH',
+        '1 timothy' => '1TI', '2 timothy' => '2TI', 'titus' => 'TIT', 'philemon' => 'PHM', 'hebrews' => 'HEB',
+        'james' => 'JAS', '1 peter' => '1PE', '2 peter' => '2PE', '1 john' => '1JN', '2 john' => '2JN', '3 john' => '3JN',
+        'jude' => 'JUD', 'revelation' => 'REV', 'revelations' => 'REV',
+    ];
+    return $map[strtolower(trim($book))] ?? null;
+}
+

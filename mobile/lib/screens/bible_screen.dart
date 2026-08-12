@@ -16,11 +16,23 @@ class _BibleScreenState extends State<BibleScreen> {
   bool _isLoading = false;
   List<dynamic> _verses = [];
   String _errorMessage = '';
+  String _reference = '';
+  String _translation = '';
 
   final List<String> _versions = ['KJV', 'NIV', 'NLT', 'NKJV'];
   final List<String> _books = [
     'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy',
-    'Isaiah', 'Jeremiah', 'John', 'Romans', 'Revelation'
+    'Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel',
+    '1 Kings', '2 Kings', '1 Chronicles', '2 Chronicles',
+    'Ezra', 'Nehemiah', 'Esther', 'Job', 'Psalms', 'Proverbs',
+    'Ecclesiastes', 'Song of Solomon', 'Isaiah', 'Jeremiah', 'Lamentations',
+    'Ezekiel', 'Daniel', 'Hosea', 'Joel', 'Amos', 'Obadiah', 'Jonah',
+    'Micah', 'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi',
+    'Matthew', 'Mark', 'Luke', 'John', 'Acts', 'Romans',
+    '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians', 'Philippians',
+    'Colossians', '1 Thessalonians', '2 Thessalonians', '1 Timothy', '2 Timothy',
+    'Titus', 'Philemon', 'Hebrews', 'James', '1 Peter', '2 Peter',
+    '1 John', '2 John', '3 John', 'Jude', 'Revelation',
   ];
 
   Future<void> _fetchScripture() async {
@@ -31,22 +43,24 @@ class _BibleScreenState extends State<BibleScreen> {
 
     try {
       final apiClient = ApiClient();
-      final response = await apiClient.get('/api/bible.php', queryParameters: {
-        'book': _selectedBook,
-        'chapter': _selectedChapter.toString(),
-        'version': _selectedVersion,
-        'lang': _selectedLang,
-      });
+      final response = await apiClient.fetchBible(
+        book: _selectedBook,
+        chapter: _selectedChapter,
+        version: _selectedVersion,
+        lang: _selectedLang,
+      );
 
       if (response['error'] != null) {
-        setState(() => _errorMessage = response['error']);
+        setState(() => _errorMessage = response['error'] as String);
       } else {
-        // Handle both Bible-Api.com (verses list) and API.Bible formats
-        if (response['verses'] != null) {
-          setState(() => _verses = response['verses']);
-        } else if (response['content'] != null) {
-          // Simplified: treat content as a single verse for display
-          setState(() => _verses = [{'verse': '1', 'text': response['content']}]);
+        // Both providers return a normalized {verse, text} list.
+        final verses = response['verses'];
+        if (verses is List && verses.isNotEmpty) {
+          setState(() {
+            _verses = verses;
+            _reference = (response['reference'] as String? ?? '$_selectedBook $_selectedChapter');
+            _translation = response['translation'] as String? ?? '';
+          });
         } else {
           setState(() => _errorMessage = 'No content found.');
         }
@@ -60,6 +74,7 @@ class _BibleScreenState extends State<BibleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Holy Bible'),
@@ -137,18 +152,35 @@ class _BibleScreenState extends State<BibleScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _errorMessage.isNotEmpty
-                      ? Center(child: Text(_errorMessage, style: const TextStyle(color: Colors.red)))
+                      ? Center(child: Padding(padding: const EdgeInsets.all(16), child: Text(_errorMessage, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red))))
                       : _verses.isEmpty
                           ? const Center(child: Text('Select a passage and press Read'))
                           : ListView.builder(
-                              itemCount: _verses.length,
+                              itemCount: _verses.length + 1,
                               itemBuilder: (context, index) {
-                                final v = _verses[index];
+                                if (index == 0) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(_reference, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                                        if (_translation.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 2),
+                                            child: Text(_translation, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline)),
+                                          ),
+                                        const Divider(height: 20),
+                                      ],
+                                    ),
+                                  );
+                                }
+                                final v = _verses[index - 1];
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 8.0),
                                   child: RichText(
                                     text: TextSpan(
-                                      style: const TextStyle(color: Colors.black, fontSize: 18, height: 1.6),
+                                      style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 18, height: 1.6),
                                       children: [
                                         TextSpan(
                                           text: '${v['verse']} ',

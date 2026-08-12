@@ -101,23 +101,24 @@ document.getElementById('btn-read').addEventListener('click', async () => {
         const data = await response.json();
 
         if (data.error) {
-            contentDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+            contentDiv.innerHTML = `<div class="alert alert-danger">${esc(data.error)}</div>`;
             return;
         }
 
-        let html = `<h2 class="text-center mb-4">${book} ${chapter}</h2>`;
-        
-        // Handle different API responses (Bible-Api.com vs API.Bible)
-        if (data.verses) {
-            // Bible-Api.com format
+        const reference = data.reference || `${book} ${chapter}`;
+        let html = `<h2 class="text-center mb-4">${esc(reference)}</h2>`;
+
+        // Both providers return a normalized {verse, text} list.
+        if (Array.isArray(data.verses) && data.verses.length) {
             data.verses.forEach(v => {
-                html += `<div class="bible-verse"><span class="verse-num">${v.verse}</span>${v.text}</div>`;
+                html += `<div class="bible-verse"><span class="verse-num">${esc(v.verse)}</span>${esc(v.text)}</div>`;
             });
-        } else if (data.content) {
-            // API.Bible format usually returns HTML or separate verses
-            html += data.content;
         } else {
             html += '<p class="text-center">No content found for this selection.</p>';
+        }
+
+        if (data.translation) {
+            html += `<p class="text-center text-muted mt-4" style="font-size:.9rem;">${esc(data.translation)}</p>`;
         }
 
         contentDiv.innerHTML = html;
@@ -125,4 +126,8 @@ document.getElementById('btn-read').addEventListener('click', async () => {
         contentDiv.innerHTML = `<div class="alert alert-danger">An error occurred while fetching the Bible text. Please try again.</div>`;
     }
 });
+
+function esc(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 </script>
