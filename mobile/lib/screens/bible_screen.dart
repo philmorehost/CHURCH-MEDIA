@@ -173,9 +173,8 @@ class _BibleScreenState extends State<BibleScreen> {
                         Expanded(
                           child: TextFormField(
                             controller: _verseController,
-                            decoration: const InputDecoration(labelText: 'Verse (optional)'),
+                            decoration: const InputDecoration(labelText: 'Verse (optional)', hintText: 'All'),
                             keyboardType: TextInputType.number,
-                            hintText: 'All',
                           ),
                         ),
                         const SizedBox(width: 16),
