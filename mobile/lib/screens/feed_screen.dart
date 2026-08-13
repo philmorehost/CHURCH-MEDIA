@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../models/models.dart';
 import '../services/api_client.dart';
 import '../services/share_service.dart';
@@ -233,6 +233,7 @@ class _FeedSlide extends StatefulWidget {
 
 class _FeedSlideState extends State<_FeedSlide> {
   VideoPlayerController? _videoController;
+  YoutubePlayerController? _youtubeController;
   int _mediaIndex = 0;
   bool _muted = true;
   bool _liking = false;
@@ -244,12 +245,17 @@ class _FeedSlideState extends State<_FeedSlide> {
   @override
   void dispose() {
     _videoController?.dispose();
+    _youtubeController?.dispose();
     super.dispose();
   }
 
   void _setupVideoIfNeeded() {
     final media = _activeMedia;
-    if (media == null || media.type != 'video' || media.source == 'youtube' || media.fileUrl == null) return;
+    if (media == null || media.type != 'video' || media.fileUrl == null) return;
+    if (media.source == 'youtube') {
+      _setupYoutubeIfNeeded(media.fileUrl!);
+      return;
+    }
     if (_videoController != null) return;
     final controller = VideoPlayerController.networkUrl(Uri.parse(media.fileUrl!));
     _videoController = controller;
@@ -260,19 +266,53 @@ class _FeedSlideState extends State<_FeedSlide> {
     });
   }
 
+  /// Creates the YouTube player for the current slide. Uses youtube_player_flutter
+  /// instead of a raw WebView embed — YouTube blocks plain WebView embeds on
+  /// Android ("Video unavailable"), while this package uses the official IFrame
+  /// player API and plays reliably.
+  void _setupYoutubeIfNeeded(String url) {
+    if (_youtubeController != null) return;
+    final id = _youtubeId(url);
+    if (id.isEmpty) return;
+    _youtubeController = YoutubePlayerController(
+      initialVideoId: id,
+      flags: const YoutubePlayerFlags(
+        autoPlay: true,
+        mute: true,
+        loop: true,
+        disableDragSeek: true,
+        controlsVisibleAtStart: false,
+      ),
+    );
+  }
+
+  String _youtubeId(String url) =>
+      RegExp(r'/embed/([a-zA-Z0-9_-]+)').firstMatch(url)?.group(1) ?? url.trim();
+
   void _onVisibilityChanged(VisibilityInfo info) {
-    final controller = _videoController;
-    if (controller == null) return;
-    if (info.visibleFraction > 0.6) {
-      controller.play();
-    } else {
-      controller.pause();
+    final visible = info.visibleFraction > 0.6;
+    final vc = _videoController;
+    if (vc != null) {
+      if (visible) {
+        vc.play();
+      } else {
+        vc.pause();
+      }
+    }
+    final yc = _youtubeController;
+    if (yc != null) {
+      if (visible) {
+        if (!yc.value.isPlaying) yc.play();
+      } else {
+        yc.pause();
+      }
     }
   }
 
   void _toggleMute() {
     setState(() => _muted = !_muted);
     _videoController?.setVolume(_muted ? 0 : 1);
+    _youtubeController?.setVolume(_muted ? 0 : 1);
   }
 
   Future<void> _toggleLike({bool doubleTap = false}) async {
@@ -492,12 +532,16 @@ class _FeedSlideState extends State<_FeedSlide> {
   void _prevMedia() => setState(() {
         _videoController?.dispose();
         _videoController = null;
+        _youtubeController?.dispose();
+        _youtubeController = null;
         _mediaIndex = (_mediaIndex - 1 + widget.post.mediaItems.length) % widget.post.mediaItems.length;
       });
 
   void _nextMedia() => setState(() {
         _videoController?.dispose();
         _videoController = null;
+        _youtubeController?.dispose();
+        _youtubeController = null;
         _mediaIndex = (_mediaIndex + 1) % widget.post.mediaItems.length;
       });
 
@@ -506,14 +550,15 @@ class _FeedSlideState extends State<_FeedSlide> {
     if (media == null) return Container(color: AppColors.bg2);
 
     if (media.type == 'video' && media.source == 'youtube') {
-      final id = RegExp(r'/embed/([a-zA-Z0-9_-]+)').firstMatch(media.fileUrl ?? '')?.group(1) ?? media.fileUrl ?? '';
+      final id = _youtubeId(media.fileUrl ?? '');
+      final yc = _youtubeController;
       return GestureDetector(
         onTap: _toggleMute,
         onDoubleTap: () => _toggleLike(doubleTap: true),
         child: Container(
           color: Colors.black,
-          child: id.isNotEmpty
-              ? _YoutubePlayer(key: ValueKey('yt-$id-${_muted ? 1 : 0}'), videoId: id, muted: _muted)
+          child: id.isNotEmpty && yc != null
+              ? Center(child: _YoutubePlayerView(controller: yc))
               : const LoadingView(),
         ),
       );
@@ -575,33 +620,22 @@ class _FeedSlideState extends State<_FeedSlide> {
   }
 }
 
-class _YoutubePlayer extends StatefulWidget {
-  final String videoId;
-  final bool muted;
-  const _YoutubePlayer({super.key, required this.videoId, required this.muted});
-
-  @override
-  State<_YoutubePlayer> createState() => _YoutubePlayerState();
-}
-
-class _YoutubePlayerState extends State<_YoutubePlayer> {
-  late final WebViewController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    final id = widget.videoId;
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.black)
-      ..loadRequest(Uri.parse(
-        'https://www.youtube.com/embed/$id?autoplay=1&mute=${widget.muted ? 1 : 0}&playsinline=1&loop=1&rel=0&playlist=$id',
-      ));
-  }
+class _YoutubePlayerView extends StatelessWidget {
+  final YoutubePlayerController controller;
+  const _YoutubePlayerView({required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return WebViewWidget(controller: _controller);
+    return YoutubePlayer(
+      controller: controller,
+      showVideoProgressIndicator: false,
+      progressColors: const ProgressBarColors(
+        playedColor: AppColors.gold,
+        handleColor: AppColors.goldSoft,
+        backgroundColor: Colors.white24,
+        bufferedColor: Colors.white30,
+      ),
+    );
   }
 }
 
