@@ -20,8 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      HAS_PLAY_SECRET: ${{ secrets.SERVICE_ACCOUNT_JSON != '' }}
 
     steps:
       - name: Checkout
@@ -105,19 +103,19 @@ jobs:
           path: mobile/build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 
-      - name: Upload to Google Play
-        if: env.HAS_PLAY_SECRET == 'true'
-        env:
-          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-          packageName: com.rccglp63yaya.church_media
-          releaseFiles: mobile/build/app/outputs/bundle/release/app-release.aab
-          tracks: production
-          # Draft keeps the upload from failing the "Precondition check" that
-          # happens when a brand-new app tries to publish a "completed" release
-          # before its Play Console setup (content rating, data safety, store
-          # listing) is finished. Once the app setup is complete, change back
-          # to "completed" to submit for review automatically.
-          status: draft
+      # Google Play upload is temporarily disabled so it doesn't fail the build.
+      # It was failing with "Precondition check failed" because the Play Console
+      # app isn't fully set up yet (app must exist as com.rccglp63yaya.church_media
+      # and have production-track access + content rating / data safety / store
+      # listing). Re-enable once Play Console is ready:
+      #
+      # - name: Upload to Google Play
+      #   env:
+      #     SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+      #   uses: r0adkll/upload-google-play@v1
+      #   with:
+      #     serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+      #     packageName: com.rccglp63yaya.church_media
+      #     releaseFiles: mobile/build/app/outputs/bundle/release/app-release.aab
+      #     tracks: production
+      #     status: draft
