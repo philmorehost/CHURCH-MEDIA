@@ -245,7 +245,7 @@ class _FeedSlideState extends State<_FeedSlide> {
   @override
   void dispose() {
     _videoController?.dispose();
-    _youtubeController?.dispose();
+    _youtubeController?.close();
     super.dispose();
   }
 
@@ -274,8 +274,8 @@ class _FeedSlideState extends State<_FeedSlide> {
     if (_youtubeController != null) return;
     final id = _youtubeId(url);
     if (id.isEmpty) return;
-    _youtubeController = YoutubePlayerController(
-      initialVideoId: id,
+    _youtubeController = YoutubePlayerController.fromVideoId(
+      videoId: id,
       autoPlay: true,
       params: const YoutubePlayerParams(
         mute: true,
@@ -301,9 +301,9 @@ class _FeedSlideState extends State<_FeedSlide> {
     final yc = _youtubeController;
     if (yc != null) {
       if (visible) {
-        if (!yc.value.isPlaying) yc.play();
+        if (yc.value.playerState != PlayerState.playing) yc.playVideo();
       } else {
-        yc.pause();
+        yc.pauseVideo();
       }
     }
   }
@@ -538,7 +538,7 @@ class _FeedSlideState extends State<_FeedSlide> {
   void _prevMedia() => setState(() {
         _videoController?.dispose();
         _videoController = null;
-        _youtubeController?.dispose();
+        _youtubeController?.close();
         _youtubeController = null;
         _mediaIndex = (_mediaIndex - 1 + widget.post.mediaItems.length) % widget.post.mediaItems.length;
       });
@@ -546,7 +546,7 @@ class _FeedSlideState extends State<_FeedSlide> {
   void _nextMedia() => setState(() {
         _videoController?.dispose();
         _videoController = null;
-        _youtubeController?.dispose();
+        _youtubeController?.close();
         _youtubeController = null;
         _mediaIndex = (_mediaIndex + 1) % widget.post.mediaItems.length;
       });
@@ -632,10 +632,7 @@ class _YoutubePlayerView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return YoutubePlayerControllerProvider(
-      controller: controller,
-      child: const YoutubePlayerIFrame(),
-    );
+    return YoutubePlayer(controller: controller);
   }
 }
 
