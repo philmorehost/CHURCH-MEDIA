@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import '../models/models.dart';
 import '../services/api_client.dart';
 import '../services/share_service.dart';
@@ -266,22 +266,21 @@ class _FeedSlideState extends State<_FeedSlide> {
     });
   }
 
-  /// Creates the YouTube player for the current slide. Uses youtube_player_flutter
-  /// instead of a raw WebView embed — YouTube blocks plain WebView embeds on
-  /// Android ("Video unavailable"), while this package uses the official IFrame
-  /// player API and plays reliably.
+  /// Creates the YouTube player for the current slide. Uses youtube_player_iframe
+  /// (built on webview_flutter) instead of a raw WebView embed — YouTube blocks
+  /// plain WebView embeds on Android ("Video unavailable"), while this package
+  /// uses the official IFrame player API and plays reliably.
   void _setupYoutubeIfNeeded(String url) {
     if (_youtubeController != null) return;
     final id = _youtubeId(url);
     if (id.isEmpty) return;
     _youtubeController = YoutubePlayerController(
       initialVideoId: id,
-      flags: const YoutubePlayerFlags(
-        autoPlay: true,
+      autoPlay: true,
+      params: const YoutubePlayerParams(
         mute: true,
         loop: true,
-        disableDragSeek: true,
-        controlsVisibleAtStart: false,
+        showControls: false,
       ),
     );
   }
@@ -312,7 +311,14 @@ class _FeedSlideState extends State<_FeedSlide> {
   void _toggleMute() {
     setState(() => _muted = !_muted);
     _videoController?.setVolume(_muted ? 0 : 1);
-    _youtubeController?.setVolume(_muted ? 0 : 1);
+    final yc = _youtubeController;
+    if (yc != null) {
+      if (_muted) {
+        yc.mute();
+      } else {
+        yc.unMute();
+      }
+    }
   }
 
   Future<void> _toggleLike({bool doubleTap = false}) async {
@@ -626,15 +632,9 @@ class _YoutubePlayerView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return YoutubePlayer(
+    return YoutubePlayerControllerProvider(
       controller: controller,
-      showVideoProgressIndicator: false,
-      progressColors: const ProgressBarColors(
-        playedColor: AppColors.gold,
-        handleColor: AppColors.goldSoft,
-        backgroundColor: Colors.white24,
-        bufferedColor: Colors.white30,
-      ),
+      child: const YoutubePlayerIFrame(),
     );
   }
 }
