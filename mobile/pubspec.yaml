@@ -13,7 +13,10 @@ dependencies:
   cached_network_image: ^3.3.1
   video_player: ^2.9.1
   webview_flutter: ^4.10.0
-  youtube_player_flutter: ^9.1.1
+  # v8 uses webview_flutter; v9 pulls in flutter_inappwebview_android which
+  # references the removed proguard-android.txt and breaks the release build
+  # with the current Android Gradle Plugin.
+  youtube_player_flutter: ^8.1.2
   visibility_detector: ^0.4.0+2
   google_fonts: ^6.2.1
   url_launcher: ^6.3.0
