@@ -564,7 +564,7 @@ class _FeedSlideState extends State<_FeedSlide> {
         child: Container(
           color: Colors.black,
           child: id.isNotEmpty && yc != null
-              ? Center(child: _YoutubePlayerView(controller: yc))
+              ? _YoutubePlayerView(controller: yc)
               : const LoadingView(),
         ),
       );
@@ -632,7 +632,30 @@ class _YoutubePlayerView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return YoutubePlayer(controller: controller);
+    return LayoutBuilder(builder: (context, constraints) {
+      final w = constraints.maxWidth;
+      final h = constraints.maxHeight;
+      if (w <= 0 || h <= 0) return const SizedBox.shrink();
+
+      // Fill the screen height with a 16:9 player and crop the horizontal
+      // overflow, so the video covers the full portrait screen edge-to-edge
+      // (like Instagram Reels) instead of showing black bars above/below.
+      final playerW = h * 16 / 9;
+      return ClipRect(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned(
+              left: (w - playerW) / 2,
+              top: 0,
+              width: playerW,
+              height: h,
+              child: YoutubePlayer(controller: controller),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }
 
