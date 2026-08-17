@@ -78,7 +78,7 @@ class OfflineBibleService {
   }
 
   /// Chapter verses (1-based chapter) for the given book index.
-  Future<List<String>> chapter(String versionKey, int bookIndex, int chapter) async {
+  Future<List<String>> chapterVerses(String versionKey, int bookIndex, int chapter) async {
     final all = await books(versionKey);
     if (bookIndex < 0 || bookIndex >= all.length) return [];
     final ch = all[bookIndex].chapters;
@@ -87,7 +87,7 @@ class OfflineBibleService {
   }
 
   Future<String> verse(String versionKey, int bookIndex, int chapter, int verse) async {
-    final verses = await chapter(versionKey, bookIndex, chapter);
+    final verses = await chapterVerses(versionKey, bookIndex, chapter);
     if (verse < 1 || verse > verses.length) return '';
     return verses[verse - 1];
   }

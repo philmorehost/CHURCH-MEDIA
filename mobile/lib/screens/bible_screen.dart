@@ -33,7 +33,6 @@ class _BibleScreenState extends State<BibleScreen> {
   String _selectedLang = 'en';
   String _selectedBook = 'Genesis';
   int _selectedChapter = 1;
-  int _bookIndex = 0;
 
   List<String> _books = [];
   List<({int verse, String text})> _passage = [];
@@ -126,8 +125,7 @@ class _BibleScreenState extends State<BibleScreen> {
       if (mounted) setState(() { _isLoading = false; _errorMessage = 'Book not found.'; });
       return;
     }
-    _bookIndex = idx;
-    final verses = await OfflineBibleService.instance.chapter(key, idx, _selectedChapter);
+    final verses = await OfflineBibleService.instance.chapterVerses(key, idx, _selectedChapter);
     if (verses.isEmpty) {
       if (mounted) setState(() { _isLoading = false; _errorMessage = 'Chapter not found.'; });
       return;
