@@ -105,7 +105,7 @@ jobs:
 
       # Google Play upload is temporarily disabled so it doesn't fail the build.
       # It was failing with "Precondition check failed" because the Play Console
-      # app isn't fully set up yet (app must exist as com.rccglp63yaya.church_media
+      # app isn't fully set up yet (app must exist as com.churchmedia.app
       # and have production-track access + content rating / data safety / store
       # listing). Re-enable once Play Console is ready:
       #
@@ -115,7 +115,7 @@ jobs:
       #   uses: r0adkll/upload-google-play@v1
       #   with:
       #     serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-      #     packageName: com.rccglp63yaya.church_media
+      #     packageName: com.churchmedia.app
       #     releaseFiles: mobile/build/app/outputs/bundle/release/app-release.aab
       #     tracks: production
       #     status: draft

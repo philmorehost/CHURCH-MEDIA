@@ -19,7 +19,7 @@ fun signingProp(name: String, env: String): String? =
     keystoreProperties.getProperty(name)?.takeIf { it.isNotBlank() } ?: System.getenv(env)?.takeIf { it.isNotBlank() }
 
 android {
-    namespace = "com.rccglp63yaya.church_media"
+    namespace = "com.churchmedia.app"
     // Pinned so releases always satisfy the Google Play target-API requirement
     // (Android 16 / API 36), regardless of the installed Flutter SDK default.
     compileSdk = 36
@@ -32,7 +32,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.rccglp63yaya.church_media"
+        applicationId = "com.churchmedia.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24

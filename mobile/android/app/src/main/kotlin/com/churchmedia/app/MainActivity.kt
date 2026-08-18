@@ -1,4 +1,4 @@
-package com.rccglp63yaya.church_media
+package com.churchmedia.app
 
 import android.content.Intent
 import io.flutter.embedding.android.FlutterActivity
