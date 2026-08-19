@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -637,20 +638,44 @@ class _YoutubePlayerView extends StatelessWidget {
       final h = constraints.maxHeight;
       if (w <= 0 || h <= 0) return const SizedBox.shrink();
 
-      // Fill the screen height with a 16:9 player and crop the horizontal
-      // overflow, so the video covers the full portrait screen edge-to-edge
-      // (like Instagram Reels) instead of showing black bars above/below.
-      final playerW = h * 16 / 9;
+      // Size the 16:9 iframe so it ALWAYS covers the full screen edge-to-edge
+      // (like Instagram Reels) and crop any overflow, so every reel is a
+      // constant vertical format. We pick the larger cover dimension in each
+      // axis so it works on any screen shape.
+      final playerW = (h * 16 / 9) > w ? (h * 16 / 9) : w;
+      final playerH = (w * 9 / 16) > h ? (w * 9 / 16) : h;
+
+      // Disable the package's fullscreen-on-vertical-drag and auto-fullscreen:
+      // with them enabled, a fling to the next reel triggers the player's own
+      // fullscreen mode, which letterboxes the video (black bars top/bottom)
+      // so it appears small — and it traps swipes so you can't scroll past it.
+      // We manage our own full-screen reel layout, so they must stay off.
       return ClipRect(
         child: Stack(
           alignment: Alignment.center,
           children: [
             Positioned(
               left: (w - playerW) / 2,
-              top: 0,
+              top: (h - playerH) / 2,
               width: playerW,
-              height: h,
-              child: YoutubePlayer(controller: controller),
+              height: playerH,
+              child: YoutubePlayer(
+                controller: controller,
+                enableFullScreenOnVerticalDrag: false,
+                autoFullScreen: false,
+                // Let the reels PageView scroll when the swipe starts on the
+                // video. Without this the platform WebView claims every touch
+                // (Eager default), so vertical swipes on the video go nowhere.
+                // With vertical+horizontal drag recognizers the parent scroll
+                // wins the gesture arena, while taps/double-taps still reach
+                // our mute/like handlers below.
+                gestureRecognizers: {
+                  Factory<VerticalDragGestureRecognizer>(
+                      () => VerticalDragGestureRecognizer()),
+                  Factory<HorizontalDragGestureRecognizer>(
+                      () => HorizontalDragGestureRecognizer()),
+                },
+              ),
             ),
           ],
         ),
