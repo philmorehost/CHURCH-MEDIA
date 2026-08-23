@@ -159,6 +159,7 @@
       <div class="group">Content</div>
       <a href="#dashboard"><span class="num">02</span>Dashboard</a>
       <a href="#media"><span class="num">03</span>Media &amp; Reels</a>
+      <a href="#comments"><span class="num">03B</span>Comments</a>
       <a href="#events"><span class="num">04</span>Events</a>
       <a href="#sermons"><span class="num">05</span>Sermons</a>
       <a href="#team"><span class="num">06</span>Team</a>
@@ -167,12 +168,14 @@
       <a href="#forms"><span class="num">09</span>Forms</a>
       <a href="#pages"><span class="num">10</span>Pages</a>
       <div class="group">System</div>
-      <a href="#security"><span class="num">11</span>Security</a>
-      <a href="#settings"><span class="num">12</span>Settings</a>
-      <a href="#users"><span class="num">13</span>Users</a>
-      <a href="#account"><span class="num">14</span>My Account</a>
-      <a href="#login"><span class="num">15</span>Login &amp; Logout</a>
-      <a href="#notes"><span class="num">16</span>General Notes</a>
+      <a href="#notifications"><span class="num">11</span>Notifications</a>
+      <a href="#firebase"><span class="num">12</span>Push (Firebase)</a>
+      <a href="#security"><span class="num">13</span>Security</a>
+      <a href="#settings"><span class="num">14</span>Settings</a>
+      <a href="#users"><span class="num">15</span>Users</a>
+      <a href="#account"><span class="num">16</span>My Account</a>
+      <a href="#login"><span class="num">17</span>Login &amp; Logout</a>
+      <a href="#notes"><span class="num">18</span>General Notes</a>
     </nav>
     <div class="foot">Admin panel runs at <code>/admin</code> on the website.</div>
   </aside>
@@ -259,11 +262,27 @@
           </li>
           <li><strong>Video conversion</strong> — uploaded videos are automatically cropped to the vertical 9:16 "reel" format in the background when FFmpeg is available. A <strong>Process</strong> button lets you retry any that are still pending, and a cron job (see Settings) is the safety net that guarantees every video is converted.</li>
           <li><strong>List</strong> — see cover thumbnails, caption, type, conversion status (converted / converting / original), and engagement (likes, views, saves).</li>
-          <li><strong>Edit</strong> — change the caption, categories, and publish status.</li>
+          <li><strong>Edit</strong> — change the caption, categories, and publish status, and manage the post's media items: <strong>replace</strong> an image/video, set a <strong>new video cover</strong>, <strong>reorder</strong> items, <strong>delete</strong> a single item, or <strong>add</strong> new photos/videos to the post.</li>
           <li><strong>Publish toggle</strong> — flip any post between published and draft with one click.</li>
           <li><strong>Delete</strong> — removes the post and its files permanently (with confirmation).</li>
           <li><strong>Categories</strong> — create and manage categories to organize the feed.</li>
         </ul>
+      </div>
+    </section>
+
+    <!-- 03B Comments -->
+    <section id="comments" aria-labelledby="comments-h">
+      <h3 id="comments-h">Comments (Instagram-style)</h3>
+      <div class="card">
+        <p>Reels support the full comment experience on both the website and the mobile app:</p>
+        <ul>
+          <li><strong>Threaded replies</strong> — tap <em>Reply</em> on any comment to respond, with nested indentation.</li>
+          <li><strong>Emoji picker</strong> — one tap inserts an emoji into your comment.</li>
+          <li><strong>Image attachments</strong> — attach a photo that is automatically compressed to the smallest WebP on upload.</li>
+          <li><strong>Comment likes</strong> (♥) with per-visitor deduplication.</li>
+          <li><strong>Live updates</strong> — comments and the reel's comment count refresh automatically while the sheet is open.</li>
+        </ul>
+        <p>Comments are anonymous (optional name); spam is controlled automatically by rate limiting.</p>
       </div>
     </section>
 
@@ -385,7 +404,31 @@
         </ul>
       </div>
     </section>
+    <!-- 11 Notifications -->
+    <section id="notifications" aria-labelledby="notifications-h">
+      <h3 id="notifications-h">Notifications (<code>/admin/notifications</code>)</h3>
+      <div class="card">
+        <p>Provinces can broadcast announcements to <strong>all churches, one church, or selected churches</strong>.</p>
+        <ul>
+          <li>Recipients see the announcement on their <strong>admin dashboard</strong> (with an unread badge) and receive it by <strong>email</strong> via the SMTP configured in Settings.</li>
+          <li><strong>Super admins</strong> can notify the whole organisation; other admins can only notify within their own province/unit.</li>
+        </ul>
+      </div>
+    </section>
 
+    <!-- 12 Push (Firebase) -->
+    <section id="firebase" aria-labelledby="firebase-h">
+      <h3 id="firebase-h">Push (Firebase) <span class="badge only">super admin only</span></h3>
+      <div class="card">
+        <p>Enable real push notifications for the mobile app with <strong>Firebase Cloud Messaging</strong> (free). The in-panel <code>/admin/firebase</code> page gives you a step-by-step wizard with a live status check.</p>
+        <ul>
+          <li>Upload your Firebase <strong>service-account.json</strong> key.</li>
+          <li>Save your <strong>Project ID</strong>.</li>
+          <li>Send a <strong>test push</strong>, then wire the app-side token registration.</li>
+        </ul>
+        <p>New published reels automatically notify subscribed devices (broadcast + per-church).</p>
+      </div>
+    </section>
     <!-- 11 Security -->
     <section id="security" aria-labelledby="security-h">
       <h3 id="security-h">Security (<code>/admin/security</code>) <span class="badge only">admin only</span></h3>
@@ -491,6 +534,7 @@
           <li><strong>CSRF protection</strong> is applied to every form and POST action automatically.</li>
           <li>Uploaded images are <strong>auto-compressed to WebP</strong> for fast page loads; video files stay in their original format so they play immediately while the vertical crop happens in the background.</li>
           <li>The panel is built to be used on desktop; the public website and mobile app are what visitors see.</li>
+          <li><strong>Per-church isolation</strong> — each church only sees its own content. Unassigned visitor records (e.g. prayer requests) are visible to the super admin, who can assign them to the right parish.</li>
         </ul>
       </div>
     </section>

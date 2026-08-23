@@ -17,11 +17,13 @@ $navItems = [
     ['key' => 'forms', 'href' => '/admin/forms', 'label' => 'Forms'],
     ['key' => 'notifications', 'href' => '/admin/notifications', 'label' => 'Notifications'],
     ['key' => 'pages', 'href' => '/admin/pages', 'label' => 'Pages', 'super' => true],
+    ['key' => 'guide', 'href' => '/admin/guide', 'label' => 'Guide'],
 ];
 $navItemsSystem = [
     ['key' => 'units', 'href' => '/admin/units', 'label' => 'Units', 'super' => true],
     ['key' => 'security', 'href' => '/admin/security', 'label' => 'Security'],
     ['key' => 'settings', 'href' => '/admin/settings', 'label' => 'Settings', 'super' => true],
+    ['key' => 'firebase', 'href' => '/admin/firebase', 'label' => 'Firebase', 'super' => true],
     ['key' => 'users', 'href' => '/admin/users', 'label' => 'Users', 'roles' => ['admin']],
 ];
 ?><!doctype html>
