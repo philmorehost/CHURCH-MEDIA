@@ -437,10 +437,10 @@ require __DIR__ . '/partials/layout-open.php';
               <span style="color:var(--gold-soft);font-size:12px;"><?= e($unitLabels[(int) $f['org_unit_id']] ?? '') ?></span>
             <?php else: ?>
               <span class="badge warn">Unassigned</span>
-              <div style="margin-top:6px;">
-                <?php $reassignId = (int) $f['id']; $reassignUnitId = null; $assignAction = '/admin/forms?action=reassign'; require __DIR__ . '/partials/unit-assign.php'; ?>
-              </div>
             <?php endif; ?>
+            <div style="margin-top:6px;">
+              <?php $reassignId = (int) $f['id']; $reassignUnitId = !empty($f['org_unit_id']) ? (int) $f['org_unit_id'] : null; $showUnassignedOnly = false; $assignAction = '/admin/forms?action=reassign'; require __DIR__ . '/partials/unit-assign.php'; ?>
+            </div>
           </td>
           <td>
             <div style="display:flex;gap:6px;align-items:center;">

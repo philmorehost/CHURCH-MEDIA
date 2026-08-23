@@ -196,10 +196,10 @@ require __DIR__ . '/partials/layout-open.php';
               <span style="color:var(--gold-soft);font-size:12px;"><?= e($unitLabels[(int) $s['org_unit_id']] ?? '') ?></span>
             <?php else: ?>
               <span class="badge warn">Unassigned</span>
-              <div style="margin-top:6px;">
-                <?php $reassignId = (int) $s['id']; $reassignUnitId = null; $assignAction = '/admin/sermons?action=reassign'; require __DIR__ . '/partials/unit-assign.php'; ?>
-              </div>
             <?php endif; ?>
+            <div style="margin-top:6px;">
+              <?php $reassignId = (int) $s['id']; $reassignUnitId = !empty($s['org_unit_id']) ? (int) $s['org_unit_id'] : null; $showUnassignedOnly = false; $assignAction = '/admin/sermons?action=reassign'; require __DIR__ . '/partials/unit-assign.php'; ?>
+            </div>
           </td>
           <td><?= e($s['speaker'] ?: '—') ?></td>
           <td><?= e($s['series'] ?: '—') ?></td>

@@ -65,10 +65,10 @@ require __DIR__ . '/partials/layout-open.php';
             <span style="color:var(--gold-soft);font-size:12px;"><?= e($unitLabels[(int) $r['org_unit_id']] ?? '') ?></span>
           <?php else: ?>
             <span class="badge warn">Unassigned</span>
-            <div style="margin-top:6px;">
-              <?php $reassignId = (int) $r['id']; $reassignUnitId = null; $assignAction = '/admin/prayer?action=reassign'; require __DIR__ . '/partials/unit-assign.php'; ?>
-            </div>
           <?php endif; ?>
+          <div style="margin-top:6px;">
+            <?php $reassignId = (int) $r['id']; $reassignUnitId = !empty($r['org_unit_id']) ? (int) $r['org_unit_id'] : null; $showUnassignedOnly = false; $assignAction = '/admin/prayer?action=reassign'; require __DIR__ . '/partials/unit-assign.php'; ?>
+          </div>
         </td>
         <td>
           <form method="post" style="display:inline;">

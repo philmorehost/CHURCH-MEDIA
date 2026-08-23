@@ -86,6 +86,10 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--gold);}
 .btn.secondary{background:var(--panel-2); color:var(--ink); border:1px solid var(--border);}
 .btn.danger{background:#ff6b6b22; color:var(--danger); border:1px solid #ff6b6b44;}
 .btn.sm{padding:6px 12px; font-size:12px; border-radius:8px;}
+.unit-assign-wrap{display:inline-flex; gap:6px; align-items:center; white-space:nowrap;}
+.unit-assign{display:inline-flex; gap:6px; align-items:center;}
+.unit-assign[hidden]{display:none !important;}
+.unit-assign select{max-width:190px; font-size:12px; padding:5px 8px; border-radius:8px; background:var(--panel-2); border:1px solid var(--border); color:var(--ink);}
 .btn-row{display:flex; gap:10px; margin-top:6px;}
 
 .badge{font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; display:inline-block;}
