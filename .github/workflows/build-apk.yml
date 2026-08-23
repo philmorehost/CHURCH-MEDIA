@@ -20,6 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # Exposed as a job-level env so the step-level `if` can check it — GitHub
+    # Actions does not allow `secrets` inside a step's `if` condition directly.
+    env:
+      PLAY_SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT_JSON }}
 
     steps:
       - name: Checkout
@@ -111,10 +115,10 @@ jobs:
       # to the app. The step is skipped (build still succeeds) until it exists.
       # Releases upload as DRAFT — publish them in Play Console when ready.
       - name: Upload to Google Play
-        if: ${{ secrets.SERVICE_ACCOUNT_JSON != '' }}
+        if: ${{ env.PLAY_SERVICE_ACCOUNT != '' }}
         uses: r0adkll/upload-google-play@v1
         with:
-          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          serviceAccountJsonPlainText: ${{ env.PLAY_SERVICE_ACCOUNT }}
           packageName: com.churchmedia.app
           releaseFiles: mobile/build/app/outputs/bundle/release/app-release.aab
           tracks: production
