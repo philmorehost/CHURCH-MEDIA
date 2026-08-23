@@ -11,7 +11,7 @@ $myUnitLabel = '';
 if ($user && empty($user['is_super_admin'])) {
     $myUnitLabel = !empty($user['org_unit_id']) ? Unit::label((int) $user['org_unit_id']) : '';
     $scopeIds = !empty($user['org_unit_id']) ? Unit::subtreeIds((int) $user['org_unit_id']) : [];
-    $scopeClause = $scopeIds ? ' AND org_unit_id IN (' . implode(',', array_map('intval', $scopeIds)) . ')' : ' AND 1 = 0';
+    $scopeClause = $scopeIds ? ' AND p.org_unit_id IN (' . implode(',', array_map('intval', $scopeIds)) . ')' : ' AND 1 = 0';
 }
 
 $stats = [
@@ -23,7 +23,7 @@ $stats = [
     'blocked_ips' => (int) $pdo->query("SELECT COUNT(*) FROM ip_rules WHERE type = 'blacklist'")->fetchColumn(),
 ];
 if ($scopeClause !== '') {
-    $stats['my_posts'] = (int) $pdo->query('SELECT COUNT(*) FROM media_posts WHERE 1=1' . $scopeClause)->fetchColumn();
+    $stats['my_posts'] = (int) $pdo->query('SELECT COUNT(*) FROM media_posts p WHERE 1=1' . $scopeClause)->fetchColumn();
 }
 
 $recentPosts = $pdo->query('
