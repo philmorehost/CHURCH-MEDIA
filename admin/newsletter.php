@@ -3,9 +3,12 @@ declare(strict_types=1);
 
 Auth::requireRole('admin', 'editor');
 $pdo = Database::getInstance()->getConnection();
+$user = Auth::user();
+$scope = Unit::scopeClause($user, 'org_unit_id');
+$scopeSql = $scope !== '' ? ' AND ' . $scope : '';
 
 if (($_GET['action'] ?? '') === 'export') {
-    $rows = $pdo->query('SELECT email, subscribed_at FROM newsletter_subscribers WHERE is_active = 1 ORDER BY subscribed_at DESC')->fetchAll();
+    $rows = $pdo->query('SELECT email, subscribed_at FROM newsletter_subscribers WHERE is_active = 1' . $scopeSql . ' ORDER BY subscribed_at DESC')->fetchAll();
     header('Content-Type: text/csv');
     header('Content-Disposition: attachment; filename="subscribers.csv"');
     $out = fopen('php://output', 'w');
@@ -20,11 +23,14 @@ if (($_GET['action'] ?? '') === 'export') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $id = (int) ($_POST['id'] ?? 0);
+    if (!Unit::recordInScope($pdo, 'newsletter_subscribers', $id, $user)) {
+        redirect('/admin/newsletter');
+    }
     $pdo->prepare('DELETE FROM newsletter_subscribers WHERE id = ?')->execute([$id]);
     redirect('/admin/newsletter');
 }
 
-$subscribers = $pdo->query('SELECT * FROM newsletter_subscribers ORDER BY subscribed_at DESC LIMIT 300')->fetchAll();
+$subscribers = $pdo->query('SELECT * FROM newsletter_subscribers WHERE 1=1' . $scopeSql . ' ORDER BY subscribed_at DESC LIMIT 300')->fetchAll();
 
 $pageTitle = 'Newsletter';
 $activeNav = 'newsletter';

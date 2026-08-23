@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 Auth::requireRole('admin', 'editor');
 $pdo = Database::getInstance()->getConnection();
+$user = Auth::user();
+$scope = Unit::scopeClause($user, 'org_unit_id');
+$scopeSql = $scope !== '' ? ' AND ' . $scope : '';
 $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
@@ -25,6 +28,10 @@ function sermonSlug(PDO $pdo, string $title, int $ignoreId = 0): string
 
 if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
+    if ($action === 'edit' && !Unit::recordInScope($pdo, 'sermons', $id, $user)) {
+        flash('error', 'You can only manage sermons for your own church.');
+        redirect('/admin/sermons');
+    }
     $title = trim($_POST['title'] ?? '');
     $speaker = trim($_POST['speaker'] ?? '');
     $series = trim($_POST['series'] ?? '');
@@ -59,8 +66,8 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
 
         if (!$errors) {
             if ($action === 'create') {
-                $stmt = $pdo->prepare('INSERT INTO sermons (title, slug, speaker, series, scripture_ref, description, audio_path, video_embed_url, cover_image, is_published, published_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-                $stmt->execute([$title, sermonSlug($pdo, $title), $speaker, $series, $scripture, $description, $audioPath, $videoUrl ?: null, $coverPath, $isPublished, $publishedAt]);
+                $stmt = $pdo->prepare('INSERT INTO sermons (title, slug, speaker, series, scripture_ref, description, audio_path, video_embed_url, cover_image, is_published, published_at, org_unit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                $stmt->execute([$title, sermonSlug($pdo, $title), $speaker, $series, $scripture, $description, $audioPath, $videoUrl ?: null, $coverPath, $isPublished, $publishedAt, $user['org_unit_id'] ?? null]);
                 flash('success', 'Sermon added.');
             } else {
                 $sql = 'UPDATE sermons SET title=?, slug=?, speaker=?, series=?, scripture_ref=?, description=?, video_embed_url=?, is_published=?, published_at=?';
@@ -79,7 +86,12 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
 
 if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
-    $pdo->prepare('DELETE FROM sermons WHERE id = ?')->execute([(int) ($_POST['id'] ?? 0)]);
+    $targetId = (int) ($_POST['id'] ?? 0);
+    if (!Unit::recordInScope($pdo, 'sermons', $targetId, $user)) {
+        flash('error', 'You can only manage sermons for your own church.');
+        redirect('/admin/sermons');
+    }
+    $pdo->prepare('DELETE FROM sermons WHERE id = ?')->execute([$targetId]);
     flash('success', 'Sermon deleted.');
     redirect('/admin/sermons');
 }
@@ -92,9 +104,13 @@ if ($action === 'edit') {
     if (!$editing) {
         redirect('/admin/sermons');
     }
+    if (!Unit::recordInScope($pdo, 'sermons', $id, $user)) {
+        flash('error', 'You can only manage sermons for your own church.');
+        redirect('/admin/sermons');
+    }
 }
 
-$sermons = $action === 'list' ? $pdo->query('SELECT * FROM sermons ORDER BY published_at DESC LIMIT 100')->fetchAll() : [];
+$sermons = $action === 'list' ? $pdo->query('SELECT * FROM sermons WHERE 1=1' . $scopeSql . ' ORDER BY published_at DESC LIMIT 100')->fetchAll() : [];
 
 $pageTitle = 'Sermons';
 $activeNav = 'sermons';

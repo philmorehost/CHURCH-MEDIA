@@ -117,6 +117,42 @@ class Unit
         return $labels;
     }
 
+    /**
+     * Admin isolation scope for a non-super user: strictly their own church
+     * (exact org_unit_id match — no roll-up). Returns '' for the super admin
+     * (see everything) and '1 = 0' when the user has no assigned unit.
+     */
+    public static function scopeClause(?array $user, string $column): string
+    {
+        if ($user && !empty($user['is_super_admin'])) {
+            return '';
+        }
+        $unitId = ($user && !empty($user['org_unit_id'])) ? (int) $user['org_unit_id'] : 0;
+        return $unitId > 0 ? $column . ' = ' . $unitId : '1 = 0';
+    }
+
+    /** Whether a record's org_unit_id is inside the user's strict admin scope. */
+    public static function inScope(?array $user, ?int $orgUnitId): bool
+    {
+        if ($user && !empty($user['is_super_admin'])) {
+            return true;
+        }
+        $unitId = ($user && !empty($user['org_unit_id'])) ? (int) $user['org_unit_id'] : 0;
+        return $unitId > 0 && $orgUnitId === $unitId;
+    }
+
+    /** Loads a row's org_unit_id and checks it against the user's admin scope. */
+    public static function recordInScope(PDO $pdo, string $table, int $id, ?array $user): bool
+    {
+        if ($user && !empty($user['is_super_admin'])) {
+            return true;
+        }
+        $stmt = $pdo->prepare("SELECT org_unit_id FROM `{$table}` WHERE id = ?");
+        $stmt->execute([$id]);
+        $oid = $stmt->fetchColumn();
+        return self::inScope($user, $oid === false || $oid === null ? null : (int) $oid);
+    }
+
     /** $id plus every descendant id — used for "all media in a unit" roll-ups. */
     public static function subtreeIds(int $id): array
     {

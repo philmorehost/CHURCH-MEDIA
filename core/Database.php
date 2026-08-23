@@ -282,6 +282,30 @@ class Database
                     $pdo->exec("UPDATE media_posts SET org_unit_id = {$parishId} WHERE org_unit_id IS NULL");
                 }
             },
+            '2026_08_unit_isolation' => function (PDO $pdo): void {
+                // Per-church admin isolation: every content module carries the
+                // owning unit so a church's admin/editor/media team only sees
+                // their own church's data. Unassigned rows are only visible to
+                // the super admin (or can be reassigned).
+                foreach (['events', 'sermons', 'team_members', 'newsletter_subscribers', 'forms', 'prayer_requests'] as $table) {
+                    self::addColumnIfMissing($pdo, $table, 'org_unit_id', 'INT NULL', null);
+                    self::addForeignKeyIfMissing($pdo, $table, 'fk_' . $table . '_org_unit', 'org_unit_id', 'org_units', 'id', 'SET NULL');
+                }
+            },
+            '2026_08_smtp' => function (PDO $pdo): void {
+                // SMTP mail settings (super admin configures in Settings -> Email).
+                $smtpColumns = [
+                    'smtp_host' => 'VARCHAR(255) NULL',
+                    'smtp_port' => 'INT NULL',
+                    'smtp_secure' => "VARCHAR(10) NULL DEFAULT 'tls'",
+                    'smtp_username' => 'VARCHAR(255) NULL',
+                    'smtp_password' => 'VARCHAR(255) NULL',
+                    'smtp_from' => 'VARCHAR(255) NULL',
+                ];
+                foreach ($smtpColumns as $col => $def) {
+                    self::addColumnIfMissing($pdo, 'settings', $col, $def, 'bible_api_key');
+                }
+            },
             '2026_08_privacy_policy' => function (PDO $pdo): void {
                 // Seed a comprehensive privacy policy page (served at /privacy-policy).
                 // Content uses {{site_title}} / {{contact_email}} / {{contact_phone}}

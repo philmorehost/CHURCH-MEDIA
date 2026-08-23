@@ -2,6 +2,10 @@
 declare(strict_types=1);
 
 Auth::requireRole('admin');
+if (!Auth::isSuperAdmin()) {
+    http_response_code(403);
+    exit('Only the super admin can manage settings.');
+}
 $pdo = Database::getInstance()->getConnection();
 $errors = [];
 
@@ -35,6 +39,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'meta_description' => trim($_POST['meta_description'] ?? ''),
         'bible_source' => trim($_POST['bible_source'] ?? 'keyless'),
         'bible_api_key' => trim($_POST['bible_api_key'] ?? ''),
+        'smtp_host' => trim($_POST['smtp_host'] ?? ''),
+        'smtp_port' => (int) ($_POST['smtp_port'] ?? 587),
+        'smtp_secure' => in_array($_POST['smtp_secure'] ?? 'tls', ['ssl', 'tls', ''], true) ? $_POST['smtp_secure'] : 'tls',
+        'smtp_username' => trim($_POST['smtp_username'] ?? ''),
+        'smtp_password' => (string) ($_POST['smtp_password'] ?? ''),
+        'smtp_from' => trim($_POST['smtp_from'] ?? ''),
     ];
 
     $labels = $_POST['service_label'] ?? [];
@@ -234,6 +244,29 @@ require __DIR__ . '/partials/layout-open.php';
     <div id="bible-api-key-wrap" style="<?= ($row['bible_source'] ?? 'keyless') === 'api_bible' ? '' : 'display:none;' ?>">
       <label for="bible_api_key">API.Bible API Key</label>
       <input type="text" id="bible_api_key" name="bible_api_key" value="<?= e((string) ($row['bible_api_key'] ?? '')) ?>" placeholder="Paste your api.bible access token" autocomplete="off">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Email (SMTP)</h2>
+    <p class="sub">Used for all outgoing mail — newsletters, church notifications, and security alerts. Leave Host empty to fall back to PHP mail().</p>
+    <div class="row two">
+      <div><label for="smtp_host">SMTP Host</label><input type="text" id="smtp_host" name="smtp_host" value="<?= e((string) ($row['smtp_host'] ?? '')) ?>" placeholder="smtp.gmail.com"></div>
+      <div><label for="smtp_port">SMTP Port</label><input type="number" id="smtp_port" name="smtp_port" value="<?= e((string) ($row['smtp_port'] ?? 587)) ?>" min="1" max="65535"></div>
+    </div>
+    <div class="row two">
+      <div><label for="smtp_secure">Encryption</label>
+        <select id="smtp_secure" name="smtp_secure">
+          <option value="tls" <?= ($row['smtp_secure'] ?? 'tls') === 'tls' ? 'selected' : '' ?>>TLS (STARTTLS — recommended)</option>
+          <option value="ssl" <?= ($row['smtp_secure'] ?? '') === 'ssl' ? 'selected' : '' ?>>SSL</option>
+          <option value="" <?= ($row['smtp_secure'] ?? '') === '' ? 'selected' : '' ?>>None</option>
+        </select>
+      </div>
+      <div><label for="smtp_from">From Address</label><input type="email" id="smtp_from" name="smtp_from" value="<?= e((string) ($row['smtp_from'] ?? '')) ?>" placeholder="no-reply@yourchurch.org"></div>
+    </div>
+    <div class="row two">
+      <div><label for="smtp_username">Username</label><input type="text" id="smtp_username" name="smtp_username" value="<?= e((string) ($row['smtp_username'] ?? '')) ?>" autocomplete="off"></div>
+      <div><label for="smtp_password">Password</label><input type="password" id="smtp_password" name="smtp_password" value="<?= e((string) ($row['smtp_password'] ?? '')) ?>" autocomplete="new-password"></div>
     </div>
   </div>
 

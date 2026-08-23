@@ -2,6 +2,10 @@
 declare(strict_types=1);
 
 Auth::requireRole('admin', 'editor');
+if (!Auth::isSuperAdmin()) {
+    http_response_code(403);
+    exit('Only the super admin can manage pages.');
+}
 $pdo = Database::getInstance()->getConnection();
 $action = $_GET['action'] ?? 'list';
 $errors = [];

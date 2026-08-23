@@ -3,12 +3,19 @@ declare(strict_types=1);
 
 Auth::requireRole('admin', 'editor');
 $pdo = Database::getInstance()->getConnection();
+$user = Auth::user();
+$scope = Unit::scopeClause($user, 'org_unit_id');
+$scopeSql = $scope !== '' ? ' AND ' . $scope : '';
 $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
 
 if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
+    if ($action === 'edit' && !Unit::recordInScope($pdo, 'team_members', $id, $user)) {
+        flash('error', 'You can only manage team members for your own church.');
+        redirect('/admin/team');
+    }
     $name = trim($_POST['name'] ?? '');
     $roleTitle = trim($_POST['role_title'] ?? '');
     $bio = trim($_POST['bio'] ?? '');
@@ -25,8 +32,8 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
         }
 
         if ($action === 'create') {
-            $pdo->prepare('INSERT INTO team_members (name, role_title, photo, bio, sort_order, is_published) VALUES (?, ?, ?, ?, ?, ?)')
-                ->execute([$name, $roleTitle, $photoPath, $bio, $sortOrder, $isPublished]);
+            $pdo->prepare('INSERT INTO team_members (name, role_title, photo, bio, sort_order, is_published, org_unit_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                ->execute([$name, $roleTitle, $photoPath, $bio, $sortOrder, $isPublished, $user['org_unit_id'] ?? null]);
             flash('success', 'Team member added.');
         } else {
             $sql = 'UPDATE team_members SET name=?, role_title=?, bio=?, sort_order=?, is_published=?';
@@ -43,7 +50,12 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
 
 if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
-    $pdo->prepare('DELETE FROM team_members WHERE id = ?')->execute([(int) ($_POST['id'] ?? 0)]);
+    $targetId = (int) ($_POST['id'] ?? 0);
+    if (!Unit::recordInScope($pdo, 'team_members', $targetId, $user)) {
+        flash('error', 'You can only manage team members for your own church.');
+        redirect('/admin/team');
+    }
+    $pdo->prepare('DELETE FROM team_members WHERE id = ?')->execute([$targetId]);
     flash('success', 'Team member removed.');
     redirect('/admin/team');
 }
@@ -56,9 +68,13 @@ if ($action === 'edit') {
     if (!$editing) {
         redirect('/admin/team');
     }
+    if (!Unit::recordInScope($pdo, 'team_members', $id, $user)) {
+        flash('error', 'You can only manage team members for your own church.');
+        redirect('/admin/team');
+    }
 }
 
-$members = $action === 'list' ? $pdo->query('SELECT * FROM team_members ORDER BY sort_order ASC, name ASC')->fetchAll() : [];
+$members = $action === 'list' ? $pdo->query('SELECT * FROM team_members WHERE 1=1' . $scopeSql . ' ORDER BY sort_order ASC, name ASC')->fetchAll() : [];
 
 $pageTitle = 'Team';
 $activeNav = 'team';

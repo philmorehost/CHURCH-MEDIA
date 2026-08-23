@@ -13,16 +13,28 @@ class Mailer
     {
         $config = is_file(CONFIG_PATH . '/mail.php') ? require CONFIG_PATH . '/mail.php' : [];
 
-        if (!empty($config['smtp_host'])) {
+        // SMTP can be configured from the admin Settings page (super admin) or
+        // config/mail.php. Settings take priority.
+        $smtpHost = setting('smtp_host') ?: ($config['smtp_host'] ?? '');
+        if ($smtpHost !== '') {
+            $secure = setting('smtp_secure');
+            $smtpConfig = [
+                'smtp_host' => $smtpHost,
+                'smtp_port' => (int) (setting('smtp_port') ?: ($config['smtp_port'] ?? 587)),
+                'smtp_secure' => ($secure !== null && $secure !== '') ? $secure : ($config['smtp_secure'] ?? 'tls'),
+                'smtp_username' => setting('smtp_username') ?: ($config['smtp_username'] ?? ''),
+                'smtp_password' => setting('smtp_password') ?: ($config['smtp_password'] ?? ''),
+                'from_address' => setting('smtp_from') ?: ($config['from_address'] ?? ''),
+            ];
             try {
-                return self::sendViaSmtp($config, $to, $subject, $body);
+                return self::sendViaSmtp($smtpConfig, $to, $subject, $body);
             } catch (Throwable $e) {
                 error_log('Mailer SMTP error: ' . $e->getMessage());
                 return false;
             }
         }
 
-        $from = $config['from_address'] ?? ('no-reply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
+        $from = $config['from_address'] ?? setting('smtp_from') ?? ('no-reply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
         $headers = "From: {$from}\r\nContent-Type: text/plain; charset=UTF-8";
         return @mail($to, $subject, $body, $headers);
     }

@@ -15,12 +15,12 @@ $navItems = [
     ['key' => 'prayer', 'href' => '/admin/prayer', 'label' => 'Prayer Wall'],
     ['key' => 'newsletter', 'href' => '/admin/newsletter', 'label' => 'Newsletter'],
     ['key' => 'forms', 'href' => '/admin/forms', 'label' => 'Forms'],
-    ['key' => 'pages', 'href' => '/admin/pages', 'label' => 'Pages'],
+    ['key' => 'pages', 'href' => '/admin/pages', 'label' => 'Pages', 'super' => true],
 ];
 $navItemsSystem = [
     ['key' => 'units', 'href' => '/admin/units', 'label' => 'Units', 'super' => true],
     ['key' => 'security', 'href' => '/admin/security', 'label' => 'Security'],
-    ['key' => 'settings', 'href' => '/admin/settings', 'label' => 'Settings'],
+    ['key' => 'settings', 'href' => '/admin/settings', 'label' => 'Settings', 'super' => true],
     ['key' => 'users', 'href' => '/admin/users', 'label' => 'Users', 'roles' => ['admin']],
 ];
 ?><!doctype html>
@@ -42,6 +42,10 @@ $navItemsSystem = [
     </div>
     <nav>
       <?php foreach ($navItems as $item): ?>
+        <?php
+          if (!empty($item['roles']) && (!$adminUser || !in_array($adminUser['role'], $item['roles'], true))) continue;
+          if (!empty($item['super']) && (!$adminUser || empty($adminUser['is_super_admin']))) continue;
+        ?>
         <a href="<?= e($item['href']) ?>" class="<?= $activeNav === $item['key'] ? 'active' : '' ?>"><?= e($item['label']) ?></a>
       <?php endforeach; ?>
       <div class="group">System</div>

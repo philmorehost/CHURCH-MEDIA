@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 Auth::requireRole('admin', 'editor');
 $pdo = Database::getInstance()->getConnection();
+$user = Auth::user();
+$scope = Unit::scopeClause($user, 'org_unit_id');
+$scopeSql = $scope !== '' ? ' AND ' . $scope : '';
 $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
@@ -81,6 +84,10 @@ function validateFieldPayload(array $fields): array
 
 if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
+    if ($action === 'edit' && !Unit::recordInScope($pdo, 'forms', $id, $user)) {
+        http_response_code(403);
+        exit('This form belongs to another church.');
+    }
     $title = trim($_POST['title'] ?? '');
     $slug = trim($_POST['slug'] ?? '');
     $description = trim($_POST['description'] ?? '');
@@ -116,8 +123,8 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
         $submitLabelValue = $submitLabel === '' ? 'Submit' : $submitLabel;
 
         if ($action === 'create') {
-            $stmt = $pdo->prepare('INSERT INTO forms (title, slug, description, submit_label, end_at, is_active) VALUES (?, ?, ?, ?, ?, ?)');
-            $stmt->execute([$title, $slug, $description, $submitLabelValue, $endAtValue, $isActive]);
+            $stmt = $pdo->prepare('INSERT INTO forms (title, slug, description, submit_label, end_at, is_active, org_unit_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$title, $slug, $description, $submitLabelValue, $endAtValue, $isActive, $user['org_unit_id'] ?? null]);
             $formId = (int) $pdo->lastInsertId();
             flash('success', 'Form created. Share its link to start collecting responses.');
         } else {
@@ -138,7 +145,12 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
 
 if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
-    $pdo->prepare('DELETE FROM forms WHERE id = ?')->execute([(int) ($_POST['id'] ?? 0)]);
+    $formId = (int) ($_POST['id'] ?? 0);
+    if (!Unit::recordInScope($pdo, 'forms', $formId, $user)) {
+        http_response_code(403);
+        exit('This form belongs to another church.');
+    }
+    $pdo->prepare('DELETE FROM forms WHERE id = ?')->execute([$formId]);
     flash('success', 'Form and its submissions deleted.');
     redirect('/admin/forms');
 }
@@ -146,6 +158,10 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'delete_submission' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $formId = (int) ($_POST['form_id'] ?? 0);
+    if (!Unit::recordInScope($pdo, 'forms', $formId, $user)) {
+        http_response_code(403);
+        exit('This form belongs to another church.');
+    }
     $pdo->prepare('DELETE FROM form_submissions WHERE id = ? AND form_id = ?')->execute([(int) ($_POST['sid'] ?? 0), $formId]);
     flash('success', 'Submission deleted.');
     redirect('/admin/forms?action=submissions&id=' . $formId);
@@ -154,6 +170,10 @@ if ($action === 'delete_submission' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'clear_submissions' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $formId = (int) ($_POST['form_id'] ?? 0);
+    if (!Unit::recordInScope($pdo, 'forms', $formId, $user)) {
+        http_response_code(403);
+        exit('This form belongs to another church.');
+    }
     $pdo->prepare('DELETE FROM form_submissions WHERE form_id = ?')->execute([$formId]);
     flash('success', 'All submissions cleared.');
     redirect('/admin/forms?action=submissions&id=' . $formId);
@@ -169,6 +189,9 @@ if ($action === 'edit') {
     if (!$editing) {
         redirect('/admin/forms');
     }
+    if (!Unit::inScope($user, (int) ($editing['org_unit_id'] ?? 0))) {
+        redirect('/admin/forms');
+    }
     $editFields = formFieldsFor($pdo, $id);
     $submissionCount = (int) $pdo->query('SELECT COUNT(*) FROM form_submissions WHERE form_id = ' . (int) $id)->fetchColumn();
 }
@@ -182,6 +205,9 @@ if ($action === 'submissions') {
     if (!$activeForm) {
         redirect('/admin/forms');
     }
+    if (!Unit::inScope($user, (int) ($activeForm['org_unit_id'] ?? 0))) {
+        redirect('/admin/forms');
+    }
     $stmt = $pdo->prepare('SELECT * FROM form_submissions WHERE form_id = ? ORDER BY created_at DESC LIMIT 500');
     $stmt->execute([$id]);
     $submissions = $stmt->fetchAll();
@@ -193,6 +219,9 @@ if ($action === 'export' && $id) {
     $stmt->execute([$id]);
     $form = $stmt->fetch();
     if (!$form) {
+        redirect('/admin/forms');
+    }
+    if (!Unit::inScope($user, (int) ($form['org_unit_id'] ?? 0))) {
         redirect('/admin/forms');
     }
     $subFields = formFieldsFor($pdo, $id);
@@ -230,7 +259,7 @@ if ($action === 'export' && $id) {
 }
 
 $forms = $action === 'list'
-    ? $pdo->query('SELECT f.*, (SELECT COUNT(*) FROM form_submissions fs WHERE fs.form_id = f.id) AS submission_count FROM forms f ORDER BY f.created_at DESC LIMIT 100')->fetchAll()
+    ? $pdo->query('SELECT f.*, (SELECT COUNT(*) FROM form_submissions fs WHERE fs.form_id = f.id) AS submission_count FROM forms f WHERE 1=1' . $scopeSql . ' ORDER BY f.created_at DESC LIMIT 100')->fetchAll()
     : [];
 
 $pageTitle = 'Forms';

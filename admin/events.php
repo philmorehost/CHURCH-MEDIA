@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 Auth::requireRole('admin', 'editor');
 $pdo = Database::getInstance()->getConnection();
+$user = Auth::user();
+$scope = Unit::scopeClause($user, 'org_unit_id');
+$scopeSql = $scope !== '' ? ' AND ' . $scope : '';
 $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
@@ -24,6 +27,10 @@ function eventSlug(PDO $pdo, string $title, int $ignoreId = 0): string
 
 if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
+    if ($action === 'edit' && !Unit::recordInScope($pdo, 'events', $id, $user)) {
+        flash('error', 'You can only manage events for your own church.');
+        redirect('/admin/events');
+    }
     $title = trim($_POST['title'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $startAt = $_POST['start_at'] ?? '';
@@ -43,8 +50,8 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
         }
 
         if ($action === 'create') {
-            $stmt = $pdo->prepare('INSERT INTO events (title, slug, description, cover_image, start_at, end_at, location, rsvp_enabled, rsvp_url, is_published) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-            $stmt->execute([$title, eventSlug($pdo, $title), $description, $coverPath, $startAt, $endAt ?: null, $location, $rsvpEnabled, $rsvpUrl ?: null, $isPublished]);
+            $stmt = $pdo->prepare('INSERT INTO events (title, slug, description, cover_image, start_at, end_at, location, rsvp_enabled, rsvp_url, is_published, org_unit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$title, eventSlug($pdo, $title), $description, $coverPath, $startAt, $endAt ?: null, $location, $rsvpEnabled, $rsvpUrl ?: null, $isPublished, $user['org_unit_id'] ?? null]);
             flash('success', 'Event created.');
         } else {
             $sql = 'UPDATE events SET title=?, slug=?, description=?, start_at=?, end_at=?, location=?, rsvp_enabled=?, rsvp_url=?, is_published=?';
@@ -64,7 +71,12 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
 
 if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
-    $pdo->prepare('DELETE FROM events WHERE id = ?')->execute([(int) ($_POST['id'] ?? 0)]);
+    $targetId = (int) ($_POST['id'] ?? 0);
+    if (!Unit::recordInScope($pdo, 'events', $targetId, $user)) {
+        flash('error', 'You can only manage events for your own church.');
+        redirect('/admin/events');
+    }
+    $pdo->prepare('DELETE FROM events WHERE id = ?')->execute([$targetId]);
     flash('success', 'Event deleted.');
     redirect('/admin/events');
 }
@@ -77,9 +89,13 @@ if ($action === 'edit') {
     if (!$editing) {
         redirect('/admin/events');
     }
+    if (!Unit::recordInScope($pdo, 'events', $id, $user)) {
+        flash('error', 'You can only manage events for your own church.');
+        redirect('/admin/events');
+    }
 }
 
-$events = $action === 'list' ? $pdo->query('SELECT * FROM events ORDER BY start_at DESC LIMIT 100')->fetchAll() : [];
+$events = $action === 'list' ? $pdo->query('SELECT * FROM events WHERE 1=1' . $scopeSql . ' ORDER BY start_at DESC LIMIT 100')->fetchAll() : [];
 
 $pageTitle = 'Events';
 $activeNav = 'events';

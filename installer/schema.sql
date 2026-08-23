@@ -32,6 +32,12 @@ CREATE TABLE IF NOT EXISTS `settings` (
   `meta_description` VARCHAR(255) NULL,
   `bible_source` VARCHAR(20) NOT NULL DEFAULT 'keyless' COMMENT 'keyless or api_bible',
   `bible_api_key` VARCHAR(255) NULL COMMENT 'scripture.api.bible access token',
+  `smtp_host` VARCHAR(255) NULL,
+  `smtp_port` INT NULL,
+  `smtp_secure` VARCHAR(10) NULL DEFAULT 'tls',
+  `smtp_username` VARCHAR(255) NULL,
+  `smtp_password` VARCHAR(255) NULL,
+  `smtp_from` VARCHAR(255) NULL,
   `license_key` VARCHAR(120) NULL,
   `timezone` VARCHAR(64) NOT NULL DEFAULT 'Africa/Lagos',
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -195,7 +201,9 @@ CREATE TABLE IF NOT EXISTS `events` (
   `rsvp_url` VARCHAR(500) NULL,
   `is_published` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX `idx_published_start` (`is_published`, `start_at`)
+  `org_unit_id` INT NULL,
+  INDEX `idx_published_start` (`is_published`, `start_at`),
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `sermons` (
@@ -212,7 +220,9 @@ CREATE TABLE IF NOT EXISTS `sermons` (
   `is_published` TINYINT(1) NOT NULL DEFAULT 1,
   `published_at` DATETIME NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX `idx_published_at` (`is_published`, `published_at`)
+  `org_unit_id` INT NULL,
+  INDEX `idx_published_at` (`is_published`, `published_at`),
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `team_members` (
@@ -222,7 +232,9 @@ CREATE TABLE IF NOT EXISTS `team_members` (
   `photo` VARCHAR(255) NULL,
   `bio` TEXT NULL,
   `sort_order` INT NOT NULL DEFAULT 0,
-  `is_published` TINYINT(1) NOT NULL DEFAULT 1
+  `is_published` TINYINT(1) NOT NULL DEFAULT 1,
+  `org_unit_id` INT NULL,
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `prayer_requests` (
@@ -233,14 +245,18 @@ CREATE TABLE IF NOT EXISTS `prayer_requests` (
   `is_public` TINYINT(1) NOT NULL DEFAULT 0,
   `status` ENUM('new','prayed','archived') NOT NULL DEFAULT 'new',
   `ip_address` VARCHAR(45) NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `org_unit_id` INT NULL,
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `newsletter_subscribers` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `email` VARCHAR(150) NOT NULL UNIQUE,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
-  `subscribed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  `subscribed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `org_unit_id` INT NULL,
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `forms` (
@@ -253,7 +269,9 @@ CREATE TABLE IF NOT EXISTS `forms` (
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX `idx_active_end` (`is_active`, `end_at`)
+  `org_unit_id` INT NULL,
+  INDEX `idx_active_end` (`is_active`, `end_at`),
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `form_fields` (

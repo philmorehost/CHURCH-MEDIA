@@ -3,10 +3,16 @@ declare(strict_types=1);
 
 Auth::requireRole('admin', 'editor');
 $pdo = Database::getInstance()->getConnection();
+$user = Auth::user();
+$scope = Unit::scopeClause($user, 'org_unit_id');
+$scopeSql = $scope !== '' ? ' AND ' . $scope : '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $id = (int) ($_POST['id'] ?? 0);
+    if (!Unit::recordInScope($pdo, 'prayer_requests', $id, $user)) {
+        redirect('/admin/prayer');
+    }
     if (($_POST['do'] ?? '') === 'status') {
         $status = in_array($_POST['status'] ?? '', ['new', 'prayed', 'archived'], true) ? $_POST['status'] : 'new';
         $pdo->prepare('UPDATE prayer_requests SET status = ? WHERE id = ?')->execute([$status, $id]);
@@ -18,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/admin/prayer');
 }
 
-$requests = $pdo->query('SELECT * FROM prayer_requests ORDER BY FIELD(status, "new", "prayed", "archived"), created_at DESC LIMIT 200')->fetchAll();
+$requests = $pdo->query('SELECT * FROM prayer_requests WHERE 1=1' . $scopeSql . ' ORDER BY FIELD(status, "new", "prayed", "archived"), created_at DESC LIMIT 200')->fetchAll();
 
 $pageTitle = 'Prayer Wall';
 $activeNav = 'prayer';
