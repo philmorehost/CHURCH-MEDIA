@@ -8,7 +8,7 @@
 
   var endpoint = scroller.getAttribute('data-endpoint');
   var state = { page: 1, hasMore: true, loading: false, category: '', view: 'all', seenIds: new Set(), seenPosts: new Set() };
-  var muted = true;
+  var muted = false; // default sound ON — videos are not muted by default
   var currentVideo = null;
   var activeSlideEl = null;
   var commentPost = { id: null, slide: null };
@@ -73,7 +73,20 @@
   function playVideo(video) {
     if (currentVideo && currentVideo !== video) { currentVideo.pause(); }
     video.muted = muted;
-    video.play().catch(function () {});
+    var p = video.play();
+    if (p) {
+      p.catch(function () {
+        // Autoplay-with-sound is blocked by the browser autoplay policy.
+        // Fall back to muted so the reel still plays; the first tap anywhere
+        // (unlockAudio) turns sound on for the whole session.
+        if (!video.muted) {
+          video.muted = true;
+          muted = true;
+          updateMuteButtons();
+          video.play().catch(function () {});
+        }
+      });
+    }
     currentVideo = video;
   }
 
@@ -169,7 +182,8 @@
     attachTap(mediaEl, function () { triggerLike(post, slide); });
   }
 
-  /* double-tap = like; single tap = mute/pause toggle */
+  /* double-tap = like. Single tap is intentionally a no-op: sound is controlled
+     by the always-visible speaker button so videos can autoplay unmuted. */
   function attachTap(el, onDouble) {
     var timer = null;
     el.addEventListener('click', function () {
@@ -179,10 +193,7 @@
         onDouble();
         return;
       }
-      timer = setTimeout(function () {
-        timer = null;
-        toggleMute(el.closest('.reel-slide'));
-      }, 280);
+      timer = setTimeout(function () { timer = null; }, 280);
     });
   }
 
@@ -198,6 +209,8 @@
     }
     if (yt) { setYoutube(yt, yt.dataset.videoId, true, muted); }
     updateMuteButtons();
+    var badge = slide.querySelector('.reel-mute-badge');
+    if (badge) { badge.textContent = muted ? '🔇 Muted' : '🔊 Sound on'; }
     slide.classList.add('show-hint');
     setTimeout(function () { slide.classList.remove('show-hint'); }, 1400);
   }
@@ -209,6 +222,27 @@
       btns[i].setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
     }
   }
+
+  /* One-time unlock: browsers only allow sound after the user has interacted
+     with the page, so a reel may have fallen back to muted autoplay. The first
+     tap/touch anywhere turns sound on and keeps it on for the session. */
+  function unlockAudio() {
+    document.removeEventListener('pointerdown', unlockAudio);
+    document.removeEventListener('touchstart', unlockAudio);
+    if (!muted) { return; }
+    muted = false;
+    updateMuteButtons();
+    var slide = activeSlideEl;
+    var video = slide && slide.querySelector('video');
+    if (video && video.muted) {
+      video.muted = false;
+      video.play().catch(function () {});
+    }
+    var yt = slide && slide.querySelector('iframe.reel-youtube');
+    if (yt && yt.dataset.videoId) { setYoutube(yt, yt.dataset.videoId, true, false); }
+  }
+  document.addEventListener('pointerdown', unlockAudio);
+  document.addEventListener('touchstart', unlockAudio);
   function burstLike(slide) {
     var burst = slide.querySelector('.reel-heart-burst');
     burst.classList.remove('burst');

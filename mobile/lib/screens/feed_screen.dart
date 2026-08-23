@@ -236,7 +236,7 @@ class _FeedSlideState extends State<_FeedSlide> {
   VideoPlayerController? _videoController;
   YoutubePlayerController? _youtubeController;
   int _mediaIndex = 0;
-  bool _muted = true;
+  bool _muted = false; // default sound ON — videos are not muted by default
   bool _liking = false;
   bool _saving = false;
   bool _burst = false;
@@ -278,6 +278,11 @@ class _FeedSlideState extends State<_FeedSlide> {
   /// uses the official IFrame player API and plays reliably.
   void _setupYoutubeIfNeeded(String url) {
     if (_youtubeController != null) return;
+    // Android's WebView blocks media-with-sound until a user gesture, so a
+    // YouTube reel can only autoplay reliably when muted. It starts muted and
+    // the speaker button (or a tap) unmutes it — the one exception to the
+    // "sound on by default" rule.
+    _muted = true;
     final id = _youtubeId(url);
     if (id.isEmpty) return;
     _youtubeController = YoutubePlayerController.fromVideoId(
