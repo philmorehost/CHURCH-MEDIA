@@ -28,6 +28,28 @@ function mediaInScope(array $scopeIds, ?int $orgUnitId): bool
     return $orgUnitId !== null && in_array($orgUnitId, $scopeIds, true);
 }
 
+/** Loads a single media item and enforces the church scope on its post. */
+function mediaItemInScope(PDO $pdo, array $scopeIds, int $postId, int $itemId): ?array
+{
+    if (!empty($scopeIds) && !mediaInScope($scopeIds, mediaPostOrgUnit($pdo, $postId))) {
+        return null;
+    }
+    $stmt = $pdo->prepare('SELECT * FROM media_post_items WHERE id = ? AND media_post_id = ?');
+    $stmt->execute([$itemId, $postId]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function removeMediaFiles(?string $filePath, ?string $thumbPath): void
+{
+    if ($filePath && !str_starts_with((string) $filePath, 'http')) {
+        @unlink(UPLOADS_PATH . '/' . $filePath);
+    }
+    if ($thumbPath && !str_starts_with((string) $thumbPath, 'http')) {
+        @unlink(UPLOADS_PATH . '/' . $thumbPath);
+    }
+}
+
 $categories = $pdo->query('SELECT * FROM media_categories ORDER BY name ASC')->fetchAll();
 
 $allowedImageMime = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'];
@@ -315,6 +337,195 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/admin/media');
 }
 
+/** Replace an uploaded media file (image or video) on a post. */
+if ($action === 'replace_item' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $postId = (int) ($_POST['id'] ?? 0);
+    $itemId = (int) ($_POST['item_id'] ?? 0);
+    $item = mediaItemInScope($pdo, $scopeIds, $postId, $itemId);
+    if (!$item) {
+        flash('error', 'Item not found or out of scope.');
+        redirect('/admin/media');
+    }
+    if ($item['source'] !== 'upload') {
+        flash('error', 'Only uploaded media can be replaced.');
+        redirect('/admin/media?action=edit&id=' . $postId);
+    }
+    $file = $_FILES['file'] ?? null;
+    if (!$file || empty($file['name']) || !is_uploaded_file($file['tmp_name'] ?? '')) {
+        flash('error', 'Choose a file to replace this item.');
+        redirect('/admin/media?action=edit&id=' . $postId);
+    }
+    $newPath = null;
+    $newThumb = $item['thumbnail_path'];
+    if ($item['type'] === 'image') {
+        $filename = MediaProcessor::processImage($file['tmp_name'], UPLOADS_WEBP_PATH);
+        if (!$filename) {
+            flash('error', 'Image could not be processed — use JPG, PNG, GIF, WebP, BMP, or AVIF.');
+            redirect('/admin/media?action=edit&id=' . $postId);
+        }
+        $newPath = 'webp/' . $filename;
+    } else { // uploaded video
+        if (!is_dir(UPLOADS_ORIGINALS_PATH)) {
+            mkdir(UPLOADS_ORIGINALS_PATH, 0775, true);
+        }
+        $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION)) ?: 'mp4';
+        $origName = uniqid('orig_', true) . '.' . $ext;
+        if (!move_uploaded_file($file['tmp_name'], UPLOADS_ORIGINALS_PATH . '/' . $origName)) {
+            flash('error', 'Could not save the uploaded video.');
+            redirect('/admin/media?action=edit&id=' . $postId);
+        }
+        $newPath = 'originals/' . $origName;
+        $newThumb = null; // re-captured when the reel converts
+    }
+    removeMediaFiles($item['file_path'], $item['thumbnail_path']);
+    $pdo->prepare('UPDATE media_post_items SET file_path = ?, thumbnail_path = ?, processing_status = ?, converted_at = NULL WHERE id = ?')
+        ->execute([$newPath, $newThumb, 'ready', $itemId]);
+    if ($item['type'] === 'video') {
+        set_time_limit(600);
+        MediaProcessor::convertOriginalVideo($pdo, $itemId);
+    }
+    flash('success', 'Media replaced.');
+    redirect('/admin/media?action=edit&id=' . $postId);
+}
+
+/** Replace a video item's cover/thumbnail. */
+if ($action === 'replace_cover' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $postId = (int) ($_POST['id'] ?? 0);
+    $itemId = (int) ($_POST['item_id'] ?? 0);
+    $item = mediaItemInScope($pdo, $scopeIds, $postId, $itemId);
+    if (!$item) {
+        flash('error', 'Item not found or out of scope.');
+        redirect('/admin/media');
+    }
+    $file = $_FILES['file'] ?? null;
+    if (!$file || empty($file['name']) || !is_uploaded_file($file['tmp_name'] ?? '')) {
+        flash('error', 'Choose a cover image.');
+        redirect('/admin/media?action=edit&id=' . $postId);
+    }
+    $coverFile = MediaProcessor::processImage($file['tmp_name'], UPLOADS_THUMBS_PATH, 82);
+    if (!$coverFile) {
+        flash('error', 'Cover could not be processed.');
+        redirect('/admin/media?action=edit&id=' . $postId);
+    }
+    removeMediaFiles(null, $item['thumbnail_path']);
+    $pdo->prepare('UPDATE media_post_items SET thumbnail_path = ? WHERE id = ?')->execute(['thumbs/' . $coverFile, $itemId]);
+    flash('success', 'Cover updated.');
+    redirect('/admin/media?action=edit&id=' . $postId);
+}
+
+/** Move a media item up/down to reorder the feed. */
+if ($action === 'move_item' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $postId = (int) ($_POST['id'] ?? 0);
+    $itemId = (int) ($_POST['item_id'] ?? 0);
+    $dir = ($_POST['dir'] ?? '') === 'up' ? 'up' : 'down';
+    $item = mediaItemInScope($pdo, $scopeIds, $postId, $itemId);
+    if (!$item) {
+        flash('error', 'Item not found or out of scope.');
+        redirect('/admin/media');
+    }
+    $order = (int) $item['sort_order'];
+    $stmt = $pdo->prepare('SELECT id, sort_order FROM media_post_items WHERE media_post_id = ? AND id != ? ORDER BY sort_order ASC, id ASC');
+    $stmt->execute([$postId, $itemId]);
+    $others = $stmt->fetchAll();
+    $swap = null;
+    if ($dir === 'up') {
+        foreach ($others as $o) {
+            if ((int) $o['sort_order'] < $order || ((int) $o['sort_order'] === $order && (int) $o['id'] < $itemId)) {
+                $swap = $o;
+            }
+        }
+    } else {
+        $rev = array_reverse($others);
+        foreach ($rev as $o) {
+            if ((int) $o['sort_order'] > $order || ((int) $o['sort_order'] === $order && (int) $o['id'] > $itemId)) {
+                $swap = $o;
+                break;
+            }
+        }
+    }
+    if ($swap) {
+        $pdo->prepare('UPDATE media_post_items SET sort_order = ? WHERE id = ?')->execute([(int) $swap['sort_order'], $itemId]);
+        $pdo->prepare('UPDATE media_post_items SET sort_order = ? WHERE id = ?')->execute([$order, (int) $swap['id']]);
+        flash('success', 'Order updated.');
+    } else {
+        flash('success', 'Nothing to reorder.');
+    }
+    redirect('/admin/media?action=edit&id=' . $postId);
+}
+
+/** Delete a single media item (and its files). */
+if ($action === 'delete_item' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $postId = (int) ($_POST['id'] ?? 0);
+    $itemId = (int) ($_POST['item_id'] ?? 0);
+    $item = mediaItemInScope($pdo, $scopeIds, $postId, $itemId);
+    if (!$item) {
+        flash('error', 'Item not found or out of scope.');
+        redirect('/admin/media');
+    }
+    removeMediaFiles($item['file_path'], $item['thumbnail_path']);
+    $pdo->prepare('DELETE FROM media_post_items WHERE id = ?')->execute([$itemId]);
+    // Re-sequence remaining items so they stay 0..n in order.
+    $stmt = $pdo->prepare('SELECT id FROM media_post_items WHERE media_post_id = ? ORDER BY sort_order ASC, id ASC');
+    $stmt->execute([$postId]);
+    $remaining = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $upd = $pdo->prepare('UPDATE media_post_items SET sort_order = ? WHERE id = ?');
+    foreach ($remaining as $i => $rid) {
+        $upd->execute([$i, (int) $rid]);
+    }
+    flash('success', 'Item removed.');
+    redirect('/admin/media?action=edit&id=' . $postId);
+}
+
+/** Append a single photo/video to an existing post. */
+if ($action === 'add_item' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $postId = (int) ($_POST['id'] ?? 0);
+    if (!empty($scopeIds) && !mediaInScope($scopeIds, mediaPostOrgUnit($pdo, $postId))) {
+        flash('error', 'You can only manage media in your own parish/zone.');
+        redirect('/admin/media');
+    }
+    $file = $_FILES['file'] ?? null;
+    if (!$file || empty($file['name']) || !is_uploaded_file($file['tmp_name'] ?? '')) {
+        flash('error', 'Choose a photo or video to add.');
+        redirect('/admin/media?action=edit&id=' . $postId);
+    }
+    $next = (int) $pdo->query('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM media_post_items WHERE media_post_id = ' . $postId)->fetchColumn();
+    $mime = (string) ($file['type'] ?? '');
+    if (in_array($mime, MEDIA_ALLOWED_IMAGE_MIME, true)) {
+        $filename = MediaProcessor::processImage($file['tmp_name'], UPLOADS_WEBP_PATH);
+        if (!$filename) {
+            flash('error', 'Image could not be processed — use JPG, PNG, GIF, WebP, BMP, or AVIF.');
+            redirect('/admin/media?action=edit&id=' . $postId);
+        }
+        $pdo->prepare('INSERT INTO media_post_items (media_post_id, type, source, file_path, thumbnail_path, processing_status, sort_order) VALUES (?, ?, ?, ?, NULL, ?, ?)')
+            ->execute([$postId, 'image', 'upload', 'webp/' . $filename, 'ready', $next]);
+    } elseif (in_array($mime, MEDIA_ALLOWED_VIDEO_MIME, true)) {
+        if (!is_dir(UPLOADS_ORIGINALS_PATH)) {
+            mkdir(UPLOADS_ORIGINALS_PATH, 0775, true);
+        }
+        $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION)) ?: 'mp4';
+        $origName = uniqid('orig_', true) . '.' . $ext;
+        if (!move_uploaded_file($file['tmp_name'], UPLOADS_ORIGINALS_PATH . '/' . $origName)) {
+            flash('error', 'Could not save the uploaded video.');
+            redirect('/admin/media?action=edit&id=' . $postId);
+        }
+        $pdo->prepare('INSERT INTO media_post_items (media_post_id, type, source, file_path, thumbnail_path, processing_status, sort_order) VALUES (?, ?, ?, ?, NULL, ?, ?)')
+            ->execute([$postId, 'video', 'upload', 'originals/' . $origName, 'ready', $next]);
+        $itemId = (int) $pdo->lastInsertId();
+        set_time_limit(600);
+        MediaProcessor::convertOriginalVideo($pdo, $itemId);
+    } else {
+        flash('error', 'Unsupported file type.');
+        redirect('/admin/media?action=edit&id=' . $postId);
+    }
+    flash('success', 'Media added to the post.');
+    redirect('/admin/media?action=edit&id=' . $postId);
+}
+
 if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $id = (int) ($_POST['id'] ?? 0);
@@ -338,6 +549,7 @@ if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $editPost = null;
+$editItems = [];
 if ($action === 'edit') {
     $editPost = $pdo->prepare('SELECT * FROM media_posts WHERE id = ?');
     $editPost->execute([(int) ($_GET['id'] ?? 0)]);
@@ -345,6 +557,11 @@ if ($action === 'edit') {
     if ($editPost && !empty($scopeIds) && !mediaInScope($scopeIds, $editPost['org_unit_id'] !== null ? (int) $editPost['org_unit_id'] : null)) {
         flash('error', 'You can only manage media in your own parish/zone.');
         redirect('/admin/media');
+    }
+    if ($editPost) {
+        $itemStmt = $pdo->prepare('SELECT * FROM media_post_items WHERE media_post_id = ? ORDER BY sort_order ASC, id ASC');
+        $itemStmt->execute([(int) $editPost['id']]);
+        $editItems = $itemStmt->fetchAll();
     }
 }
 
@@ -468,6 +685,89 @@ require __DIR__ . '/partials/layout-open.php';
         <a class="btn secondary" href="/admin/media">Cancel</a>
       </div>
     </form>
+  </div>
+
+  <div class="card" style="max-width:720px;margin-top:16px;">
+    <h2>Media Items</h2>
+    <p class="sub">Replace files, change video covers, reorder, or remove individual items. Changes appear in the feed immediately.</p>
+    <?php if (!$editItems): ?>
+      <div class="empty">No media items on this post.</div>
+    <?php else: ?>
+      <?php foreach ($editItems as $i => $it): ?>
+        <?php
+          $preview = null;
+          if ($it['type'] === 'image') {
+              $preview = $it['file_path'];
+          } else {
+              $preview = $it['thumbnail_path'];
+          }
+        ?>
+        <div style="display:flex;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);">
+          <div style="width:74px;height:74px;flex:0 0 74px;border-radius:10px;overflow:hidden;background:#1c1c1c;">
+            <?php if ($preview): ?>
+              <img src="<?= e(uploadUrl($preview)) ?>" alt="" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.visibility='hidden'">
+            <?php endif; ?>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="margin-bottom:8px;">
+              <span class="badge info"><?= e($it['type']) ?></span>
+              <span class="badge"><?= $it['source'] === 'youtube' ? 'YouTube' : 'Upload' ?></span>
+              <span style="color:var(--ink-faint);font-size:12px;">#<?= (int) $it['id'] ?> · item <?= $i + 1 ?> of <?= count($editItems) ?></span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+              <?php if ($it['source'] === 'upload'): ?>
+                <form method="post" action="/admin/media?action=replace_item" enctype="multipart/form-data" style="display:inline-flex;gap:6px;align-items:center;">
+                  <?= Csrf::field() ?>
+                  <input type="hidden" name="id" value="<?= (int) $editPost['id'] ?>">
+                  <input type="hidden" name="item_id" value="<?= (int) $it['id'] ?>">
+                  <input type="file" name="file" accept="<?= $it['type'] === 'image' ? 'image/*' : 'video/*' ?>" required style="font-size:12px;max-width:150px;">
+                  <button class="btn secondary sm" type="submit">Replace</button>
+                </form>
+                <?php if ($it['type'] === 'video'): ?>
+                  <form method="post" action="/admin/media?action=replace_cover" enctype="multipart/form-data" style="display:inline-flex;gap:6px;align-items:center;">
+                    <?= Csrf::field() ?>
+                    <input type="hidden" name="id" value="<?= (int) $editPost['id'] ?>">
+                    <input type="hidden" name="item_id" value="<?= (int) $it['id'] ?>">
+                    <input type="file" name="file" accept="image/*" required style="font-size:12px;max-width:130px;">
+                    <button class="btn secondary sm" type="submit">New cover</button>
+                  </form>
+                <?php endif; ?>
+              <?php endif; ?>
+              <form method="post" action="/admin/media?action=move_item" style="display:inline;">
+                <?= Csrf::field() ?>
+                <input type="hidden" name="id" value="<?= (int) $editPost['id'] ?>">
+                <input type="hidden" name="item_id" value="<?= (int) $it['id'] ?>">
+                <input type="hidden" name="dir" value="up">
+                <button class="btn secondary sm" type="submit" title="Move up" <?= $i === 0 ? 'disabled' : '' ?>>↑</button>
+              </form>
+              <form method="post" action="/admin/media?action=move_item" style="display:inline;">
+                <?= Csrf::field() ?>
+                <input type="hidden" name="id" value="<?= (int) $editPost['id'] ?>">
+                <input type="hidden" name="item_id" value="<?= (int) $it['id'] ?>">
+                <input type="hidden" name="dir" value="down">
+                <button class="btn secondary sm" type="submit" title="Move down" <?= $i === count($editItems) - 1 ? 'disabled' : '' ?>>↓</button>
+              </form>
+              <form method="post" action="/admin/media?action=delete_item" style="display:inline;" onsubmit="return confirm('Remove this media item?');">
+                <?= Csrf::field() ?>
+                <input type="hidden" name="id" value="<?= (int) $editPost['id'] ?>">
+                <input type="hidden" name="item_id" value="<?= (int) $it['id'] ?>">
+                <button class="btn danger sm" type="submit">Delete</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      <?php endforeach; ?>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+        <h3 style="margin:0 0 8px;">Add media to this post</h3>
+        <form method="post" action="/admin/media?action=add_item" enctype="multipart/form-data" style="display:inline-flex;gap:6px;align-items:center;">
+          <?= Csrf::field() ?>
+          <input type="hidden" name="id" value="<?= (int) $editPost['id'] ?>">
+          <input type="file" name="file" accept="image/*,video/*" required style="font-size:12px;max-width:210px;">
+          <button class="btn" type="submit">Add</button>
+        </form>
+        <p class="hint">Photos are compressed to webp automatically. Videos are queued for the 9:16 reel crop.</p>
+      </div>
+    <?php endif; ?>
   </div>
 
 <?php else: ?>
