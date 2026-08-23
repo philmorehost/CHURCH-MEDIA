@@ -9,6 +9,22 @@ $scopeSql = $scope !== '' ? ' AND ' . $scope : '';
 $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
+$assignableUnits = Unit::assignableScope($user);
+$unitLabels = Unit::labelsById();
+
+// Super admin / scoped admin can assign an event to a church.
+if ($action === 'reassign' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $reassignId = (int) ($_POST['id'] ?? 0);
+    $unitId = (int) ($_POST['org_unit_id'] ?? 0);
+    if (Unit::recordInScope($pdo, 'events', $reassignId, $user) && $unitId > 0 && Unit::inAssignableScope($user, $unitId)) {
+        $pdo->prepare('UPDATE events SET org_unit_id = ? WHERE id = ?')->execute([$unitId, $reassignId]);
+        flash('success', 'Assigned to ' . Unit::label($unitId) . '.');
+    } else {
+        flash('error', 'Could not reassign that event.');
+    }
+    redirect('/admin/events');
+}
 
 function eventSlug(PDO $pdo, string $title, int $ignoreId = 0): string
 {
@@ -150,10 +166,20 @@ require __DIR__ . '/partials/layout-open.php';
       <div class="empty">No events yet.</div>
     <?php else: ?>
       <table>
-        <tr><th>Title</th><th>Starts</th><th>Location</th><th>RSVP</th><th>Status</th><th></th></tr>
+        <tr><th>Title</th><th>Church</th><th>Starts</th><th>Location</th><th>RSVP</th><th>Status</th><th></th></tr>
         <?php foreach ($events as $ev): ?>
         <tr>
           <td><?= e($ev['title']) ?></td>
+          <td>
+            <?php if (!empty($ev['org_unit_id'])): ?>
+              <span style="color:var(--gold-soft);font-size:12px;"><?= e($unitLabels[(int) $ev['org_unit_id']] ?? '') ?></span>
+            <?php else: ?>
+              <span class="badge warn">Unassigned</span>
+              <div style="margin-top:6px;">
+                <?php $reassignId = (int) $ev['id']; $reassignUnitId = null; $assignAction = '/admin/events?action=reassign'; require __DIR__ . '/partials/unit-assign.php'; ?>
+              </div>
+            <?php endif; ?>
+          </td>
           <td><?= e(date('M j, Y g:i A', strtotime($ev['start_at']))) ?></td>
           <td><?= e($ev['location'] ?: '—') ?></td>
           <td><?= $ev['rsvp_enabled'] ? '<span class="badge ok">yes</span>' : '<span class="badge">no</span>' ?></td>

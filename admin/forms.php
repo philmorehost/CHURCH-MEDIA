@@ -9,6 +9,22 @@ $scopeSql = $scope !== '' ? ' AND ' . $scope : '';
 $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
+$assignableUnits = Unit::assignableScope($user);
+$unitLabels = Unit::labelsById();
+
+// Super admin / scoped admin can assign a form to a church.
+if ($action === 'reassign' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $reassignId = (int) ($_POST['id'] ?? 0);
+    $unitId = (int) ($_POST['org_unit_id'] ?? 0);
+    if (Unit::recordInScope($pdo, 'forms', $reassignId, $user) && $unitId > 0 && Unit::inAssignableScope($user, $unitId)) {
+        $pdo->prepare('UPDATE forms SET org_unit_id = ? WHERE id = ?')->execute([$unitId, $reassignId]);
+        flash('success', 'Assigned to ' . Unit::label($unitId) . '.');
+    } else {
+        flash('error', 'Could not reassign that form.');
+    }
+    redirect('/admin/forms');
+}
 
 const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'number', 'date', 'url', 'select', 'radio', 'checkbox', 'image'];
 
@@ -409,12 +425,22 @@ require __DIR__ . '/partials/layout-open.php';
       <div class="empty">No forms yet — create one to get a shareable public link.</div>
     <?php else: ?>
       <table>
-        <tr><th>Form</th><th>Public Link</th><th>Responses</th><th>Valid Until</th><th>Status</th><th></th></tr>
+        <tr><th>Form</th><th>Church</th><th>Public Link</th><th>Responses</th><th>Valid Until</th><th>Status</th><th></th></tr>
         <?php foreach ($forms as $f): $expired = formsExpired($f); $fieldCount = count(formFieldsFor($pdo, (int) $f['id'])); ?>
         <tr>
           <td>
             <strong><?= e($f['title']) ?></strong>
             <div style="color:var(--ink-faint);font-size:12px;"><?= $fieldCount ?> field<?= $fieldCount === 1 ? '' : 's' ?> · created <?= e(date('M j, Y', strtotime($f['created_at']))) ?></div>
+          </td>
+          <td>
+            <?php if (!empty($f['org_unit_id'])): ?>
+              <span style="color:var(--gold-soft);font-size:12px;"><?= e($unitLabels[(int) $f['org_unit_id']] ?? '') ?></span>
+            <?php else: ?>
+              <span class="badge warn">Unassigned</span>
+              <div style="margin-top:6px;">
+                <?php $reassignId = (int) $f['id']; $reassignUnitId = null; $assignAction = '/admin/forms?action=reassign'; require __DIR__ . '/partials/unit-assign.php'; ?>
+              </div>
+            <?php endif; ?>
           </td>
           <td>
             <div style="display:flex;gap:6px;align-items:center;">

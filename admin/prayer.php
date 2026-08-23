@@ -6,6 +6,23 @@ $pdo = Database::getInstance()->getConnection();
 $user = Auth::user();
 $scope = Unit::scopeClause($user, 'org_unit_id');
 $scopeSql = $scope !== '' ? ' AND ' . $scope : '';
+$action = $_GET['action'] ?? '';
+$assignableUnits = Unit::assignableScope($user);
+$unitLabels = Unit::labelsById();
+
+// Super admin / scoped admin can assign a request to a church.
+if ($action === 'reassign' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $id = (int) ($_POST['id'] ?? 0);
+    $unitId = (int) ($_POST['org_unit_id'] ?? 0);
+    if (Unit::recordInScope($pdo, 'prayer_requests', $id, $user) && $unitId > 0 && Unit::inAssignableScope($user, $unitId)) {
+        $pdo->prepare('UPDATE prayer_requests SET org_unit_id = ? WHERE id = ?')->execute([$unitId, $id]);
+        flash('success', 'Assigned to ' . Unit::label($unitId) . '.');
+    } else {
+        flash('error', 'Could not reassign that request.');
+    }
+    redirect('/admin/prayer');
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
@@ -38,11 +55,21 @@ require __DIR__ . '/partials/layout-open.php';
     <div class="empty">No prayer requests yet.</div>
   <?php else: ?>
     <table>
-      <tr><th>Message</th><th>From</th><th>Public</th><th>Status</th><th>Submitted</th><th></th></tr>
+      <tr><th>Message</th><th>From</th><th>Church</th><th>Public</th><th>Status</th><th>Submitted</th><th></th></tr>
       <?php foreach ($requests as $r): ?>
       <tr>
         <td style="max-width:340px;"><?= e(mb_strimwidth((string) $r['message'], 0, 120, '…')) ?></td>
         <td><?= e($r['name'] ?: 'Anonymous') ?><?= $r['email'] ? '<br><small style="color:var(--ink-faint);">' . e($r['email']) . '</small>' : '' ?></td>
+        <td>
+          <?php if (!empty($r['org_unit_id'])): ?>
+            <span style="color:var(--gold-soft);font-size:12px;"><?= e($unitLabels[(int) $r['org_unit_id']] ?? '') ?></span>
+          <?php else: ?>
+            <span class="badge warn">Unassigned</span>
+            <div style="margin-top:6px;">
+              <?php $reassignId = (int) $r['id']; $reassignUnitId = null; $assignAction = '/admin/prayer?action=reassign'; require __DIR__ . '/partials/unit-assign.php'; ?>
+            </div>
+          <?php endif; ?>
+        </td>
         <td>
           <form method="post" style="display:inline;">
             <?= Csrf::field() ?><input type="hidden" name="do" value="toggle_public"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>">

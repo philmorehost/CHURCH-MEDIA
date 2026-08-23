@@ -10,6 +10,22 @@ $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
 $audioDir = UPLOADS_PATH . '/audio';
+$assignableUnits = Unit::assignableScope($user);
+$unitLabels = Unit::labelsById();
+
+// Super admin / scoped admin can assign a sermon to a church.
+if ($action === 'reassign' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $reassignId = (int) ($_POST['id'] ?? 0);
+    $unitId = (int) ($_POST['org_unit_id'] ?? 0);
+    if (Unit::recordInScope($pdo, 'sermons', $reassignId, $user) && $unitId > 0 && Unit::inAssignableScope($user, $unitId)) {
+        $pdo->prepare('UPDATE sermons SET org_unit_id = ? WHERE id = ?')->execute([$unitId, $reassignId]);
+        flash('success', 'Assigned to ' . Unit::label($unitId) . '.');
+    } else {
+        flash('error', 'Could not reassign that sermon.');
+    }
+    redirect('/admin/sermons');
+}
 
 function sermonSlug(PDO $pdo, string $title, int $ignoreId = 0): string
 {
@@ -171,10 +187,20 @@ require __DIR__ . '/partials/layout-open.php';
       <div class="empty">No sermons yet.</div>
     <?php else: ?>
       <table>
-        <tr><th>Title</th><th>Speaker</th><th>Series</th><th>Published</th><th>Status</th><th></th></tr>
+        <tr><th>Title</th><th>Church</th><th>Speaker</th><th>Series</th><th>Published</th><th>Status</th><th></th></tr>
         <?php foreach ($sermons as $s): ?>
         <tr>
           <td><?= e($s['title']) ?></td>
+          <td>
+            <?php if (!empty($s['org_unit_id'])): ?>
+              <span style="color:var(--gold-soft);font-size:12px;"><?= e($unitLabels[(int) $s['org_unit_id']] ?? '') ?></span>
+            <?php else: ?>
+              <span class="badge warn">Unassigned</span>
+              <div style="margin-top:6px;">
+                <?php $reassignId = (int) $s['id']; $reassignUnitId = null; $assignAction = '/admin/sermons?action=reassign'; require __DIR__ . '/partials/unit-assign.php'; ?>
+              </div>
+            <?php endif; ?>
+          </td>
           <td><?= e($s['speaker'] ?: '—') ?></td>
           <td><?= e($s['series'] ?: '—') ?></td>
           <td><?= e(date('M j, Y', strtotime($s['published_at']))) ?></td>

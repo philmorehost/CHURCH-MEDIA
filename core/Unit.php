@@ -153,6 +153,37 @@ class Unit
         return self::inScope($user, $oid === false || $oid === null ? null : (int) $oid);
     }
 
+    /** Units the user may assign content to: all for the super admin, subtree otherwise. */
+    public static function assignableScope(?array $user): array
+    {
+        if ($user && !empty($user['is_super_admin'])) {
+            return self::all('type ASC, name ASC');
+        }
+        $unitId = ($user && !empty($user['org_unit_id'])) ? (int) $user['org_unit_id'] : 0;
+        if ($unitId <= 0) {
+            return [];
+        }
+        $ids = array_flip(self::subtreeIds($unitId));
+        $out = [];
+        foreach (self::all('type ASC, name ASC') as $u) {
+            if (isset($ids[(int) $u['id']])) {
+                $out[] = $u;
+            }
+        }
+        return $out;
+    }
+
+    /** Whether a unit id is inside the user's assignable scope. */
+    public static function inAssignableScope(?array $user, int $unitId): bool
+    {
+        foreach (self::assignableScope($user) as $u) {
+            if ((int) $u['id'] === $unitId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** $id plus every descendant id — used for "all media in a unit" roll-ups. */
     public static function subtreeIds(int $id): array
     {

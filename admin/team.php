@@ -9,6 +9,22 @@ $scopeSql = $scope !== '' ? ' AND ' . $scope : '';
 $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
+$assignableUnits = Unit::assignableScope($user);
+$unitLabels = Unit::labelsById();
+
+// Super admin / scoped admin can assign a team member to a church.
+if ($action === 'reassign' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $reassignId = (int) ($_POST['id'] ?? 0);
+    $unitId = (int) ($_POST['org_unit_id'] ?? 0);
+    if (Unit::recordInScope($pdo, 'team_members', $reassignId, $user) && $unitId > 0 && Unit::inAssignableScope($user, $unitId)) {
+        $pdo->prepare('UPDATE team_members SET org_unit_id = ? WHERE id = ?')->execute([$unitId, $reassignId]);
+        flash('success', 'Assigned to ' . Unit::label($unitId) . '.');
+    } else {
+        flash('error', 'Could not reassign that team member.');
+    }
+    redirect('/admin/team');
+}
 
 if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
@@ -127,12 +143,22 @@ require __DIR__ . '/partials/layout-open.php';
       <div class="empty">No team members yet.</div>
     <?php else: ?>
       <table>
-        <tr><th>Photo</th><th>Name</th><th>Role</th><th>Status</th><th></th></tr>
+        <tr><th>Photo</th><th>Name</th><th>Role</th><th>Church</th><th>Status</th><th></th></tr>
         <?php foreach ($members as $m): ?>
         <tr>
           <td><?php if ($m['photo']): ?><img class="thumb" src="<?= e(uploadUrl($m['photo'])) ?>" alt=""><?php else: ?><div class="thumb"></div><?php endif; ?></td>
           <td><?= e($m['name']) ?></td>
           <td><?= e($m['role_title'] ?: '—') ?></td>
+          <td>
+            <?php if (!empty($m['org_unit_id'])): ?>
+              <span style="color:var(--gold-soft);font-size:12px;"><?= e($unitLabels[(int) $m['org_unit_id']] ?? '') ?></span>
+            <?php else: ?>
+              <span class="badge warn">Unassigned</span>
+              <div style="margin-top:6px;">
+                <?php $reassignId = (int) $m['id']; $reassignUnitId = null; $assignAction = '/admin/team?action=reassign'; require __DIR__ . '/partials/unit-assign.php'; ?>
+              </div>
+            <?php endif; ?>
+          </td>
           <td><?= $m['is_published'] ? '<span class="badge ok">visible</span>' : '<span class="badge warn">hidden</span>' ?></td>
           <td>
             <a class="btn secondary sm" href="/admin/team?action=edit&id=<?= (int) $m['id'] ?>">Edit</a>
