@@ -39,10 +39,25 @@ $categories = Database::getInstance()->getConnection()
       <button type="button" class="comment-close" data-close-comments>✕</button>
     </div>
     <div class="comment-list" id="commentList"><div class="feed-loading">Loading comments…</div></div>
+    <div class="comment-reply-bar" id="commentReplyBar" hidden>
+      <span id="commentReplyLabel">Replying to…</span>
+      <button type="button" id="commentReplyCancel" aria-label="Cancel reply">✕</button>
+    </div>
     <form class="comment-form" id="commentForm">
       <input type="text" name="name" id="commentName" maxlength="100" placeholder="Your name (optional)">
-      <textarea name="message" id="commentMessage" maxlength="1000" rows="2" placeholder="Add a comment…" required></textarea>
-      <button class="btn" type="submit">Post</button>
+      <div class="comment-compose-row">
+        <button type="button" class="comment-tool comment-emoji-btn" id="commentEmojiBtn" aria-label="Add emoji">😊</button>
+        <div class="comment-emoji-picker" id="commentEmojiPicker" hidden></div>
+        <label class="comment-tool comment-attach" aria-label="Attach image">📷
+          <input type="file" id="commentImage" accept="image/*" hidden>
+        </label>
+        <textarea name="message" id="commentMessage" maxlength="1000" rows="2" placeholder="Add a comment…"></textarea>
+        <button class="btn" type="submit">Post</button>
+      </div>
+      <div class="comment-attach-preview" id="commentImagePreview" hidden>
+        <img id="commentImagePreviewImg" alt="attachment">
+        <button type="button" id="commentImageRemove" aria-label="Remove image">✕</button>
+      </div>
     </form>
   </div>
 </div>

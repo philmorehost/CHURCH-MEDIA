@@ -180,6 +180,54 @@
 .comment-form input:focus,.comment-form textarea:focus{outline:none; border-color:#e8b95f;}
 .comment-form .btn{align-self:flex-end;}
 
+/* --- threaded comment rows --- */
+.c-row{display:flex; gap:10px;}
+.c-avatar{
+  width:30px; height:30px; flex:0 0 30px; border-radius:50%; background:#262626; color:#e8b95f;
+  display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px;
+}
+.c-body{flex:1; min-width:0;}
+.c-meta{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
+.c-name{font-weight:700; color:#e8b95f;}
+.c-time{color:#8e8e8e; font-size:11px;}
+.c-message{color:#f1f1f1; font-size:13.5px; margin-top:3px; white-space:pre-wrap; word-break:break-word;}
+.c-image{margin-top:8px;}
+.c-image img{max-width:200px; max-height:200px; border-radius:12px; display:block; cursor:zoom-in; border:1px solid #2a2a2a;}
+.c-actions{display:flex; align-items:center; gap:14px; margin-top:6px;}
+.c-like,.c-reply{background:none; border:none; color:#8e8e8e; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; padding:0;}
+.c-like .c-like-icon{font-size:15px;}
+.c-like.liked .c-like-icon{color:#ff3b5c; filter:drop-shadow(0 0 4px #ff3b5c88);}
+.c-like.liked{color:#ff3b5c;}
+.c-reply:hover{color:#e8b95f;}
+.c-replies{margin:6px 0 0 40px; border-left:2px solid #2a2a2a; padding-left:12px;}
+.comment-reply{border-bottom:1px solid #1f1f1f;}
+
+/* --- reply bar + composer --- */
+.comment-reply-bar{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 16px;
+  background:#202020; border-top:1px solid #2a2a2a; color:#e8b95f; font-size:12.5px;
+}
+.comment-reply-bar button{background:none; border:none; color:#8e8e8e; cursor:pointer; font-size:13px;}
+.comment-compose-row{display:flex; align-items:flex-end; gap:8px;}
+.comment-compose-row textarea{flex:1;}
+.comment-tool{
+  background:#262626; border:1px solid #363636; border-radius:10px; color:#fff; width:38px; height:38px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px; position:relative; padding:0;
+}
+.comment-tool:hover{border-color:#e8b95f;}
+.comment-emoji-picker{
+  position:absolute; bottom:50px; left:0; background:#202020; border:1px solid #363636; border-radius:12px;
+  padding:8px; display:grid; grid-template-columns:repeat(6,1fr); gap:4px; width:230px; z-index:20; box-shadow:0 10px 30px #0009;
+}
+.comment-emoji-picker[hidden]{display:none;}
+.c-emoji{background:none; border:none; font-size:20px; cursor:pointer; padding:4px; border-radius:8px; line-height:1;}
+.c-emoji:hover{background:#2c2c2c;}
+.comment-attach{position:relative;}
+.comment-attach-preview{display:flex; align-items:center; gap:8px; padding:6px 0;}
+.comment-attach-preview[hidden]{display:none;}
+.comment-attach-preview img{width:56px; height:56px; object-fit:cover; border-radius:10px; border:1px solid #363636;}
+.comment-attach-preview button{background:none; border:none; color:#8e8e8e; cursor:pointer; font-size:14px;}
+
 @media (max-width:620px){
   .reel-actions{right:8px; bottom:72px; gap:14px;}
   .reel-actions .icon{width:42px; height:42px; font-size:19px;}

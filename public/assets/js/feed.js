@@ -290,15 +290,38 @@
     }
   }
 
-  /* ---------- comment sheet ---------- */
+  /* ---------- comment sheet (Instagram-style) ---------- */
   var sheet = document.getElementById('commentSheet');
   var sheetList = document.getElementById('commentList');
   var sheetForm = document.getElementById('commentForm');
   var sheetName = document.getElementById('commentName');
   var sheetMessage = document.getElementById('commentMessage');
+  var replyBar = document.getElementById('commentReplyBar');
+  var replyLabel = document.getElementById('commentReplyLabel');
+  var replyCancel = document.getElementById('commentReplyCancel');
+  var emojiBtn = document.getElementById('commentEmojiBtn');
+  var emojiPicker = document.getElementById('commentEmojiPicker');
+  var imageInput = document.getElementById('commentImage');
+  var imagePreview = document.getElementById('commentImagePreview');
+  var imagePreviewImg = document.getElementById('commentImagePreviewImg');
+  var imageRemove = document.getElementById('commentImageRemove');
+  var replyTo = null;
+  var selectedImage = null;
+
+  var EMOJIS = ['😂','😍','😊','🙏','❤️','🔥','👍','👏','🙌','😮','🥰','😢','😎','🤣','💯','🎉','✝️','💒','😇','🤗','😅','🥹','😴','🤔','✨','💖','🕊️','🎶'];
+
+  function mediaUrl(path) {
+    if (!path) { return ''; }
+    if (/^https?:\/\//i.test(path)) { return path; }
+    return window.location.origin + '/uploads/' + path.replace(/^\/+/, '');
+  }
 
   function openComments(post, slide) {
     commentPost = { id: post.id, slide: slide };
+    replyTo = null;
+    selectedImage = null;
+    updateReplyBar();
+    clearImagePreview();
     sheet.hidden = false;
     sheetList.innerHTML = '<div class="feed-loading">Loading comments…</div>';
     sheetName.value = localStorage.getItem('reel_comment_name') || '';
@@ -317,50 +340,231 @@
     }
     sheetList.innerHTML = '';
     list.forEach(function (c) {
-      var item = document.createElement('div');
-      item.className = 'comment-item';
-      var name = c.name ? '<span class="c-name">' + escapeHtml(c.name) + '</span>' : '';
-      item.innerHTML = name + escapeHtml(c.message) + '<span class="c-time">' + escapeHtml(c.created_at) + '</span>';
-      sheetList.appendChild(item);
+      sheetList.appendChild(buildCommentNode(c, false));
     });
   }
+
+  function buildCommentNode(c, isReply) {
+    var item = document.createElement('div');
+    item.className = 'comment-item' + (isReply ? ' comment-reply' : '');
+    item.dataset.id = String(c.id);
+
+    var head = document.createElement('div');
+    head.className = 'c-row';
+
+    var avatar = document.createElement('div');
+    avatar.className = 'c-avatar';
+    avatar.textContent = (c.name || '?').charAt(0).toUpperCase();
+    head.appendChild(avatar);
+
+    var body = document.createElement('div');
+    body.className = 'c-body';
+
+    var meta = document.createElement('div');
+    meta.className = 'c-meta';
+    meta.innerHTML = '<span class="c-name">' + escapeHtml(c.name || 'Anonymous') + '</span>'
+      + '<span class="c-time">' + escapeHtml(c.created_at || '') + '</span>';
+    body.appendChild(meta);
+
+    if (c.message) {
+      var msg = document.createElement('div');
+      msg.className = 'c-message';
+      msg.textContent = c.message;
+      body.appendChild(msg);
+    }
+
+    if (c.image_path) {
+      var imgWrap = document.createElement('div');
+      imgWrap.className = 'c-image';
+      var img = document.createElement('img');
+      img.src = mediaUrl(c.image_path);
+      img.alt = 'comment image';
+      img.loading = 'lazy';
+      img.addEventListener('click', function () { window.open(img.src, '_blank'); });
+      imgWrap.appendChild(img);
+      body.appendChild(imgWrap);
+    }
+
+    var actions = document.createElement('div');
+    actions.className = 'c-actions';
+    var likeBtn = document.createElement('button');
+    likeBtn.type = 'button';
+    likeBtn.className = 'c-like' + (c.liked ? ' liked' : '');
+    likeBtn.dataset.commentId = String(c.id);
+    likeBtn.innerHTML = '<span class="c-like-icon">' + (c.liked ? '♥' : '♡') + '</span>'
+      + '<span class="c-like-count">' + formatCount(c.likes_count || 0) + '</span>';
+    var replyBtn = document.createElement('button');
+    replyBtn.type = 'button';
+    replyBtn.className = 'c-reply';
+    replyBtn.textContent = 'Reply';
+    replyBtn.dataset.replyTo = String(c.id);
+    replyBtn.dataset.replyName = c.name || 'Anonymous';
+    actions.appendChild(likeBtn);
+    actions.appendChild(replyBtn);
+    body.appendChild(actions);
+
+    item.appendChild(body);
+
+    if (!isReply && c.replies && c.replies.length) {
+      var repliesWrap = document.createElement('div');
+      repliesWrap.className = 'c-replies';
+      c.replies.forEach(function (r) {
+        repliesWrap.appendChild(buildCommentNode(r, true));
+      });
+      item.appendChild(repliesWrap);
+    }
+
+    return item;
+  }
+
+  function updateReplyBar() {
+    if (!replyTo) {
+      if (replyBar) { replyBar.hidden = true; }
+      if (replyLabel) { replyLabel.textContent = ''; }
+    } else {
+      if (replyBar) { replyBar.hidden = false; }
+      if (replyLabel) { replyLabel.textContent = 'Replying to ' + (replyTo.name || 'this comment'); }
+      sheetMessage.focus();
+    }
+  }
+
+  function clearImagePreview() {
+    selectedImage = null;
+    if (imageInput) { imageInput.value = ''; }
+    if (imagePreview) { imagePreview.hidden = true; imagePreviewImg.src = ''; }
+  }
+
+  // Emoji picker
+  if (emojiBtn && emojiPicker) {
+    emojiPicker.innerHTML = EMOJIS.map(function (e) {
+      return '<button type="button" class="c-emoji" data-emoji="' + e + '">' + e + '</button>';
+    }).join('');
+    emojiBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      emojiPicker.hidden = !emojiPicker.hidden;
+    });
+    emojiPicker.addEventListener('click', function (e) {
+      var btn = e.target.closest('.c-emoji');
+      if (!btn) { return; }
+      var em = btn.getAttribute('data-emoji');
+      var start = sheetMessage.selectionStart || sheetMessage.value.length;
+      var end = sheetMessage.selectionEnd || sheetMessage.value.length;
+      sheetMessage.value = sheetMessage.value.slice(0, start) + em + sheetMessage.value.slice(end);
+      sheetMessage.focus();
+      var pos = start + em.length;
+      sheetMessage.setSelectionRange(pos, pos);
+      emojiPicker.hidden = true;
+    });
+    document.addEventListener('click', function (e) {
+      if (!emojiPicker.hidden && !e.target.closest('.comment-emoji-picker') && e.target !== emojiBtn) {
+        emojiPicker.hidden = true;
+      }
+    });
+  }
+
+  // Image attach
+  if (imageInput) {
+    imageInput.addEventListener('change', function () {
+      var f = imageInput.files && imageInput.files[0];
+      if (!f) { return; }
+      if (f.size > 10 * 1024 * 1024) { alert('Image too large — keep it under 10MB.'); imageInput.value = ''; return; }
+      selectedImage = f;
+      imagePreviewImg.src = URL.createObjectURL(f);
+      imagePreview.hidden = false;
+    });
+  }
+  if (imageRemove) {
+    imageRemove.addEventListener('click', clearImagePreview);
+  }
+  if (replyCancel) {
+    replyCancel.addEventListener('click', function () { replyTo = null; updateReplyBar(); });
+  }
+
+  // Delegated like + reply actions on the comment list
+  sheetList.addEventListener('click', function (e) {
+    var like = e.target.closest('.c-like');
+    if (like) {
+      var cid = parseInt(like.getAttribute('data-comment-id'), 10);
+      if (!cid) { return; }
+      postJson('/api/comments', { action: 'like', comment_id: cid })
+        .then(function (data) {
+          if (!data || data.status !== 'success') { return; }
+          like.classList.toggle('liked', !!data.data.liked);
+          like.querySelector('.c-like-icon').textContent = data.data.liked ? '♥' : '♡';
+          like.querySelector('.c-like-count').textContent = formatCount(data.data.likes_count);
+        })
+        .catch(function () {});
+      return;
+    }
+    var rep = e.target.closest('.c-reply');
+    if (rep) {
+      replyTo = { id: parseInt(rep.getAttribute('data-reply-to'), 10), name: rep.getAttribute('data-reply-name') };
+      updateReplyBar();
+    }
+  });
+
+  sheetForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var message = sheetMessage.value.trim();
+    var name = sheetName.value.trim();
+    if ((!message && !selectedImage) || !commentPost.id) { return; }
+    if (name) { localStorage.setItem('reel_comment_name', name); }
+
+    var done = function (data) {
+      if (!data || data.status !== 'success') {
+        alert((data && (data.message || (data.data && data.data.message))) || 'Could not post comment.');
+        return;
+      }
+      sheetMessage.value = '';
+      clearImagePreview();
+      replyTo = null;
+      updateReplyBar();
+      fetch('/api/comments?post_id=' + encodeURIComponent(commentPost.id))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { renderComments(d.data || []); });
+      sheetList.scrollTop = sheetList.scrollHeight;
+      if (commentPost.slide) {
+        var countEl = commentPost.slide.querySelector('.comment-count');
+        var n = (parseInt(countEl.dataset.count || '0', 10) || 0) + 1;
+        countEl.dataset.count = String(n);
+        countEl.textContent = formatCount(n);
+      }
+    };
+    var fail = function () { alert('Could not post comment.'); };
+
+    var payload = { post_id: commentPost.id, name: name, message: message };
+    if (replyTo) { payload.parent_id = replyTo.id; }
+
+    if (selectedImage) {
+      var fd = new FormData();
+      fd.append('post_id', String(commentPost.id));
+      fd.append('name', name);
+      fd.append('message', message);
+      if (replyTo) { fd.append('parent_id', String(replyTo.id)); }
+      fd.append('image', selectedImage);
+      fetch('/api/comments', { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(done)
+        .catch(fail);
+    } else {
+      postJson('/api/comments', payload).then(done).catch(fail);
+    }
+  });
+
+  sheet.querySelectorAll('[data-close-comments]').forEach(function (el) {
+    el.addEventListener('click', function () {
+      sheet.hidden = true;
+      replyTo = null;
+      clearImagePreview();
+      if (emojiPicker) { emojiPicker.hidden = true; }
+    });
+  });
 
   function escapeHtml(str) {
     var div = document.createElement('div');
     div.textContent = str == null ? '' : String(str);
     return div.innerHTML;
   }
-
-  sheetForm.addEventListener('submit', function (e) {
-    e.preventDefault();
-    var message = sheetMessage.value.trim();
-    if (!message || !commentPost.id) { return; }
-    var name = sheetName.value.trim();
-    if (name) { localStorage.setItem('reel_comment_name', name); }
-    postJson('/api/comments', { post_id: commentPost.id, name: name, message: message })
-      .then(function (data) {
-        if (data.status !== 'success') { alert(data.message || 'Could not post comment.'); return; }
-        sheetMessage.value = '';
-        var empty = sheetList.querySelector('.comment-empty');
-        if (empty) { empty.remove(); }
-        var item = document.createElement('div');
-        item.className = 'comment-item';
-        item.innerHTML = (data.data.name ? '<span class="c-name">' + escapeHtml(data.data.name) + '</span>' : '') + escapeHtml(data.data.message) + '<span class="c-time">just now</span>';
-        sheetList.appendChild(item);
-        sheetList.scrollTop = sheetList.scrollHeight;
-        if (commentPost.slide) {
-          var countEl = commentPost.slide.querySelector('.comment-count');
-          var n = (parseInt(countEl.dataset.count || '0', 10) || 0) + 1;
-          countEl.dataset.count = String(n);
-          countEl.textContent = formatCount(n);
-        }
-      })
-      .catch(function () { alert('Could not post comment.'); });
-  });
-
-  sheet.querySelectorAll('[data-close-comments]').forEach(function (el) {
-    el.addEventListener('click', function () { sheet.hidden = true; });
-  });
 
   /* ---------- slide build ---------- */
   function buildSlide(post) {
