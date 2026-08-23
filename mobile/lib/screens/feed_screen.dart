@@ -11,6 +11,7 @@ import '../services/share_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import 'unit_screen.dart';
+import 'units_screen.dart';
 
 /// Vertical, full-screen, infinite-scrolling feed — behaves like Instagram
 /// Reels: swipe up for the next post, tap a video to mute/unmute, double-tap
@@ -166,6 +167,14 @@ class FeedScreenState extends State<FeedScreen> {
           _toggle('For You', !_savedOnly, () => _setSavedOnly(false)),
           const SizedBox(width: 16),
           _toggle('Saved', _savedOnly, () => _setSavedOnly(true)),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.location_on_outlined, color: Colors.white),
+            tooltip: 'Find your parish',
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const UnitsScreen()));
+            },
+          ),
         ],
       ),
     );

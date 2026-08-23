@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import '../widgets/event_sermon_cards.dart';
 import 'bible_screen.dart';
+import 'units_screen.dart';
 import 'event_detail_screen.dart';
 import 'sermon_detail_screen.dart';
 
@@ -64,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
           slivers: [
             SliverToBoxAdapter(child: _buildHero(s)),
             SliverToBoxAdapter(child: _buildBibleCard()),
+            SliverToBoxAdapter(child: _buildParishCard()),
             SliverToBoxAdapter(child: SectionHeader(eyebrow: 'Community', title: 'From Our Feed')),
             SliverToBoxAdapter(child: _buildFeedStrip()),
             SliverToBoxAdapter(child: SectionHeader(eyebrow: 'Save the Date', title: "What's Happening")),
@@ -149,6 +151,32 @@ class _HomeScreenState extends State<HomeScreen> {
               Text('Holy Bible', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
               const SizedBox(height: 2),
               const Text('Read the Word of God — works offline', style: TextStyle(color: Colors.white70, fontSize: 13)),
+            ]),
+          ),
+          const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildParishCard() {
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UnitsScreen())),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [Color(0xFF0F3D3E), Color(0xFF1B6B6A)]),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(children: [
+          const Icon(Icons.church, size: 40, color: AppColors.goldSoft),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Find Your Parish', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 2),
+              const Text('Browse media by province, zone, area & parish', style: TextStyle(color: Colors.white70, fontSize: 13)),
             ]),
           ),
           const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),

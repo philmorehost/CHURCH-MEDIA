@@ -16,6 +16,10 @@ $router->get('/feed', function () {
     render('feed');
 });
 
+$router->get('/media', function () {
+    render('media');
+});
+
 $router->get('/unit/{slug}', function (array $params) {
     render('unit', ['slug' => $params['slug']]);
 });

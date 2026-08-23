@@ -12,6 +12,7 @@ $isLive = !empty($s['livestream_is_live']);
 $navLinks = [
     '/' => 'Home',
     '/feed' => 'Feed',
+    '/media' => 'Media',
     '/events' => 'Events',
     '/sermons' => 'Sermons',
     '/units' => 'Parishes',

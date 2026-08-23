@@ -4,6 +4,16 @@ declare(strict_types=1);
 Auth::requireLogin();
 $pdo = Database::getInstance()->getConnection();
 
+// Non-super admins only see their own unit subtree on the dashboard.
+$user = Auth::user();
+$scopeClause = '';
+$myUnitLabel = '';
+if ($user && empty($user['is_super_admin'])) {
+    $myUnitLabel = !empty($user['org_unit_id']) ? Unit::label((int) $user['org_unit_id']) : '';
+    $scopeIds = !empty($user['org_unit_id']) ? Unit::subtreeIds((int) $user['org_unit_id']) : [];
+    $scopeClause = $scopeIds ? ' AND org_unit_id IN (' . implode(',', array_map('intval', $scopeIds)) . ')' : ' AND 1 = 0';
+}
+
 $stats = [
     'posts' => (int) $pdo->query('SELECT COUNT(*) FROM media_posts')->fetchColumn(),
     'events' => (int) $pdo->query('SELECT COUNT(*) FROM events WHERE start_at >= NOW()')->fetchColumn(),
@@ -12,10 +22,14 @@ $stats = [
     'subscribers' => (int) $pdo->query('SELECT COUNT(*) FROM newsletter_subscribers WHERE is_active = 1')->fetchColumn(),
     'blocked_ips' => (int) $pdo->query("SELECT COUNT(*) FROM ip_rules WHERE type = 'blacklist'")->fetchColumn(),
 ];
+if ($scopeClause !== '') {
+    $stats['my_posts'] = (int) $pdo->query('SELECT COUNT(*) FROM media_posts WHERE 1=1' . $scopeClause)->fetchColumn();
+}
 
 $recentPosts = $pdo->query('
     SELECT p.id, p.caption, p.post_type, p.likes_count, p.views_count, p.created_at, u.name AS author
     FROM media_posts p JOIN users u ON u.id = p.user_id
+    WHERE 1=1' . $scopeClause . '
     ORDER BY p.created_at DESC LIMIT 6
 ')->fetchAll();
 
@@ -28,6 +42,14 @@ $pageTitle = 'Dashboard';
 $activeNav = 'dashboard';
 require __DIR__ . '/partials/layout-open.php';
 ?>
+
+<?php if ($myUnitLabel !== ''): ?>
+<div class="card" style="margin-bottom:18px;">
+  <h2 style="margin:0 0 4px;">📍 My Parish</h2>
+  <p style="margin:0;color:var(--ink-dim);"><?= e($myUnitLabel) ?></p>
+  <p style="margin:6px 0 0;color:var(--ink-dim);"><strong><?= $stats['my_posts'] ?? 0 ?></strong> post(s) in your scope.</p>
+</div>
+<?php endif; ?>
 
 <div class="grid cols-4" style="margin-bottom:22px;">
   <div class="stat"><div class="num"><?= $stats['posts'] ?></div><div class="label">Media Posts</div></div>

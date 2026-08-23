@@ -43,8 +43,11 @@
 
   function load() {
     grid.innerHTML = '<div class="unit-loading">Loading media…</div>';
-    var url = '/api/unit.php?slug=' + encodeURIComponent(slug) + '&shuffle=' + (shuffle ? '1' : '0') + '&per_page=100';
-    if (activeCat) { url += '&category=' + encodeURIComponent(activeCat); }
+    var qs = 'shuffle=' + (shuffle ? '1' : '0') + '&per_page=100';
+    if (activeCat) { qs += '&category=' + encodeURIComponent(activeCat); }
+    // empty slug = global gallery (all media), otherwise a unit gallery
+    var endpoint = slug ? ('/api/unit.php?slug=' + encodeURIComponent(slug)) : '/api/media';
+    var url = endpoint + '?' + qs;
     fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {

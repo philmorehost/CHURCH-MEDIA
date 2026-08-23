@@ -4,14 +4,16 @@ library;
 /// One level of the Province → Zone → Area → Parish hierarchy.
 class UnitInfo {
   final int id;
+  final int? parentId;
   final String type;
   final String name;
   final String slug;
 
-  UnitInfo({required this.id, required this.type, required this.name, required this.slug});
+  UnitInfo({required this.id, this.parentId, required this.type, required this.name, required this.slug});
 
   factory UnitInfo.fromJson(Map<String, dynamic> json) => UnitInfo(
         id: int.tryParse(json['id'].toString()) ?? 0,
+        parentId: json['parent_id'] != null ? int.tryParse(json['parent_id'].toString()) : null,
         type: json['type'] as String? ?? '',
         name: json['name'] as String? ?? '',
         slug: json['slug'] as String? ?? '',
