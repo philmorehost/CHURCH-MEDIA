@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `email` VARCHAR(150) NOT NULL UNIQUE,
   `password` VARCHAR(255) NOT NULL,
   `role` ENUM('admin','media_team','editor') NOT NULL DEFAULT 'media_team',
+  `is_super_admin` TINYINT(1) NOT NULL DEFAULT 0,
   `is_suspended` TINYINT(1) NOT NULL DEFAULT 0,
   `notify_on_login` TINYINT(1) NOT NULL DEFAULT 1,
   `bio` TEXT NULL,

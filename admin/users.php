@@ -8,11 +8,11 @@ $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
 $currentUser = Auth::user();
 
-// The first account created during installation is the primary (super) admin.
-// Only that account may manage itself — other admins (even promoted ones) are
+// The super admin (created during install, flagged is_super_admin) is the owner
+// account. Only it may manage itself — other admins (even promoted ones) are
 // blocked from editing, suspending, or deleting it.
-$primaryAdminId = (int) $pdo->query('SELECT MIN(id) FROM users')->fetchColumn();
-$isPrimaryAdmin = ((int) $currentUser['id'] === $primaryAdminId);
+$superAdminId = (int) $pdo->query('SELECT id FROM users WHERE is_super_admin = 1 ORDER BY id ASC LIMIT 1')->fetchColumn();
+$isSuperAdmin = ((int) $currentUser['id'] === $superAdminId);
 
 if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
@@ -53,8 +53,8 @@ if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmt = $pdo->prepare('SELECT id FROM users WHERE id = ?');
     $stmt->execute([$targetId]);
-    if ($targetId === $primaryAdminId && !$isPrimaryAdmin) {
-        $errors[] = 'The primary admin account is protected and cannot be edited.';
+    if ($targetId === $superAdminId && !$isSuperAdmin) {
+        $errors[] = 'The super admin account is protected and cannot be edited.';
     } elseif (!$stmt->fetch()) {
         $errors[] = 'User not found.';
     } elseif ($name === '' || $username === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -83,8 +83,8 @@ if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'toggle_suspend' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $targetId = (int) ($_POST['id'] ?? 0);
-    if ($targetId === $primaryAdminId && !$isPrimaryAdmin) {
-        flash('error', 'The primary admin account is protected and cannot be suspended.');
+    if ($targetId === $superAdminId && !$isSuperAdmin) {
+        flash('error', 'The super admin account is protected and cannot be suspended.');
     } elseif ($targetId !== $currentUser['id']) {
         $pdo->prepare('UPDATE users SET is_suspended = NOT is_suspended WHERE id = ?')->execute([$targetId]);
     }
@@ -94,8 +94,8 @@ if ($action === 'toggle_suspend' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $targetId = (int) ($_POST['id'] ?? 0);
-    if ($targetId === $primaryAdminId && !$isPrimaryAdmin) {
-        flash('error', 'The primary admin account is protected and cannot be deleted.');
+    if ($targetId === $superAdminId && !$isSuperAdmin) {
+        flash('error', 'The super admin account is protected and cannot be deleted.');
     } elseif ($targetId !== $currentUser['id']) {
         $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$targetId]);
         flash('success', 'User removed.');
@@ -107,8 +107,8 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $editUser = null;
 if ($action === 'edit') {
-    if ($id === $primaryAdminId && !$isPrimaryAdmin) {
-        flash('error', 'The primary admin account is protected and cannot be edited.');
+    if ($id === $superAdminId && !$isSuperAdmin) {
+        flash('error', 'The super admin account is protected and cannot be edited.');
         redirect('/admin/users');
     }
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -205,7 +205,7 @@ require __DIR__ . '/partials/layout-open.php';
     <table>
       <tr><th>Name</th><th>Username</th><th>Role</th><th>Last Login</th><th>Status</th><th></th></tr>
       <?php foreach ($users as $u): ?>
-      <?php $protected = ($primaryAdminId === (int) $u['id'] && !$isPrimaryAdmin); ?>
+      <?php $protected = ($superAdminId === (int) $u['id'] && !$isSuperAdmin); ?>
       <tr>
         <td><?= e($u['name']) ?><br><small style="color:var(--ink-faint);"><?= e($u['email']) ?></small></td>
         <td><?= e($u['username']) ?></td>

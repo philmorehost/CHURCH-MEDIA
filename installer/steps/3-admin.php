@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $stmt = $pdo->prepare('INSERT INTO users (name, username, email, password, role, notify_on_login) VALUES (?, ?, ?, ?, "admin", 1)');
+            $stmt = $pdo->prepare('INSERT INTO users (name, username, email, password, role, is_super_admin, notify_on_login) VALUES (?, ?, ?, ?, "admin", 1, 1)');
             $stmt->execute([$name, $username, $email, password_hash($password, PASSWORD_ARGON2ID)]);
 
             $exists = (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn();

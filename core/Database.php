@@ -243,6 +243,17 @@ class Database
                 self::addColumnIfMissing($pdo, 'settings', 'bible_source', "VARCHAR(20) NOT NULL DEFAULT 'keyless'", 'meta_description');
                 self::addColumnIfMissing($pdo, 'settings', 'bible_api_key', 'VARCHAR(255) NULL', 'bible_source');
             },
+            '2026_08_super_admin' => function (PDO $pdo): void {
+                // Explicit super-admin flag so the owner account can't be edited,
+                // suspended, or deleted by other admins. Existing installs: the
+                // first account (lowest id) becomes the super admin, matching the
+                // previous implicit protection.
+                self::addColumnIfMissing($pdo, 'users', 'is_super_admin', "TINYINT(1) NOT NULL DEFAULT 0", 'role');
+                $count = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE is_super_admin = 1')->fetchColumn();
+                if ($count === 0) {
+                    $pdo->exec("UPDATE users SET is_super_admin = 1 WHERE id = (SELECT id FROM (SELECT MIN(id) AS id FROM users) t)");
+                }
+            },
             '2026_08_privacy_policy' => function (PDO $pdo): void {
                 // Seed a comprehensive privacy policy page (served at /privacy-policy).
                 // Content uses {{site_title}} / {{contact_email}} / {{contact_phone}}
