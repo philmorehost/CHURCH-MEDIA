@@ -153,13 +153,27 @@ CREATE TABLE IF NOT EXISTS `post_saves` (
 CREATE TABLE IF NOT EXISTS `post_comments` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `media_post_id` INT NOT NULL,
+  `parent_id` INT NULL COMMENT 'Set for replies (threaded comments)',
   `name` VARCHAR(100) NULL,
   `message` TEXT NOT NULL,
+  `image_path` VARCHAR(255) NULL COMMENT 'Auto-compressed webp attachment',
+  `likes_count` INT NOT NULL DEFAULT 0,
   `fingerprint_hash` VARCHAR(64) NULL,
   `is_published` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`media_post_id`) REFERENCES `media_posts`(`id`) ON DELETE CASCADE,
-  INDEX `idx_comment_post` (`media_post_id`, `created_at`)
+  FOREIGN KEY (`parent_id`) REFERENCES `post_comments`(`id`) ON DELETE CASCADE,
+  INDEX `idx_comment_post` (`media_post_id`, `created_at`),
+  INDEX `idx_comment_parent` (`parent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `post_comment_likes` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `comment_id` INT NOT NULL,
+  `fingerprint_hash` VARCHAR(64) NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uniq_comment_like` (`comment_id`, `fingerprint_hash`),
+  FOREIGN KEY (`comment_id`) REFERENCES `post_comments`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `media_post_categories` (

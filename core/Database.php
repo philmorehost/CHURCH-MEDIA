@@ -329,6 +329,22 @@ class Database
                     UNIQUE KEY `uq_notif_recipient` (`notification_id`, `org_unit_id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             },
+            '2026_08_comments_upgrade' => function (PDO $pdo): void {
+                // Instagram-style comments: threaded replies, image attachments
+                // (auto-compressed to the smallest webp), and comment likes.
+                self::addColumnIfMissing($pdo, 'post_comments', 'parent_id', 'INT NULL', 'media_post_id');
+                self::addColumnIfMissing($pdo, 'post_comments', 'image_path', 'VARCHAR(255) NULL', 'message');
+                self::addColumnIfMissing($pdo, 'post_comments', 'likes_count', 'INT NOT NULL DEFAULT 0', 'image_path');
+                self::addForeignKeyIfMissing($pdo, 'post_comments', 'fk_post_comments_parent', 'parent_id', 'post_comments', 'id', 'CASCADE');
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `post_comment_likes` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `comment_id` INT NOT NULL,
+                    `fingerprint_hash` VARCHAR(64) NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY `uniq_comment_like` (`comment_id`, `fingerprint_hash`),
+                    FOREIGN KEY (`comment_id`) REFERENCES `post_comments`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            },
             '2026_08_privacy_policy' => function (PDO $pdo): void {
                 // Seed a comprehensive privacy policy page (served at /privacy-policy).
                 // Content uses {{site_title}} / {{contact_email}} / {{contact_phone}}
