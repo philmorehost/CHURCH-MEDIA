@@ -32,20 +32,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 redirect('/admin/firebase');
             }
         }
-    } elseif ($do === 'upload_key') {
-        if (empty($_FILES['key_file']['tmp_name']) || !is_uploaded_file($_FILES['key_file']['tmp_name'])) {
-            $errors[] = 'Choose a service-account JSON file to upload.';
+    } elseif ($do === 'upload_key' || $do === 'paste_key') {
+        $raw = null;
+        if ($do === 'paste_key') {
+            $raw = trim((string) ($_POST['key_json'] ?? ''));
+            if ($raw === '') {
+                $errors[] = 'Paste the full contents of the service-account JSON file.';
+            }
         } else {
-            $raw = (string) file_get_contents($_FILES['key_file']['tmp_name']);
-            $data = json_decode($raw, true);
-            if (!is_array($data) || empty($data['client_email']) || empty($data['private_key'])) {
-                $errors[] = 'That file is not a valid Firebase service-account JSON (missing client_email/private_key).';
+            if (empty($_FILES['key_file']['tmp_name']) || !is_uploaded_file($_FILES['key_file']['tmp_name'])) {
+                $errors[] = 'Choose a service-account JSON file to upload.';
             } else {
-                if (@file_put_contents($keyFile, $raw) === false) {
-                    $errors[] = 'Could not save storage/service-account.json — check that the storage folder is writable.';
+                $raw = (string) file_get_contents($_FILES['key_file']['tmp_name']);
+            }
+        }
+        if ($raw !== null && $raw !== '') {
+            $data = json_decode($raw, true);
+            if (!is_array($data)) {
+                $errors[] = 'That file could not be read as JSON — it may be an HTML page, empty, or corrupted. Re-download the "Service account key" file from Firebase.';
+            } else {
+                $missing = [];
+                foreach (['type', 'client_email', 'private_key', 'project_id'] as $k) {
+                    if (empty($data[$k])) {
+                        $missing[] = $k;
+                    }
+                }
+                if ($missing) {
+                    $hint = (isset($data['project_info']) || isset($data['api_key']))
+                        ? ' This looks like the Android <code>google-services.json</code> config file, not a service-account key — download the service-account JSON instead.'
+                        : '';
+                    $errors[] = 'That file is missing: <strong>' . implode(', ', $missing) . '</strong>.' . $hint . ' In Firebase, get the correct file from <em>Project settings → Service accounts → Generate new private key</em>.';
                 } else {
-                    flash('success', 'Service account key saved.');
-                    redirect('/admin/firebase');
+                    if (@file_put_contents($keyFile, $raw) === false) {
+                        $errors[] = 'Could not save storage/service-account.json — check that the storage folder is writable.';
+                    } else {
+                        flash('success', 'Service account key saved.');
+                        redirect('/admin/firebase');
+                    }
                 }
             }
         }
@@ -134,6 +157,18 @@ require __DIR__ . '/partials/layout-open.php';
     <?= Csrf::field() ?><input type="hidden" name="do" value="upload_key">
     <input type="file" name="key_file" accept=".json,application/json" required>
     <button class="btn" type="submit" style="margin-top:10px;">Upload key</button>
+  </form>
+  <h3 style="margin:18px 0 6px;">…or paste the file contents</h3>
+  <p class="sub">If the file is hard to upload (or your download came out odd), open it in a text editor, copy everything, and paste it here.</p>
+  <form method="post">
+    <?= Csrf::field() ?><input type="hidden" name="do" value="paste_key">
+    <textarea name="key_json" rows="6" placeholder='{
+  "type": "service_account",
+  "project_id": "…",
+  "private_key": "-----BEGIN PRIVATE KEY-----…",
+  "client_email": "…"
+}' style="font-family:monospace;font-size:12px;"></textarea>
+    <button class="btn" type="submit" style="margin-top:10px;">Save pasted key</button>
   </form>
 </div>
 
