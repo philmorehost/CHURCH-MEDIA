@@ -23,6 +23,12 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $role = in_array($_POST['role'] ?? '', ['admin', 'editor', 'media_team'], true) ? $_POST['role'] : 'media_team';
     $orgUnitIdRaw = (string) ($_POST['org_unit_id'] ?? '');
     $orgUnitId = $orgUnitIdRaw !== '' ? (int) $orgUnitIdRaw : null;
+    if ($orgUnitId !== null && !Auth::isSuperAdmin()) {
+        $myScope = !empty($currentUser['org_unit_id']) ? Unit::subtreeIds((int) $currentUser['org_unit_id']) : [];
+        if (!in_array($orgUnitId, $myScope, true)) {
+            $errors[] = 'You can only assign users to a unit within your own scope.';
+        }
+    }
 
     if ($name === '' || $username === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please provide a valid name, username, and email.';
@@ -50,6 +56,12 @@ if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $role = in_array($_POST['role'] ?? '', ['admin', 'editor', 'media_team'], true) ? $_POST['role'] : 'media_team';
     $orgUnitIdRaw = (string) ($_POST['org_unit_id'] ?? '');
     $orgUnitId = $orgUnitIdRaw !== '' ? (int) $orgUnitIdRaw : null;
+    if ($orgUnitId !== null && !Auth::isSuperAdmin()) {
+        $myScope = !empty($currentUser['org_unit_id']) ? Unit::subtreeIds((int) $currentUser['org_unit_id']) : [];
+        if (!in_array($orgUnitId, $myScope, true)) {
+            $errors[] = 'You can only assign users to a unit within your own scope.';
+        }
+    }
     if ($targetId === (int) $currentUser['id']) {
         // Never allow changing your own role — prevents locking yourself out.
         $role = $currentUser['role'];
@@ -141,6 +153,19 @@ if ($action === 'edit') {
 
 $users = $pdo->query('SELECT id, name, username, email, role, is_suspended, last_login_at, last_login_ip, org_unit_id FROM users ORDER BY id ASC')->fetchAll();
 
+// Assignable units: any level (province/zone/area/parish) for the super admin;
+// otherwise only units inside the current admin's own subtree.
+$allUnits = Unit::all('type ASC, name ASC');
+$labels = Unit::labelsById();
+$myUnitScope = (Auth::isSuperAdmin() || empty($currentUser['org_unit_id'])) ? null : Unit::subtreeIds((int) $currentUser['org_unit_id']);
+$unitOptions = [];
+foreach ($allUnits as $u) {
+    if ($myUnitScope !== null && !in_array((int) $u['id'], $myUnitScope, true)) {
+        continue;
+    }
+    $unitOptions[$u['type']][] = ['id' => (int) $u['id'], 'label' => $labels[(int) $u['id']] ?? $u['name']];
+}
+
 $pageTitle = 'Users';
 $activeNav = 'users';
 require __DIR__ . '/partials/layout-open.php';
@@ -167,11 +192,15 @@ require __DIR__ . '/partials/layout-open.php';
         <option value="editor">Editor — posts, events, sermons</option>
         <option value="admin">Admin — full access</option>
       </select>
-      <label for="org_unit_id">Parish</label>
+      <label for="org_unit_id">Home Unit / Scope</label>
       <select id="org_unit_id" name="org_unit_id">
         <option value="">— none —</option>
-        <?php foreach (Unit::byType('parish') as $p): ?>
-          <option value="<?= (int) $p['id'] ?>"><?= e($p['name']) ?></option>
+        <?php foreach ($unitOptions as $type => $items): ?>
+          <optgroup label="<?= ucfirst(e($type)) ?>">
+            <?php foreach ($items as $u): ?>
+              <option value="<?= $u['id'] ?>"><?= e($u['label']) ?></option>
+            <?php endforeach; ?>
+          </optgroup>
         <?php endforeach; ?>
       </select>
       <div class="btn-row">
@@ -205,11 +234,15 @@ require __DIR__ . '/partials/layout-open.php';
         <option value="admin" <?= $editUser['role'] === 'admin' ? 'selected' : '' ?>>Admin — full access</option>
       </select>
       <?php endif; ?>
-      <label for="org_unit_id">Parish</label>
+      <label for="org_unit_id">Home Unit / Scope</label>
       <select id="org_unit_id" name="org_unit_id">
         <option value="">— none —</option>
-        <?php foreach (Unit::byType('parish') as $p): ?>
-          <option value="<?= (int) $p['id'] ?>" <?= ((int) ($editUser['org_unit_id'] ?? 0)) === (int) $p['id'] ? 'selected' : '' ?>><?= e($p['name']) ?></option>
+        <?php foreach ($unitOptions as $type => $items): ?>
+          <optgroup label="<?= ucfirst(e($type)) ?>">
+            <?php foreach ($items as $u): ?>
+              <option value="<?= $u['id'] ?>" <?= ((int) ($editUser['org_unit_id'] ?? 0)) === $u['id'] ? 'selected' : '' ?>><?= e($u['label']) ?></option>
+            <?php endforeach; ?>
+          </optgroup>
         <?php endforeach; ?>
       </select>
       <div class="btn-row">
@@ -227,7 +260,7 @@ require __DIR__ . '/partials/layout-open.php';
       <?php $protected = ($superAdminId === (int) $u['id'] && !$isSuperAdmin); ?>
       <tr>
         <td><?= e($u['name']) ?><br><small style="color:var(--ink-faint);"><?= e($u['email']) ?></small>
-            <br><small style="color:var(--ink-dim);">📍 <?= $u['org_unit_id'] ? e(Unit::label((int) $u['org_unit_id'])) : 'no parish' ?></small></td>
+            <br><small style="color:var(--ink-dim);">📍 <?= $u['org_unit_id'] ? e(Unit::label((int) $u['org_unit_id'])) : 'no unit' ?></small></td>
         <td><?= e($u['username']) ?></td>
         <td><span class="badge info"><?= e($u['role']) ?></span></td>
         <td><?= $u['last_login_at'] ? e(timeAgo($u['last_login_at']) . ' from ' . $u['last_login_ip']) : 'never' ?></td>

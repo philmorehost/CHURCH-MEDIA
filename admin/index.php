@@ -45,7 +45,7 @@ require __DIR__ . '/partials/layout-open.php';
 
 <?php if ($myUnitLabel !== ''): ?>
 <div class="card" style="margin-bottom:18px;">
-  <h2 style="margin:0 0 4px;">📍 My Parish</h2>
+  <h2 style="margin:0 0 4px;">📍 My Unit</h2>
   <p style="margin:0;color:var(--ink-dim);"><?= e($myUnitLabel) ?></p>
   <p style="margin:6px 0 0;color:var(--ink-dim);"><strong><?= $stats['my_posts'] ?? 0 ?></strong> post(s) in your scope.</p>
 </div>
