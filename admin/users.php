@@ -8,6 +8,12 @@ $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
 $currentUser = Auth::user();
 
+// The first account created during installation is the primary (super) admin.
+// Only that account may manage itself — other admins (even promoted ones) are
+// blocked from editing, suspending, or deleting it.
+$primaryAdminId = (int) $pdo->query('SELECT MIN(id) FROM users')->fetchColumn();
+$isPrimaryAdmin = ((int) $currentUser['id'] === $primaryAdminId);
+
 if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $name = trim($_POST['name'] ?? '');
@@ -47,7 +53,9 @@ if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmt = $pdo->prepare('SELECT id FROM users WHERE id = ?');
     $stmt->execute([$targetId]);
-    if (!$stmt->fetch()) {
+    if ($targetId === $primaryAdminId && !$isPrimaryAdmin) {
+        $errors[] = 'The primary admin account is protected and cannot be edited.';
+    } elseif (!$stmt->fetch()) {
         $errors[] = 'User not found.';
     } elseif ($name === '' || $username === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please provide a valid name, username, and email.';
@@ -75,7 +83,9 @@ if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'toggle_suspend' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $targetId = (int) ($_POST['id'] ?? 0);
-    if ($targetId !== $currentUser['id']) {
+    if ($targetId === $primaryAdminId && !$isPrimaryAdmin) {
+        flash('error', 'The primary admin account is protected and cannot be suspended.');
+    } elseif ($targetId !== $currentUser['id']) {
         $pdo->prepare('UPDATE users SET is_suspended = NOT is_suspended WHERE id = ?')->execute([$targetId]);
     }
     redirect('/admin/users');
@@ -84,7 +94,9 @@ if ($action === 'toggle_suspend' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $targetId = (int) ($_POST['id'] ?? 0);
-    if ($targetId !== $currentUser['id']) {
+    if ($targetId === $primaryAdminId && !$isPrimaryAdmin) {
+        flash('error', 'The primary admin account is protected and cannot be deleted.');
+    } elseif ($targetId !== $currentUser['id']) {
         $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$targetId]);
         flash('success', 'User removed.');
     } else {
@@ -95,6 +107,10 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $editUser = null;
 if ($action === 'edit') {
+    if ($id === $primaryAdminId && !$isPrimaryAdmin) {
+        flash('error', 'The primary admin account is protected and cannot be edited.');
+        redirect('/admin/users');
+    }
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Re-render the form with the submitted values after a validation error
         // (a successful save above has already redirected).
@@ -189,6 +205,7 @@ require __DIR__ . '/partials/layout-open.php';
     <table>
       <tr><th>Name</th><th>Username</th><th>Role</th><th>Last Login</th><th>Status</th><th></th></tr>
       <?php foreach ($users as $u): ?>
+      <?php $protected = ($primaryAdminId === (int) $u['id'] && !$isPrimaryAdmin); ?>
       <tr>
         <td><?= e($u['name']) ?><br><small style="color:var(--ink-faint);"><?= e($u['email']) ?></small></td>
         <td><?= e($u['username']) ?></td>
@@ -197,6 +214,8 @@ require __DIR__ . '/partials/layout-open.php';
         <td>
           <?php if ((int) $u['id'] === $currentUser['id']): ?>
             <span class="badge ok">you</span>
+          <?php elseif ($protected): ?>
+            <span class="badge info">protected</span>
           <?php else: ?>
             <form method="post" action="/admin/users?action=toggle_suspend" style="display:inline;">
               <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $u['id'] ?>">
@@ -207,12 +226,16 @@ require __DIR__ . '/partials/layout-open.php';
           <?php endif; ?>
         </td>
         <td>
+          <?php if ($protected): ?>
+            <span class="badge info">protected</span>
+          <?php else: ?>
           <a class="btn sm" href="/admin/users?action=edit&id=<?= (int) $u['id'] ?>">Edit</a>
           <?php if ((int) $u['id'] !== $currentUser['id']): ?>
           <form method="post" action="/admin/users?action=delete" onsubmit="return confirm('Delete this user?');" style="display:inline;">
             <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $u['id'] ?>">
             <button type="submit" class="btn danger sm">Delete</button>
           </form>
+          <?php endif; ?>
           <?php endif; ?>
         </td>
       </tr>
