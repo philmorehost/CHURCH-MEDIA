@@ -278,18 +278,16 @@ class _FeedSlideState extends State<_FeedSlide> {
   /// uses the official IFrame player API and plays reliably.
   void _setupYoutubeIfNeeded(String url) {
     if (_youtubeController != null) return;
-    // Android's WebView blocks media-with-sound until a user gesture, so a
-    // YouTube reel can only autoplay reliably when muted. It starts muted and
-    // the speaker button (or a tap) unmutes it — the one exception to the
-    // "sound on by default" rule.
-    _muted = true;
     final id = _youtubeId(url);
     if (id.isEmpty) return;
+    // youtube_player_iframe already configures the WebView with
+    // setMediaPlaybackRequiresUserGesture(false), so YouTube CAN autoplay
+    // with sound. Honor the "sound on by default" state (_muted = false).
     _youtubeController = YoutubePlayerController.fromVideoId(
       videoId: id,
       autoPlay: true,
-      params: const YoutubePlayerParams(
-        mute: true,
+      params: YoutubePlayerParams(
+        mute: _muted,
         loop: true,
         showControls: false,
       ),

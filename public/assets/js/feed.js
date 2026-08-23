@@ -225,10 +225,12 @@
 
   /* One-time unlock: browsers only allow sound after the user has interacted
      with the page, so a reel may have fallen back to muted autoplay. The first
-     tap/touch anywhere turns sound on and keeps it on for the session. */
+     tap/touch/click/keypress anywhere turns sound on and keeps it on. */
   function unlockAudio() {
     document.removeEventListener('pointerdown', unlockAudio);
     document.removeEventListener('touchstart', unlockAudio);
+    document.removeEventListener('click', unlockAudio);
+    document.removeEventListener('keydown', unlockAudio);
     if (!muted) { return; }
     muted = false;
     updateMuteButtons();
@@ -243,6 +245,8 @@
   }
   document.addEventListener('pointerdown', unlockAudio);
   document.addEventListener('touchstart', unlockAudio);
+  document.addEventListener('click', unlockAudio);
+  document.addEventListener('keydown', unlockAudio);
   function burstLike(slide) {
     var burst = slide.querySelector('.reel-heart-burst');
     burst.classList.remove('burst');
