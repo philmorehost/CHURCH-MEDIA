@@ -25,6 +25,8 @@ $categories = Database::getInstance()->getConnection()
     <?php endforeach; ?>
   </div>
 
+  <button type="button" id="newPostsPill" hidden>⬆ New posts — tap to refresh</button>
+
   <div class="reels-scroller" id="feedScroller" data-endpoint="/api/feed">
     <div class="feed-loading" id="feedLoading">Loading reels…</div>
   </div>

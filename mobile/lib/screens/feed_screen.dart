@@ -37,12 +37,52 @@ class FeedScreenState extends State<FeedScreen> {
   bool _hasMore = true;
   bool _loading = false;
   final Set<int> _viewedIds = {};
+  int _newestId = 0;
+  bool _showNewPosts = false;
+  Timer? _feedPollTimer;
 
   @override
   void initState() {
     super.initState();
     _api.fetchCategories().then((c) => setState(() => _categories = c));
     _loadMore();
+    // Live "new posts" check while the feed is on screen.
+    _feedPollTimer = Timer.periodic(const Duration(seconds: 30), (_) => _checkNewPosts());
+  }
+
+  @override
+  void dispose() {
+    _feedPollTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _trackNewest(List<Post> posts) {
+    for (final p in posts) {
+      if (p.id > _newestId) _newestId = p.id;
+    }
+  }
+
+  Future<void> _checkNewPosts() async {
+    if (_savedOnly || _posts.isEmpty || _loading) return;
+    try {
+      final result = await _api.fetchFeed(page: 1, category: _activeCategory);
+      if (!mounted || result.posts.isEmpty) return;
+      if (result.posts.first.id > _newestId) setState(() => _showNewPosts = true);
+    } catch (_) {}
+  }
+
+  Future<void> _resetFeed() async {
+    setState(() {
+      _showNewPosts = false;
+      _newestId = 0;
+      _posts.clear();
+      _page = 1;
+      _hasMore = true;
+      _viewedIds.clear();
+    });
+    _pageController.jumpToPage(0);
+    await _loadMore();
   }
 
   /// Re-runs the initial load (categories + first feed page). Called by the
@@ -64,6 +104,7 @@ class FeedScreenState extends State<FeedScreen> {
         _hasMore = result.hasMore;
         _page++;
       });
+      _trackNewest(result.posts);
     } catch (_) {
       // Network hiccup — silently allow a retry on the next scroll.
     } finally {
@@ -78,6 +119,8 @@ class FeedScreenState extends State<FeedScreen> {
       _page = 1;
       _hasMore = true;
       _viewedIds.clear();
+      _newestId = 0;
+      _showNewPosts = false;
     });
     _pageController.jumpToPage(0);
     _loadMore();
@@ -90,6 +133,8 @@ class FeedScreenState extends State<FeedScreen> {
       _page = 1;
       _hasMore = true;
       _viewedIds.clear();
+      _newestId = 0;
+      _showNewPosts = false;
     });
     _pageController.jumpToPage(0);
     _loadMore();
@@ -114,44 +159,68 @@ class FeedScreenState extends State<FeedScreen> {
             _buildTopBar(),
             if (_categories.isNotEmpty) _buildChips(),
             Expanded(
-              child: _posts.isEmpty
-                  ? (_loading
-                      ? const LoadingView()
-                      : RefreshIndicator(
-                          onRefresh: refresh,
-                          color: AppColors.gold,
-                          child: ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            children: [
-                              const SizedBox(height: 80),
-                              const EmptyState(message: 'No reels in the feed yet.'),
-                              const SizedBox(height: 16),
-                              Center(
-                                child: OutlinedButton.icon(
-                                  onPressed: refresh,
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text('Retry'),
-                                ),
+              child: Stack(
+                children: [
+                  _posts.isEmpty
+                      ? (_loading
+                          ? const LoadingView()
+                          : RefreshIndicator(
+                              onRefresh: refresh,
+                              color: AppColors.gold,
+                              child: ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                children: [
+                                  const SizedBox(height: 80),
+                                  const EmptyState(message: 'No reels in the feed yet.'),
+                                  const SizedBox(height: 16),
+                                  Center(
+                                    child: OutlinedButton.icon(
+                                      onPressed: refresh,
+                                      icon: const Icon(Icons.refresh),
+                                      label: const Text('Retry'),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ))
+                      : PageView.builder(
+                          controller: _pageController,
+                          scrollDirection: Axis.vertical,
+                          itemCount: _posts.length,
+                          onPageChanged: _onPageChanged,
+                          itemBuilder: (context, index) => _FeedSlide(
+                            post: _posts[index],
+                            api: _api,
+                            onLikeChanged: (liked, count) => setState(() {
+                              _posts[index].likedByViewer = liked;
+                            }),
+                            onCommentAdded: (count) => setState(() {
+                              _posts[index].commentsCount = count;
+                            }),
                           ),
-                        ))
-                  : PageView.builder(
-                      controller: _pageController,
-                      scrollDirection: Axis.vertical,
-                      itemCount: _posts.length,
-                      onPageChanged: _onPageChanged,
-                      itemBuilder: (context, index) => _FeedSlide(
-                        post: _posts[index],
-                        api: _api,
-                        onLikeChanged: (liked, count) => setState(() {
-                          _posts[index].likedByViewer = liked;
-                        }),
-                        onCommentAdded: (count) => setState(() {
-                          _posts[index].commentsCount = count;
-                        }),
+                        ),
+                  if (_showNewPosts)
+                    Positioned(
+                      top: 8,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: _resetFeed,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [Color(0xFFF7C46A), Color(0xFFD99B2B)]),
+                              borderRadius: BorderRadius.circular(999),
+                              boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 18, offset: Offset(0, 6))],
+                            ),
+                            child: const Text('⬆ New posts — tap to refresh', style: TextStyle(color: Color(0xFF1A1530), fontWeight: FontWeight.w800, fontSize: 13)),
+                          ),
+                        ),
                       ),
                     ),
+                ],
+              ),
             ),
           ],
         ),
@@ -817,6 +886,10 @@ class _CommentSheetState extends State<_CommentSheet> {
     }).join('|');
   }
 
+  int _totalCount(List<Map<String, dynamic>> list) {
+    return list.fold<int>(0, (acc, c) => acc + 1 + (((c['replies'] as List<dynamic>?) ?? const []).length));
+  }
+
   Future<void> _poll() async {
     if (_loading) return;
     try {
@@ -829,6 +902,7 @@ class _CommentSheetState extends State<_CommentSheet> {
         _comments = list;
         _hasNewComments = true;
       });
+      widget.onAdded(_totalCount(list));
       _newHintTimer?.cancel();
       _newHintTimer = Timer(const Duration(seconds: 3), () {
         if (mounted) setState(() => _hasNewComments = false);
@@ -868,12 +942,12 @@ class _CommentSheetState extends State<_CommentSheet> {
         parentId: _replyToId,
         imagePath: _image?.path,
       );
-      widget.onAdded(_comments.length + 1);
       _message.clear();
       _image = null;
       _replyToId = null;
       _replyToName = null;
       await _load();
+      widget.onAdded(_totalCount(_comments));
     } catch (_) {
     } finally {
       if (mounted) setState(() => _posting = false);

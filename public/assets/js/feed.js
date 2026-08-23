@@ -354,6 +354,20 @@
     }));
   }
 
+  function commentTotal(list) {
+    return (list || []).reduce(function (acc, c) {
+      return acc + 1 + ((c.replies || []).length);
+    }, 0);
+  }
+
+  function updateReelCommentCount(n) {
+    if (!commentPost.slide) { return; }
+    var countEl = commentPost.slide.querySelector('.comment-count');
+    if (!countEl) { return; }
+    countEl.dataset.count = String(n);
+    countEl.textContent = formatCount(n);
+  }
+
   function pollComments() {
     if (sheet.hidden || !commentPost.id) { return; }
     fetchComments().then(function (list) {
@@ -362,6 +376,7 @@
       var nearBottom = sheetList.scrollHeight - sheetList.scrollTop - sheetList.clientHeight < 60;
       commentSig = sig;
       renderComments(list);
+      updateReelCommentCount(commentTotal(list));
       if (nearBottom) { sheetList.scrollTop = sheetList.scrollHeight; }
     }).catch(function () {});
   }
@@ -581,14 +596,9 @@
       fetchComments().then(function (list) {
         commentSig = commentSignature(list);
         renderComments(list);
+        updateReelCommentCount(commentTotal(list));
         sheetList.scrollTop = sheetList.scrollHeight;
       });
-      if (commentPost.slide) {
-        var countEl = commentPost.slide.querySelector('.comment-count');
-        var n = (parseInt(countEl.dataset.count || '0', 10) || 0) + 1;
-        countEl.dataset.count = String(n);
-        countEl.textContent = formatCount(n);
-      }
     };
     var fail = function () { alert('Could not post comment.'); };
 
@@ -766,6 +776,8 @@
           scroller.appendChild(buildSlide(post));
         });
 
+        trackNewest(data.data || []);
+
         state.hasMore = !!data.has_more;
         state.page += 1;
 
@@ -805,6 +817,8 @@
     state.hasMore = true;
     state.seenIds = new Set();
     state.seenPosts = new Set();
+    newestPostId = 0;
+    if (newPostsPill) { newPostsPill.hidden = true; }
     scroller.querySelectorAll('.reel-slide, .feed-sentinel, .feed-end').forEach(function (el) { el.remove(); });
     loadingEl = document.getElementById('feedLoading');
     if (!loadingEl) {
@@ -858,12 +872,58 @@
       .catch(function () { deepPostId = null; loadPage(); });
   }
 
+  /* ---------- live "new posts" indicator ---------- */
+  var newPostsPill = document.getElementById('newPostsPill');
+  var newestPostId = 0;
+  var feedPollTimer = null;
+
+  function trackNewest(posts) {
+    (posts || []).forEach(function (p) {
+      var pid = Number(p.id);
+      if (pid > newestPostId) { newestPostId = pid; }
+    });
+  }
+
+  function pollForNewPosts() {
+    if (state.view === 'saved' || deepPostId || state.loading) { return; }
+    if (!scroller.querySelector('.reel-slide')) { return; }
+    var url = endpoint + '?page=1&per_page=1';
+    if (state.category) { url += '&category=' + encodeURIComponent(state.category); }
+    fetch(url)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var first = (data.data || [])[0];
+        if (first && Number(first.id) > newestPostId && newPostsPill) {
+          newPostsPill.hidden = false;
+        }
+      })
+      .catch(function () {});
+  }
+
+  function startFeedPolling() {
+    stopFeedPolling();
+    feedPollTimer = setInterval(pollForNewPosts, 25000);
+  }
+
+  function stopFeedPolling() {
+    if (feedPollTimer) { clearInterval(feedPollTimer); feedPollTimer = null; }
+  }
+
+  if (newPostsPill) {
+    newPostsPill.addEventListener('click', function () {
+      newPostsPill.hidden = true;
+      newestPostId = 0;
+      resetAndLoad();
+    });
+  }
+
   function start() {
     if (deepPostId) {
       loadDeepPost(deepPostId);
     } else {
       loadPage();
     }
+    startFeedPolling();
   }
 
   start();
