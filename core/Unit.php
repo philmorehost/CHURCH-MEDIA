@@ -93,6 +93,30 @@ class Unit
         return implode(' · ', array_map(fn (array $u): string => $u['name'], self::path($id)));
     }
 
+    /** id => full label for every unit, computed in a single pass. */
+    public static function labelsById(): array
+    {
+        $all = self::all('id ASC');
+        $byId = [];
+        foreach ($all as $u) {
+            $byId[(int) $u['id']] = $u;
+        }
+        $labelOf = function (array $u) use (&$labelOf, $byId): string {
+            $parts = [$u['name']];
+            $cur = $u;
+            while ($cur['parent_id'] !== null && isset($byId[(int) $cur['parent_id']])) {
+                $cur = $byId[(int) $cur['parent_id']];
+                $parts[] = $cur['name'];
+            }
+            return implode(' · ', array_reverse($parts));
+        };
+        $labels = [];
+        foreach ($all as $u) {
+            $labels[(int) $u['id']] = $labelOf($u);
+        }
+        return $labels;
+    }
+
     /** $id plus every descendant id — used for "all media in a unit" roll-ups. */
     public static function subtreeIds(int $id): array
     {

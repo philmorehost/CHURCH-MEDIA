@@ -1,6 +1,23 @@
 /// Data models mirroring the JSON shapes returned by /api/* (see api/*.php).
 library;
 
+/// One level of the Province → Zone → Area → Parish hierarchy.
+class UnitInfo {
+  final int id;
+  final String type;
+  final String name;
+  final String slug;
+
+  UnitInfo({required this.id, required this.type, required this.name, required this.slug});
+
+  factory UnitInfo.fromJson(Map<String, dynamic> json) => UnitInfo(
+        id: int.tryParse(json['id'].toString()) ?? 0,
+        type: json['type'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        slug: json['slug'] as String? ?? '',
+      );
+}
+
 class MediaItem {
   final String type; // 'image' | 'video'
   final String source; // 'upload' | 'youtube'
@@ -51,6 +68,8 @@ class Post {
   final String authorUsername;
   final List<MediaItem> mediaItems;
   final List<Category> categories;
+  final List<UnitInfo> unit;
+  final String unitLabel;
   bool likedByViewer;
   bool savedByViewer;
 
@@ -68,6 +87,8 @@ class Post {
     this.authorUsername = '',
     required this.mediaItems,
     required this.categories,
+    this.unit = const [],
+    this.unitLabel = '',
     required this.likedByViewer,
     this.savedByViewer = false,
   });
@@ -90,6 +111,10 @@ class Post {
         categories: (json['categories'] as List<dynamic>? ?? [])
             .map((e) => Category.fromJson(e as Map<String, dynamic>))
             .toList(),
+        unit: (json['unit'] as List<dynamic>? ?? [])
+            .map((e) => UnitInfo.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        unitLabel: json['unit_label'] as String? ?? '',
         likedByViewer: json['liked_by_viewer'] as bool? ?? false,
         savedByViewer: json['saved_by_viewer'] as bool? ?? false,
       );

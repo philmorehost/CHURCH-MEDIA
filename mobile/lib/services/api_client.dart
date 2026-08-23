@@ -40,14 +40,33 @@ class ApiClient {
     return (json['data'] as List<dynamic>? ?? []).map((e) => Category.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  Future<({List<Post> posts, bool hasMore})> fetchFeed({int page = 1, String? category, bool saved = false}) async {
+  Future<({List<Post> posts, bool hasMore})> fetchFeed({int page = 1, String? category, String? unit, bool saved = false}) async {
     final json = await _get('/api/feed', {
       'page': page,
       'category': category,
+      'unit': unit,
       if (saved) 'saved': '1',
     });
     final posts = (json['data'] as List<dynamic>? ?? []).map((e) => Post.fromJson(e as Map<String, dynamic>)).toList();
     return (posts: posts, hasMore: json['has_more'] as bool? ?? false);
+  }
+
+  /// The whole Province → Zone → Area → Parish hierarchy (flat, with labels).
+  Future<List<UnitInfo>> fetchUnits() async {
+    final json = await _get('/api/units');
+    return (json['data'] as List<dynamic>? ?? []).map((e) => UnitInfo.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// A unit's info + all media beneath it (roll-up), optionally shuffled.
+  Future<({UnitInfo? unit, List<Post> posts})> fetchUnitPosts(String slug, {bool shuffle = true}) async {
+    final json = await _get('/api/unit', {
+      'slug': slug,
+      if (shuffle) 'shuffle': '1',
+      'per_page': '100',
+    });
+    final unitMap = json['unit'] as Map<String, dynamic>?;
+    final posts = (json['data'] as List<dynamic>? ?? []).map((e) => Post.fromJson(e as Map<String, dynamic>)).toList();
+    return (unit: unitMap != null ? UnitInfo.fromJson(unitMap) : null, posts: posts);
   }
 
   Future<void> pingView(int postId) => _get('/api/post', {'id': postId});

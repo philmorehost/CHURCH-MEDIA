@@ -61,6 +61,7 @@ $categories = Database::getInstance()->getConnection()
         <span class="reel-verified" title="Verified account">✓</span>
         <button type="button" class="reel-follow">Follow</button>
       </div>
+      <div class="reel-church"></div>
       <div class="reel-caption">
         <span class="reel-author-name"></span>
         <span class="reel-text"></span>

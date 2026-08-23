@@ -12,6 +12,7 @@ $page = max(1, (int) ($_GET['page'] ?? 1));
 $perPage = min(30, max(1, (int) ($_GET['per_page'] ?? 10)));
 $offset = ($page - 1) * $perPage;
 $categorySlug = trim((string) ($_GET['category'] ?? ''));
+$unitSlug = trim((string) ($_GET['unit'] ?? ''));
 $savedOnly = !empty($_GET['saved']) && $_GET['saved'] === '1';
 $fingerprint = Fingerprint::hash();
 
@@ -25,9 +26,26 @@ if ($savedOnly) {
     $where .= ' AND EXISTS (SELECT 1 FROM post_saves ps WHERE ps.media_post_id = p.id AND ps.fingerprint_hash = :fp)';
     $params['fp'] = $fingerprint;
 }
+if ($unitSlug !== '') {
+    // Filter to a unit and everything under it (a zone shows its areas + parishes).
+    $unitStmt = $pdo->prepare('SELECT id FROM org_units WHERE slug = ? LIMIT 1');
+    $unitStmt->execute([$unitSlug]);
+    $unitId = (int) $unitStmt->fetchColumn();
+    if ($unitId > 0) {
+        $unitIds = Unit::subtreeIds($unitId);
+        $in = [];
+        foreach ($unitIds as $i => $uid) {
+            $in[] = ':unit' . $i;
+            $params['unit' . $i] = $uid;
+        }
+        $where .= ' AND p.org_unit_id IN (' . implode(',', $in) . ')';
+    } else {
+        $where .= ' AND 1 = 0'; // unknown unit → nothing
+    }
+}
 
 $stmt = $pdo->prepare("
-    SELECT p.id, p.slug, p.caption, p.post_type, p.likes_count, p.views_count, p.saves_count, p.created_at, u.name AS author_name, u.username AS author_username,
+    SELECT p.id, p.slug, p.caption, p.post_type, p.likes_count, p.views_count, p.saves_count, p.created_at, p.org_unit_id, u.name AS author_name, u.username AS author_username,
       (SELECT COUNT(*) FROM post_comments pc WHERE pc.media_post_id = p.id AND pc.is_published = 1) AS comments_count
     FROM media_posts p JOIN users u ON u.id = p.user_id
     WHERE $where
@@ -72,6 +90,19 @@ foreach ($posts as &$post) {
 
     $savedStmt->execute([$post['id'], $fingerprint]);
     $post['saved_by_viewer'] = (bool) $savedStmt->fetchColumn();
+
+    $post['unit'] = [];
+    $post['unit_label'] = '';
+    if (!empty($post['org_unit_id'])) {
+        $post['unit'] = array_map(fn (array $u): array => [
+            'id' => (int) $u['id'],
+            'type' => $u['type'],
+            'name' => $u['name'],
+            'slug' => $u['slug'],
+        ], Unit::path((int) $post['org_unit_id']));
+        $post['unit_label'] = implode(' · ', array_column($post['unit'], 'name'));
+    }
+    unset($post['org_unit_id']);
 
     $post['author_username'] = (string) $post['author_username'];
     $post['id'] = (int) $post['id'];

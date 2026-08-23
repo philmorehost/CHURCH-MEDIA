@@ -380,6 +380,21 @@
     slide.querySelector('.reel-username').textContent = '@' + (post.author_username || author.toLowerCase().replace(/\s+/g, '.'));
     slide.querySelector('.reel-author-name').textContent = author;
 
+    // tappable church (parish) link → unit page
+    var unit = post.unit || [];
+    var churchEl = node.querySelector('.reel-church');
+    if (churchEl && unit.length) {
+      var parish = unit[unit.length - 1];
+      var a = document.createElement('a');
+      a.className = 'reel-church-link';
+      a.href = '/unit/' + encodeURIComponent(parish.slug || '');
+      a.textContent = '📍 ' + (parish.name || '');
+      a.title = post.unit_label || parish.name;
+      churchEl.appendChild(a);
+    } else if (churchEl) {
+      churchEl.style.display = 'none';
+    }
+
     // caption + more toggle
     var capText = node.querySelector('.reel-text');
     capText.textContent = post.caption || '';

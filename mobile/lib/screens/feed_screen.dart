@@ -10,6 +10,7 @@ import '../services/api_client.dart';
 import '../services/share_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
+import 'unit_screen.dart';
 
 /// Vertical, full-screen, infinite-scrolling feed — behaves like Instagram
 /// Reels: swipe up for the next post, tap a video to mute/unmute, double-tap
@@ -459,6 +460,38 @@ class _FeedSlideState extends State<_FeedSlide> {
                     _verified(),
                   ],
                 ),
+                if (post.unit.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () {
+                      final p = post.unit.last;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => UnitScreen(
+                            unitSlug: p.slug,
+                            unitName: p.name,
+                            unitPath: post.unit.map((u) => u.name).toList(),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.location_on, color: AppColors.goldSoft, size: 14),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            post.unit.last.name,
+                            style: const TextStyle(color: AppColors.goldSoft, fontWeight: FontWeight.w700, fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 if (post.caption != null && post.caption!.isNotEmpty)
                   Text(post.caption!, style: const TextStyle(color: Colors.white, fontSize: 14), maxLines: 3, overflow: TextOverflow.ellipsis),
