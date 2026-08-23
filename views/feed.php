@@ -35,7 +35,7 @@ $categories = Database::getInstance()->getConnection()
   <div class="comment-backdrop" data-close-comments></div>
   <div class="comment-panel">
     <div class="comment-head">
-      <span>Comments</span>
+      <span>Comments <span class="comment-live"><span class="live-dot"></span> LIVE</span></span>
       <button type="button" class="comment-close" data-close-comments>✕</button>
     </div>
     <div class="comment-list" id="commentList"><div class="feed-loading">Loading comments…</div></div>

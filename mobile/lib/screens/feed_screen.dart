@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show Factory;
@@ -253,6 +254,7 @@ class _FeedSlideState extends State<_FeedSlide> {
   bool _liking = false;
   bool _saving = false;
   bool _burst = false;
+  bool _likePop = false;
 
   MediaItem? get _activeMedia => widget.post.mediaItems.isEmpty ? null : widget.post.mediaItems[_mediaIndex];
 
@@ -353,7 +355,13 @@ class _FeedSlideState extends State<_FeedSlide> {
       setState(() {
         widget.post.likedByViewer = result.liked;
       });
-      if (result.liked) _fireBurst();
+      if (result.liked) {
+        _fireBurst();
+        setState(() => _likePop = true);
+        Future.delayed(const Duration(milliseconds: 320), () {
+          if (mounted) setState(() => _likePop = false);
+        });
+      }
     } catch (_) {
     } finally {
       if (mounted) setState(() => _liking = false);
@@ -527,6 +535,7 @@ class _FeedSlideState extends State<_FeedSlide> {
                   color: post.likedByViewer ? const Color(0xFFFF4D6D) : Colors.white,
                   label: _formatCount(post.likesCount),
                   onTap: () => _toggleLike(),
+                  pop: _likePop,
                 ),
                 const SizedBox(height: 18),
                 _actionButton(
@@ -680,16 +689,21 @@ class _FeedSlideState extends State<_FeedSlide> {
         child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
       );
 
-  Widget _actionButton({required IconData icon, Color color = Colors.white, required String label, VoidCallback? onTap, bool iconOnly = false}) {
+  Widget _actionButton({required IconData icon, Color color = Colors.white, required String label, VoidCallback? onTap, bool iconOnly = false, bool pop = false}) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), shape: BoxShape.circle),
-            child: Icon(icon, color: color, size: 22),
+          AnimatedScale(
+            scale: pop ? 1.4 : 1.0,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutBack,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 22),
+            ),
           ),
           if (!iconOnly) ...[
             const SizedBox(height: 4),
@@ -774,10 +788,13 @@ class _CommentSheetState extends State<_CommentSheet> {
   List<Map<String, dynamic>> _comments = [];
   bool _loading = true;
   bool _posting = false;
+  bool _hasNewComments = false;
   int? _replyToId;
   String? _replyToName;
   XFile? _image;
   bool _emojiOpen = false;
+  Timer? _pollTimer;
+  Timer? _newHintTimer;
 
   static const _emojis = ['😂','😍','😊','🙏','❤️','🔥','👍','👏','🙌','😮','🥰','😢','😎','🤣','💯','🎉','✝️','💒','😇','🤗','😅','🥹','😴','🤔','✨','💖','🕊️','🎶'];
 
@@ -786,6 +803,37 @@ class _CommentSheetState extends State<_CommentSheet> {
     super.initState();
     _name.text = '';
     _load();
+    // Real-time: light polling while the sheet is open.
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _poll());
+  }
+
+  String _signature(List<Map<String, dynamic>> list) {
+    return list.map((c) {
+      final replies = ((c['replies'] as List<dynamic>?) ?? const [])
+          .cast<Map<String, dynamic>>()
+          .map((r) => '${r['id']}:${(r['message'] as String? ?? '').length}')
+          .join(',');
+      return '${c['id']}:${(c['message'] as String? ?? '').length}:${c['reply_count'] ?? 0}:$replies';
+    }).join('|');
+  }
+
+  Future<void> _poll() async {
+    if (_loading) return;
+    try {
+      final list = await widget.api.fetchComments(widget.postId);
+      if (!mounted) return;
+      final sig = _signature(list);
+      final current = _signature(_comments);
+      if (sig == current) return;
+      setState(() {
+        _comments = list;
+        _hasNewComments = true;
+      });
+      _newHintTimer?.cancel();
+      _newHintTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _hasNewComments = false);
+      });
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -965,6 +1013,8 @@ class _CommentSheetState extends State<_CommentSheet> {
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
+    _newHintTimer?.cancel();
     _message.dispose();
     _name.dispose();
     super.dispose();
@@ -988,6 +1038,22 @@ class _CommentSheetState extends State<_CommentSheet> {
               child: Row(
                 children: [
                   const Text('Comments', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0x26FF3B5C),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(width: 6, height: 6, child: DecoratedBox(decoration: BoxDecoration(color: Color(0xFFFF3B5C), shape: BoxShape.circle))),
+                        SizedBox(width: 4),
+                        Text('LIVE', style: TextStyle(color: Color(0xFFFF3B5C), fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+                      ],
+                    ),
+                  ),
                   const Spacer(),
                   GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.close, color: Colors.white70, size: 20)),
                 ],
@@ -997,13 +1063,36 @@ class _CommentSheetState extends State<_CommentSheet> {
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
-                  : _comments.isEmpty
-                      ? const Center(child: Text('Be the first to comment. 💬', style: TextStyle(color: Colors.white54)))
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: _comments.length,
-                          itemBuilder: (_, i) => _commentTile(_comments[i], isReply: false),
+                  : Column(
+                      children: [
+                        if (_hasNewComments)
+                          GestureDetector(
+                            onTap: () => setState(() => _hasNewComments = false),
+                            child: Container(
+                              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                              padding: const EdgeInsets.symmetric(vertical: 7),
+                              decoration: BoxDecoration(color: const Color(0x26FF3B5C), borderRadius: BorderRadius.circular(10)),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.arrow_downward, size: 14, color: Color(0xFFFF3B5C)),
+                                  SizedBox(width: 6),
+                                  Text('New comments just arrived', style: TextStyle(color: Color(0xFFFF3B5C), fontSize: 12, fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        Expanded(
+                          child: _comments.isEmpty
+                              ? const Center(child: Text('Be the first to comment. 💬', style: TextStyle(color: Colors.white54)))
+                              : ListView.builder(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  itemCount: _comments.length,
+                                  itemBuilder: (_, i) => _commentTile(_comments[i], isReply: false),
+                                ),
                         ),
+                      ],
+                    ),
             ),
             const Divider(height: 1, color: Color(0xFF2A2A2A)),
             Padding(

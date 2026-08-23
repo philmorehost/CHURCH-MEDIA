@@ -57,6 +57,21 @@
     return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' · ' + h + ':' + min + ' ' + ampm;
   }
 
+  function timeAgo(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) { return ''; }
+    var s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 5) { return 'just now'; }
+    if (s < 60) { return s + 's ago'; }
+    var m = Math.floor(s / 60);
+    if (m < 60) { return m + 'm ago'; }
+    var h = Math.floor(m / 60);
+    if (h < 24) { return h + 'h ago'; }
+    var days = Math.floor(h / 24);
+    if (days < 7) { return days + 'd ago'; }
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
   function youtubeEmbed(id, playing, isMuted) {
     return 'https://www.youtube.com/embed/' + encodeURIComponent(id) +
       '?autoplay=' + (playing ? 1 : 0) +
@@ -268,7 +283,12 @@
       var likeBtn = slide.querySelector('.reel-like');
       likeBtn.classList.toggle('liked', data.liked);
       likeBtn.querySelector('.like-count').textContent = formatCount(data.likes_count);
-      if (data.liked) { burstLike(slide); }
+      if (data.liked) {
+        likeBtn.classList.remove('pop');
+        void likeBtn.offsetWidth;
+        likeBtn.classList.add('pop');
+        burstLike(slide);
+      }
     }).catch(function () {});
   }
 
@@ -316,21 +336,60 @@
     return window.location.origin + '/uploads/' + path.replace(/^\/+/, '');
   }
 
+  // Real-time comments: light polling while the sheet is open.
+  var commentPollTimer = null;
+  var commentSig = '';
+
+  function fetchComments() {
+    if (!commentPost.id) { return Promise.resolve([]); }
+    return fetch('/api/comments?post_id=' + encodeURIComponent(commentPost.id))
+      .then(function (r) { return r.json(); })
+      .then(function (data) { return data.data || []; });
+  }
+
+  function commentSignature(list) {
+    return JSON.stringify((list || []).map(function (c) {
+      var replies = (c.replies || []).map(function (r) { return r.id + ':' + (r.message || '').length; });
+      return [c.id, (c.message || '').length, (c.reply_count || 0), replies.join(',')];
+    }));
+  }
+
+  function pollComments() {
+    if (sheet.hidden || !commentPost.id) { return; }
+    fetchComments().then(function (list) {
+      var sig = commentSignature(list);
+      if (sig === commentSig) { return; }
+      var nearBottom = sheetList.scrollHeight - sheetList.scrollTop - sheetList.clientHeight < 60;
+      commentSig = sig;
+      renderComments(list);
+      if (nearBottom) { sheetList.scrollTop = sheetList.scrollHeight; }
+    }).catch(function () {});
+  }
+
+  function startCommentPolling() {
+    stopCommentPolling();
+    commentPollTimer = setInterval(pollComments, 4000);
+  }
+
+  function stopCommentPolling() {
+    if (commentPollTimer) { clearInterval(commentPollTimer); commentPollTimer = null; }
+  }
+
   function openComments(post, slide) {
     commentPost = { id: post.id, slide: slide };
     replyTo = null;
     selectedImage = null;
+    commentSig = '';
     updateReplyBar();
     clearImagePreview();
     sheet.hidden = false;
     sheetList.innerHTML = '<div class="feed-loading">Loading comments…</div>';
     sheetName.value = localStorage.getItem('reel_comment_name') || '';
-    fetch('/api/comments?post_id=' + encodeURIComponent(post.id))
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        renderComments(data.data || []);
-      })
-      .catch(function () { sheetList.innerHTML = '<div class="comment-empty">Could not load comments.</div>'; });
+    fetchComments().then(function (list) {
+      commentSig = commentSignature(list);
+      renderComments(list);
+    }).catch(function () { sheetList.innerHTML = '<div class="comment-empty">Could not load comments.</div>'; });
+    startCommentPolling();
   }
 
   function renderComments(list) {
@@ -363,7 +422,7 @@
     var meta = document.createElement('div');
     meta.className = 'c-meta';
     meta.innerHTML = '<span class="c-name">' + escapeHtml(c.name || 'Anonymous') + '</span>'
-      + '<span class="c-time">' + escapeHtml(c.created_at || '') + '</span>';
+      + '<span class="c-time">' + escapeHtml(timeAgo(c.created_at)) + '</span>';
     body.appendChild(meta);
 
     if (c.message) {
@@ -519,10 +578,11 @@
       clearImagePreview();
       replyTo = null;
       updateReplyBar();
-      fetch('/api/comments?post_id=' + encodeURIComponent(commentPost.id))
-        .then(function (r) { return r.json(); })
-        .then(function (d) { renderComments(d.data || []); });
-      sheetList.scrollTop = sheetList.scrollHeight;
+      fetchComments().then(function (list) {
+        commentSig = commentSignature(list);
+        renderComments(list);
+        sheetList.scrollTop = sheetList.scrollHeight;
+      });
       if (commentPost.slide) {
         var countEl = commentPost.slide.querySelector('.comment-count');
         var n = (parseInt(countEl.dataset.count || '0', 10) || 0) + 1;
@@ -554,6 +614,7 @@
   sheet.querySelectorAll('[data-close-comments]').forEach(function (el) {
     el.addEventListener('click', function () {
       sheet.hidden = true;
+      stopCommentPolling();
       replyTo = null;
       clearImagePreview();
       if (emojiPicker) { emojiPicker.hidden = true; }

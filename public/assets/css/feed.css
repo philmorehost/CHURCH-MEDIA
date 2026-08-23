@@ -228,6 +228,20 @@
 .comment-attach-preview img{width:56px; height:56px; object-fit:cover; border-radius:10px; border:1px solid #363636;}
 .comment-attach-preview button{background:none; border:none; color:#8e8e8e; cursor:pointer; font-size:14px;}
 
+/* --- real-time + premium polish --- */
+.comment-live{display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:800; letter-spacing:.08em; color:#e8b95f; margin-left:8px; vertical-align:middle;}
+.live-dot{width:7px; height:7px; border-radius:50%; background:#ff3b5c; animation:live-pulse 1.4s infinite;}
+@keyframes live-pulse{0%{box-shadow:0 0 0 0 #ff3b5c66;}70%{box-shadow:0 0 0 6px transparent;}100%{box-shadow:0 0 0 0 transparent;}}
+.comment-item{animation:comment-in .28s ease;}
+@keyframes comment-in{from{opacity:0; transform:translateY(6px);}to{opacity:1; transform:translateY(0);}}
+.c-like.liked .c-like-icon{animation:heart-pop .3s ease;}
+.reel-like.pop .icon{animation:heart-pop .32s ease;}
+@keyframes heart-pop{0%{transform:scale(1);}45%{transform:scale(1.45);}100%{transform:scale(1);}}
+@media (prefers-reduced-motion: reduce){
+  .comment-item,.c-like.liked .c-like-icon,.reel-like.pop .icon,.live-dot{animation:none !important;}
+  .comment-panel{animation:none !important;}
+}
+
 @media (max-width:620px){
   .reel-actions{right:8px; bottom:72px; gap:14px;}
   .reel-actions .icon{width:42px; height:42px; font-size:19px;}
