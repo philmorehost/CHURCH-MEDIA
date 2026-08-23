@@ -121,6 +121,26 @@ class ApiClient {
     return (liked: json['liked'] as bool? ?? false, likesCount: json['likes_count'] as int? ?? 0);
   }
 
+  /// Unified recent activity (new reels, events, sermons) for the
+  /// notifications center. Public + anonymous.
+  Future<List<Map<String, dynamic>>> fetchActivity() async {
+    final json = await _get('/api/activity');
+    return (json['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+  }
+
+  /// Registers (or updates) this device's push token with the backend.
+  Future<void> registerDevice({required String token, String? platform, String? unitSlug}) async {
+    try {
+      await _post('/api/devices', {
+        'token': token,
+        'platform': platform,
+        'unit_slug': unitSlug,
+      });
+    } catch (_) {
+      // Registration is best-effort; never block the app on it.
+    }
+  }
+
   Future<({List<ChurchEvent> events, bool hasMore})> fetchEvents({String scope = 'upcoming', int page = 1}) async {
     final json = await _get('/api/events', {'scope': scope, 'page': page});
     final events = (json['data'] as List<dynamic>? ?? []).map((e) => ChurchEvent.fromJson(e as Map<String, dynamic>)).toList();

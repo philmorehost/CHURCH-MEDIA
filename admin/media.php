@@ -239,6 +239,13 @@ function handleCreatePost(PDO $pdo, array $user): array
         }
 
         $pdo->commit();
+        if ($isPublished) {
+            try {
+                Pusher::notifyNewPost($pdo, $postId, $user['org_unit_id'] ?? null, $caption);
+            } catch (Throwable $e) {
+                error_log('Push notify failed: ' . $e->getMessage());
+            }
+        }
         return ['post_id' => $postId, 'pending' => $pending, 'errors' => []];
     } catch (Throwable $e) {
         $pdo->rollBack();

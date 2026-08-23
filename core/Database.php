@@ -345,6 +345,22 @@ class Database
                     FOREIGN KEY (`comment_id`) REFERENCES `post_comments`(`id`) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             },
+            '2026_08_device_tokens' => function (PDO $pdo): void {
+                // Push device tokens registered by the mobile app (for FCM).
+                // Tokens are anonymous; an optional org_unit_id lets a device
+                // receive per-church pushes without a login.
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `device_tokens` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `token` VARCHAR(512) NOT NULL,
+                    `platform` VARCHAR(30) NULL,
+                    `org_unit_id` INT NULL,
+                    `user_agent` VARCHAR(255) NULL,
+                    `last_seen_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY `uniq_device_token` (`token`(255)),
+                    FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            },
             '2026_08_privacy_policy' => function (PDO $pdo): void {
                 // Seed a comprehensive privacy policy page (served at /privacy-policy).
                 // Content uses {{site_title}} / {{contact_email}} / {{contact_phone}}

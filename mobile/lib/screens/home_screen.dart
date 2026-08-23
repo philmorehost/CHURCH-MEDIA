@@ -1,11 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 import '../services/api_client.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import '../widgets/event_sermon_cards.dart';
 import 'bible_screen.dart';
+import 'notifications_screen.dart';
 import 'units_screen.dart';
 import 'event_detail_screen.dart';
 import 'sermon_detail_screen.dart';
@@ -25,11 +27,62 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ChurchEvent> _events = [];
   List<Sermon> _sermons = [];
   bool _loading = true;
+  bool _unread = false;
+  String? _newestAt;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadActivity();
+  }
+
+  Future<void> _loadActivity() async {
+    try {
+      final list = await _api.fetchActivity();
+      if (!mounted || list.isEmpty) return;
+      final newest = (list.first['created_at'] as String?) ?? '';
+      _newestAt = newest;
+      final prefs = await SharedPreferences.getInstance();
+      final lastSeen = prefs.getString('last_seen_activity_at') ?? '';
+      setState(() => _unread = newest != '' && newest.compareTo(lastSeen) > 0);
+    } catch (_) {}
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationsScreen(onGoToFeed: () => widget.onNavigate(1))));
+    if (_newestAt != null && _newestAt!.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_seen_activity_at', _newestAt!);
+    }
+    if (mounted) setState(() => _unread = false);
+  }
+
+  Widget _bellButton() {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.notifications_none, color: Colors.white),
+          tooltip: 'Notifications',
+          onPressed: _openNotifications,
+        ),
+        if (_unread)
+          Positioned(
+            right: 6,
+            top: 6,
+            child: Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF3B5C),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.bg1, width: 2),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   Future<void> _load() async {
@@ -99,37 +152,46 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHero(ChurchSettings? s) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 60, 24, 48),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [AppColors.bg1, AppColors.bg0]),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          const Text('WELCOME HOME', style: TextStyle(color: AppColors.goldSoft, fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 1.4)),
-          const SizedBox(height: 14),
-          Text(
-            s?.heroTagline ?? s?.siteTagline ?? s?.siteTitle ?? 'Welcome',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.displaySmall,
+    return Stack(
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(24, 60, 24, 48),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [AppColors.bg1, AppColors.bg0]),
           ),
-          if (s?.heroScripture != null) ...[
-            const SizedBox(height: 14),
-            Text(s!.heroScripture!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkDim, fontStyle: FontStyle.italic)),
-          ],
-          const SizedBox(height: 26),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            alignment: WrapAlignment.center,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              ElevatedButton(onPressed: () => widget.onNavigate(1), child: const Text('Watch the Feed')),
-              OutlinedButton(onPressed: () => widget.onNavigate(4), child: const Text('More')),
+              const Text('WELCOME HOME', style: TextStyle(color: AppColors.goldSoft, fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 1.4)),
+              const SizedBox(height: 14),
+              Text(
+                s?.heroTagline ?? s?.siteTagline ?? s?.siteTitle ?? 'Welcome',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.displaySmall,
+              ),
+              if (s?.heroScripture != null) ...[
+                const SizedBox(height: 14),
+                Text(s!.heroScripture!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkDim, fontStyle: FontStyle.italic)),
+              ],
+              const SizedBox(height: 26),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [
+                  ElevatedButton(onPressed: () => widget.onNavigate(1), child: const Text('Watch the Feed')),
+                  OutlinedButton(onPressed: () => widget.onNavigate(4), child: const Text('More')),
+                ],
+              ),
             ],
           ),
-        ],
-      ),
+        ),
+        Positioned(
+          top: 44,
+          right: 12,
+          child: _bellButton(),
+        ),
+      ],
     );
   }
 
