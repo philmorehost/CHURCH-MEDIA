@@ -33,6 +33,12 @@ bin/ffmpeg/
 *.zip
 *.crdownload
 
+# Firebase secrets & config — keep the service-account key OUT of the repo.
+# (mobile/android/app/google-services.json is committed on purpose for the CI build)
+/google-services.json
+/*firebase-adminsdk*.json
+*.service-account.json
+
 # Browser temp downloads (UUID-named images in project root)
 252762d9-97ca-401b-9895-b9c4990fa21d.jpeg
 26de56f5-ccef-43e5-ab0a-c847f587b430.jpeg

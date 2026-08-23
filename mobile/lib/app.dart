@@ -4,6 +4,7 @@ import 'screens/feed_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/more_screen.dart';
 import 'screens/sermons_screen.dart';
+import 'services/app_nav.dart';
 import 'theme/app_theme.dart';
 
 class ChurchMediaApp extends StatelessWidget {
@@ -17,6 +18,7 @@ class ChurchMediaApp extends StatelessWidget {
       theme: AppTheme.dark,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.dark,
+      navigatorKey: AppNav.navigatorKey,
       home: const RootShell(),
     );
   }
@@ -33,6 +35,13 @@ class RootShell extends StatefulWidget {
 class _RootShellState extends State<RootShell> {
   int _index = 0;
   final _feedKey = GlobalKey<FeedScreenState>();
+
+  @override
+  void initState() {
+    super.initState();
+    // Let push taps (and other global calls) switch tabs.
+    AppNav.onSwitchTab = _goTo;
+  }
 
   void _goTo(int index) {
     if (index == _index) {
