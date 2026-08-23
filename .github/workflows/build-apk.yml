@@ -116,6 +116,10 @@ jobs:
       # Releases upload as DRAFT — publish them in Play Console when ready.
       - name: Upload to Google Play
         if: ${{ env.PLAY_SERVICE_ACCOUNT != '' }}
+        # Non-blocking: a Play permission/config hiccup should not fail the
+        # APK/AAB build (artifacts still upload). Remove this once the Play
+        # service account has access and uploads succeed.
+        continue-on-error: true
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ env.PLAY_SERVICE_ACCOUNT }}
