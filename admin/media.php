@@ -182,8 +182,8 @@ function handleCreatePost(PDO $pdo, array $user): array
         $hasVideo = (bool) array_filter($items, fn ($i) => $i['kind'] !== 'image');
         $postType = $hasVideo ? 'vertical_reel' : (count($items) > 1 ? 'carousel' : 'single_image');
 
-        $stmt = $pdo->prepare('INSERT INTO media_posts (user_id, slug, caption, post_type, is_published) VALUES (?, ?, ?, ?, ?)');
-        $stmt->execute([$user['id'], mediaSlug($pdo, $caption), $caption, $postType, $isPublished]);
+        $stmt = $pdo->prepare('INSERT INTO media_posts (user_id, slug, caption, post_type, is_published, org_unit_id) VALUES (?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$user['id'], mediaSlug($pdo, $caption), $caption, $postType, $isPublished, $user['org_unit_id'] ?? null]);
         $postId = (int) $pdo->lastInsertId();
 
         $pending = storeMediaItems($pdo, $postId, $items, $covers);

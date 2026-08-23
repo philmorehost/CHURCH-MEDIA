@@ -254,6 +254,34 @@ class Database
                     $pdo->exec("UPDATE users SET is_super_admin = 1 WHERE id = (SELECT id FROM (SELECT MIN(id) AS id FROM users) t)");
                 }
             },
+            '2026_08_org_units' => function (PDO $pdo): void {
+                // Province → Zone → Area → Parish hierarchy (RCCG-style). One
+                // self-referencing table; posts are tagged to a parish and roll
+                // up to area/zone/province. A default 'Headquarters' is seeded
+                // so existing users/posts are never orphaned.
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `org_units` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `parent_id` INT NULL,
+                    `type` ENUM('province','zone','area','parish') NOT NULL,
+                    `name` VARCHAR(150) NOT NULL,
+                    `slug` VARCHAR(160) NULL UNIQUE,
+                    `sort_order` INT NOT NULL DEFAULT 0,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (`parent_id`) REFERENCES `org_units`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                self::addColumnIfMissing($pdo, 'users', 'org_unit_id', 'INT NULL', 'role');
+                self::addColumnIfMissing($pdo, 'media_posts', 'org_unit_id', 'INT NULL', 'user_id');
+                self::addForeignKeyIfMissing($pdo, 'users', 'fk_users_org_unit', 'org_unit_id', 'org_units', 'id', 'SET NULL');
+                self::addForeignKeyIfMissing($pdo, 'media_posts', 'fk_media_posts_org_unit', 'org_unit_id', 'org_units', 'id', 'SET NULL');
+                if ((int) $pdo->query('SELECT COUNT(*) FROM org_units')->fetchColumn() === 0) {
+                    $pdo->prepare("INSERT INTO org_units (type, name, slug) VALUES ('province', ?, ?)")->execute(['Headquarters', 'headquarters']);
+                    $provinceId = (int) $pdo->lastInsertId();
+                    $pdo->prepare("INSERT INTO org_units (parent_id, type, name, slug) VALUES (?, 'parish', ?, ?)")->execute([$provinceId, 'Headquarters Parish', 'headquarters-parish']);
+                    $parishId = (int) $pdo->lastInsertId();
+                    $pdo->exec("UPDATE users SET org_unit_id = {$parishId} WHERE org_unit_id IS NULL");
+                    $pdo->exec("UPDATE media_posts SET org_unit_id = {$parishId} WHERE org_unit_id IS NULL");
+                }
+            },
             '2026_08_privacy_policy' => function (PDO $pdo): void {
                 // Seed a comprehensive privacy policy page (served at /privacy-policy).
                 // Content uses {{site_title}} / {{contact_email}} / {{contact_phone}}
@@ -304,6 +332,16 @@ class Database
             $sql .= ' AFTER `' . $after . '`';
         }
         $pdo->exec($sql);
+    }
+
+    private static function addForeignKeyIfMissing(PDO $pdo, string $table, string $constraint, string $column, string $refTable, string $refColumn, string $onDelete): void
+    {
+        $check = $pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?');
+        $check->execute([$table, $constraint]);
+        if ((int) $check->fetchColumn() > 0) {
+            return;
+        }
+        $pdo->exec("ALTER TABLE `{$table}` ADD CONSTRAINT `{$constraint}` FOREIGN KEY (`{$column}`) REFERENCES `{$refTable}`(`{$refColumn}`) ON DELETE {$onDelete}");
     }
 
     /** Builds a fresh PDO from arbitrary credentials without touching the singleton — used by the installer. */

@@ -18,6 +18,7 @@ $navItems = [
     ['key' => 'pages', 'href' => '/admin/pages', 'label' => 'Pages'],
 ];
 $navItemsSystem = [
+    ['key' => 'units', 'href' => '/admin/units', 'label' => 'Units', 'super' => true],
     ['key' => 'security', 'href' => '/admin/security', 'label' => 'Security'],
     ['key' => 'settings', 'href' => '/admin/settings', 'label' => 'Settings'],
     ['key' => 'users', 'href' => '/admin/users', 'label' => 'Users', 'roles' => ['admin']],
@@ -45,7 +46,10 @@ $navItemsSystem = [
       <?php endforeach; ?>
       <div class="group">System</div>
       <?php foreach ($navItemsSystem as $item): ?>
-        <?php if (!empty($item['roles']) && (!$adminUser || !in_array($adminUser['role'], $item['roles'], true))) continue; ?>
+        <?php
+          if (!empty($item['roles']) && (!$adminUser || !in_array($adminUser['role'], $item['roles'], true))) continue;
+          if (!empty($item['super']) && (!$adminUser || empty($adminUser['is_super_admin']))) continue;
+        ?>
         <a href="<?= e($item['href']) ?>" class="<?= $activeNav === $item['key'] ? 'active' : '' ?>"><?= e($item['label']) ?></a>
       <?php endforeach; ?>
     </nav>

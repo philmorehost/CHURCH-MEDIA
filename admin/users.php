@@ -21,6 +21,8 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = (string) ($_POST['password'] ?? '');
     $role = in_array($_POST['role'] ?? '', ['admin', 'editor', 'media_team'], true) ? $_POST['role'] : 'media_team';
+    $orgUnitIdRaw = (string) ($_POST['org_unit_id'] ?? '');
+    $orgUnitId = $orgUnitIdRaw !== '' ? (int) $orgUnitIdRaw : null;
 
     if ($name === '' || $username === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please provide a valid name, username, and email.';
@@ -28,8 +30,8 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Password must be at least 10 characters.';
     } else {
         try {
-            $pdo->prepare('INSERT INTO users (name, username, email, password, role) VALUES (?, ?, ?, ?, ?)')
-                ->execute([$name, $username, $email, password_hash($password, PASSWORD_ARGON2ID), $role]);
+            $pdo->prepare('INSERT INTO users (name, username, email, password, role, org_unit_id) VALUES (?, ?, ?, ?, ?, ?)')
+                ->execute([$name, $username, $email, password_hash($password, PASSWORD_ARGON2ID), $role, $orgUnitId]);
             flash('success', 'User created.');
             redirect('/admin/users');
         } catch (Throwable $e) {
@@ -46,6 +48,8 @@ if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = (string) ($_POST['password'] ?? '');
     $role = in_array($_POST['role'] ?? '', ['admin', 'editor', 'media_team'], true) ? $_POST['role'] : 'media_team';
+    $orgUnitIdRaw = (string) ($_POST['org_unit_id'] ?? '');
+    $orgUnitId = $orgUnitIdRaw !== '' ? (int) $orgUnitIdRaw : null;
     if ($targetId === (int) $currentUser['id']) {
         // Never allow changing your own role — prevents locking yourself out.
         $role = $currentUser['role'];
@@ -68,11 +72,11 @@ if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'That username or email is already taken.';
         } else {
             if ($password !== '') {
-                $pdo->prepare('UPDATE users SET name = ?, username = ?, email = ?, role = ?, password = ? WHERE id = ?')
-                    ->execute([$name, $username, $email, $role, password_hash($password, PASSWORD_ARGON2ID), $targetId]);
+                $pdo->prepare('UPDATE users SET name = ?, username = ?, email = ?, role = ?, password = ?, org_unit_id = ? WHERE id = ?')
+                    ->execute([$name, $username, $email, $role, password_hash($password, PASSWORD_ARGON2ID), $orgUnitId, $targetId]);
             } else {
-                $pdo->prepare('UPDATE users SET name = ?, username = ?, email = ?, role = ? WHERE id = ?')
-                    ->execute([$name, $username, $email, $role, $targetId]);
+                $pdo->prepare('UPDATE users SET name = ?, username = ?, email = ?, role = ?, org_unit_id = ? WHERE id = ?')
+                    ->execute([$name, $username, $email, $role, $orgUnitId, $targetId]);
             }
             flash('success', 'User updated.');
             redirect('/admin/users');
@@ -120,12 +124,13 @@ if ($action === 'edit') {
             'username' => trim($_POST['username'] ?? ''),
             'email' => trim($_POST['email'] ?? ''),
             'role' => $_POST['role'] ?? 'media_team',
+            'org_unit_id' => (string) ($_POST['org_unit_id'] ?? '') !== '' ? (int) $_POST['org_unit_id'] : null,
         ];
         if ((int) $editUser['id'] === (int) $currentUser['id']) {
             $editUser['role'] = $currentUser['role'];
         }
     } else {
-        $stmt = $pdo->prepare('SELECT id, name, username, email, role FROM users WHERE id = ?');
+        $stmt = $pdo->prepare('SELECT id, name, username, email, role, org_unit_id FROM users WHERE id = ?');
         $stmt->execute([$id]);
         $editUser = $stmt->fetch() ?: null;
     }
@@ -134,7 +139,7 @@ if ($action === 'edit') {
     }
 }
 
-$users = $pdo->query('SELECT id, name, username, email, role, is_suspended, last_login_at, last_login_ip FROM users ORDER BY id ASC')->fetchAll();
+$users = $pdo->query('SELECT id, name, username, email, role, is_suspended, last_login_at, last_login_ip, org_unit_id FROM users ORDER BY id ASC')->fetchAll();
 
 $pageTitle = 'Users';
 $activeNav = 'users';
@@ -161,6 +166,13 @@ require __DIR__ . '/partials/layout-open.php';
         <option value="media_team">Media Team — upload &amp; manage posts</option>
         <option value="editor">Editor — posts, events, sermons</option>
         <option value="admin">Admin — full access</option>
+      </select>
+      <label for="org_unit_id">Parish</label>
+      <select id="org_unit_id" name="org_unit_id">
+        <option value="">— none —</option>
+        <?php foreach (Unit::byType('parish') as $p): ?>
+          <option value="<?= (int) $p['id'] ?>"><?= e($p['name']) ?></option>
+        <?php endforeach; ?>
       </select>
       <div class="btn-row">
         <button class="btn" type="submit">Create Account</button>
@@ -193,6 +205,13 @@ require __DIR__ . '/partials/layout-open.php';
         <option value="admin" <?= $editUser['role'] === 'admin' ? 'selected' : '' ?>>Admin — full access</option>
       </select>
       <?php endif; ?>
+      <label for="org_unit_id">Parish</label>
+      <select id="org_unit_id" name="org_unit_id">
+        <option value="">— none —</option>
+        <?php foreach (Unit::byType('parish') as $p): ?>
+          <option value="<?= (int) $p['id'] ?>" <?= ((int) ($editUser['org_unit_id'] ?? 0)) === (int) $p['id'] ? 'selected' : '' ?>><?= e($p['name']) ?></option>
+        <?php endforeach; ?>
+      </select>
       <div class="btn-row">
         <button class="btn" type="submit">Save Changes</button>
         <a class="btn secondary" href="/admin/users">Cancel</a>
@@ -207,7 +226,8 @@ require __DIR__ . '/partials/layout-open.php';
       <?php foreach ($users as $u): ?>
       <?php $protected = ($superAdminId === (int) $u['id'] && !$isSuperAdmin); ?>
       <tr>
-        <td><?= e($u['name']) ?><br><small style="color:var(--ink-faint);"><?= e($u['email']) ?></small></td>
+        <td><?= e($u['name']) ?><br><small style="color:var(--ink-faint);"><?= e($u['email']) ?></small>
+            <br><small style="color:var(--ink-dim);">📍 <?= $u['org_unit_id'] ? e(Unit::label((int) $u['org_unit_id'])) : 'no parish' ?></small></td>
         <td><?= e($u['username']) ?></td>
         <td><span class="badge info"><?= e($u['role']) ?></span></td>
         <td><?= $u['last_login_at'] ? e(timeAgo($u['last_login_at']) . ' from ' . $u['last_login_ip']) : 'never' ?></td>

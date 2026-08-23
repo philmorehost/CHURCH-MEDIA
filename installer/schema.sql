@@ -37,6 +37,18 @@ CREATE TABLE IF NOT EXISTS `settings` (
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Province → Zone → Area → Parish hierarchy (posts tag to a parish and roll up).
+CREATE TABLE IF NOT EXISTS `org_units` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `parent_id` INT NULL,
+  `type` ENUM('province','zone','area','parish') NOT NULL,
+  `name` VARCHAR(150) NOT NULL,
+  `slug` VARCHAR(160) NULL UNIQUE,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`parent_id`) REFERENCES `org_units`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS `users` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(150) NOT NULL,
@@ -45,13 +57,15 @@ CREATE TABLE IF NOT EXISTS `users` (
   `password` VARCHAR(255) NOT NULL,
   `role` ENUM('admin','media_team','editor') NOT NULL DEFAULT 'media_team',
   `is_super_admin` TINYINT(1) NOT NULL DEFAULT 0,
+  `org_unit_id` INT NULL,
   `is_suspended` TINYINT(1) NOT NULL DEFAULT 0,
   `notify_on_login` TINYINT(1) NOT NULL DEFAULT 1,
   `bio` TEXT NULL,
   `avatar` VARCHAR(255) NULL,
   `last_login_at` TIMESTAMP NULL,
   `last_login_ip` VARCHAR(45) NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `security_logs` (
@@ -92,6 +106,7 @@ CREATE TABLE IF NOT EXISTS `media_categories` (
 CREATE TABLE IF NOT EXISTS `media_posts` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL,
+  `org_unit_id` INT NULL,
   `slug` VARCHAR(160) NULL UNIQUE,
   `caption` TEXT NULL,
   `post_type` ENUM('single_image','carousel','vertical_reel') NOT NULL,
@@ -101,6 +116,7 @@ CREATE TABLE IF NOT EXISTS `media_posts` (
   `is_published` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL,
   INDEX `idx_published_created` (`is_published`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

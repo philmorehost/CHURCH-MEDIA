@@ -64,6 +64,13 @@ class Auth
         }
     }
 
+    /** Whether the current user is the flagged super-admin (owner) account. */
+    public static function isSuperAdmin(): bool
+    {
+        $user = self::user();
+        return $user !== null && !empty($user['is_super_admin']);
+    }
+
     public static function logout(): void
     {
         unset($_SESSION['admin_user_id']);
