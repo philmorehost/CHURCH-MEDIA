@@ -258,6 +258,11 @@ class _FeedSlideState extends State<_FeedSlide> {
       return;
     }
     if (_videoController != null) return;
+    // Uploaded videos autoplay WITH sound — ExoPlayer has no browser-style
+    // autoplay policy, so there's no reason to start them muted. This default
+    // is applied only on first setup so the user's mute-button/tap choice is
+    // preserved afterwards.
+    if (_muted) _muted = false;
     final controller = VideoPlayerController.networkUrl(Uri.parse(media.fileUrl!));
     _videoController = controller;
     controller.setLooping(true);
@@ -406,6 +411,27 @@ class _FeedSlideState extends State<_FeedSlide> {
             top: 12,
             left: 16,
             child: _badge(post.postType == 'vertical_reel' ? 'Reel' : (post.postType == 'carousel' ? 'Carousel' : 'Photo')),
+          ),
+          Positioned(
+            top: 12,
+            right: 16,
+            child: GestureDetector(
+              onTap: _toggleMute,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Icon(
+                  _muted ? Icons.volume_off : Icons.volume_up,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
           ),
           Positioned(
             left: 16,

@@ -52,6 +52,7 @@ $categories = Database::getInstance()->getConnection()
     <div class="reel-media"></div>
     <div class="reel-scrim"></div>
     <div class="reel-dots"></div>
+    <button type="button" class="reel-mute-btn" aria-label="Toggle sound">🔇</button>
 
     <div class="reel-info">
       <div class="reel-author-row">

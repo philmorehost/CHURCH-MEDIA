@@ -70,6 +70,17 @@
 .reel-dots span{width:4px; height:16px; border-radius:4px; background:#ffffff80; transition:background .2s,height .2s;}
 .reel-dots span.on{background:#fff; height:22px;}
 
+/* always-visible sound toggle so users know how to get audio */
+.reel-mute-btn{
+  position:absolute; top:14px; right:14px; z-index:6;
+  width:42px; height:42px; border-radius:50%;
+  background:#00000066; border:1px solid #ffffff2e; color:#fff; font-size:18px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-family:inherit; backdrop-filter:blur(6px);
+  transition:transform .15s, background .15s;
+}
+.reel-mute-btn:active{transform:scale(.85);}
+
 /* bottom-left info */
 .reel-info{position:absolute; left:14px; right:84px; bottom:22px; z-index:4; color:#fff;}
 .reel-author-row{display:flex; align-items:center; gap:8px; margin-bottom:8px;}

@@ -190,10 +190,24 @@
     muted = !muted;
     var video = slide.querySelector('video');
     var yt = slide.querySelector('iframe.reel-youtube');
-    if (video) { video.muted = muted; }
+    if (video) {
+      video.muted = muted;
+      // Re-engage playback after unmuting so the browser applies the new audio
+      // state immediately (not just on the next autoplay).
+      if (!muted) { video.play().catch(function () {}); }
+    }
     if (yt) { setYoutube(yt, yt.dataset.videoId, true, muted); }
+    updateMuteButtons();
     slide.classList.add('show-hint');
     setTimeout(function () { slide.classList.remove('show-hint'); }, 1400);
+  }
+
+  function updateMuteButtons() {
+    var btns = scroller.querySelectorAll('.reel-mute-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].textContent = muted ? '🔇' : '🔊';
+      btns[i].setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+    }
   }
   function burstLike(slide) {
     var burst = slide.querySelector('.reel-heart-burst');
@@ -395,6 +409,16 @@
     node.querySelector('.reel-comment').addEventListener('click', function () { openComments(post, slide); });
     node.querySelector('.reel-share').addEventListener('click', function () { share(post); });
     node.querySelector('.reel-more-actions').addEventListener('click', function () { share(post); });
+
+    // Always-visible sound toggle so users know how to get audio on a reel.
+    var muteBtn = node.querySelector('.reel-mute-btn');
+    if (muteBtn) {
+      muteBtn.textContent = muted ? '🔇' : '🔊';
+      muteBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleMute(slide);
+      });
+    }
 
     slideObserver.observe(slide);
     return node;
