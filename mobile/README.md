@@ -54,6 +54,17 @@ flutter build ios --release
 ```
 
 The release commands above already point at `https://rccglp63yaya.pmhserver.name.ng` by default; pass `--dart-define=API_BASE_URL=...` only if you need to override it for a specific build.
+
+### Publish to Google Play (manual)
+
+The GitHub Actions workflow (`.github/workflows/build-apk.yml`) builds a **signed release APK and AAB** on every push to `main` and uploads them as artifacts (`church-media-apk`, `church-media-aab`). Publishing to Google Play is done manually:
+
+1. Open **Actions → "Build APK & AAB" → latest run**.
+2. Download the **`church-media-aab`** artifact (already signed with the release keystore — production-ready).
+3. In **Google Play Console** → your app → **Production** (or a test track) → **Create new release**.
+4. **Upload the `.aab`**, add release notes, then **Review → Roll out**.
+
+No Play service-account key is required in CI — uploads are done through the Play Console web UI, so there's nothing to fail in the build.
 ```
 
 ## Structure
