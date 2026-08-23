@@ -20,10 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # Exposed as a job-level env so the step-level `if` can check it — GitHub
-    # Actions does not allow `secrets` inside a step's `if` condition directly.
-    env:
-      PLAY_SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT_JSON }}
 
     steps:
       - name: Checkout
@@ -107,23 +103,7 @@ jobs:
           path: mobile/build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 
-      # Publish to Google Play automatically when the SERVICE_ACCOUNT_JSON
-      # secret is configured. Add it in: repo Settings → Secrets and variables
-      # → Actions → New repository secret. The value is the full JSON contents
-      # of a Google Play service-account key (Play Console → Setup → API access
-      # → Create service account → Create JSON key) that has "Release" access
-      # to the app. The step is skipped (build still succeeds) until it exists.
-      # Releases upload as DRAFT — publish them in Play Console when ready.
-      - name: Upload to Google Play
-        if: ${{ env.PLAY_SERVICE_ACCOUNT != '' }}
-        # Non-blocking: a Play permission/config hiccup should not fail the
-        # APK/AAB build (artifacts still upload). Remove this once the Play
-        # service account has access and uploads succeed.
-        continue-on-error: true
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ env.PLAY_SERVICE_ACCOUNT }}
-          packageName: com.churchmedia.app
-          releaseFiles: mobile/build/app/outputs/bundle/release/app-release.aab
-          tracks: production
-          status: draft
+      # Publishing to Google Play is done manually: download the
+      # church-media-aab artifact from this run and upload it in
+      # Play Console → App → Production (or another track).
+      # This avoids needing a Play service-account key in CI.
