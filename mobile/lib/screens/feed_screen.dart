@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show Factory;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
@@ -772,6 +774,12 @@ class _CommentSheetState extends State<_CommentSheet> {
   List<Map<String, dynamic>> _comments = [];
   bool _loading = true;
   bool _posting = false;
+  int? _replyToId;
+  String? _replyToName;
+  XFile? _image;
+  bool _emojiOpen = false;
+
+  static const _emojis = ['😂','😍','😊','🙏','❤️','🔥','👍','👏','🙌','😮','🥰','😢','😎','🤣','💯','🎉','✝️','💒','😇','🤗','😅','🥹','😴','🤔','✨','💖','🕊️','🎶'];
 
   @override
   void initState() {
@@ -794,19 +802,165 @@ class _CommentSheetState extends State<_CommentSheet> {
     }
   }
 
+  String _commentImageUrl(String? path) {
+    if (path == null || path.isEmpty) return '';
+    if (path.startsWith('http')) return path;
+    return '${ApiClient.baseUrl}/uploads/${path.replaceFirst(RegExp(r'^/+'), '')}';
+  }
+
   Future<void> _submit() async {
     final message = _message.text.trim();
-    if (message.isEmpty || _posting) return;
+    if ((message.isEmpty && _image == null) || _posting) return;
     setState(() => _posting = true);
     try {
-      await widget.api.postComment(postId: widget.postId, name: _name.text.trim().isEmpty ? null : _name.text.trim(), message: message);
+      await widget.api.postComment(
+        postId: widget.postId,
+        name: _name.text.trim().isEmpty ? null : _name.text.trim(),
+        message: message,
+        parentId: _replyToId,
+        imagePath: _image?.path,
+      );
       widget.onAdded(_comments.length + 1);
       _message.clear();
+      _image = null;
+      _replyToId = null;
+      _replyToName = null;
       await _load();
     } catch (_) {
     } finally {
       if (mounted) setState(() => _posting = false);
     }
+  }
+
+  Future<void> _toggleLike(int commentId) async {
+    final res = await widget.api.toggleCommentLike(commentId);
+    if (!mounted) return;
+    setState(() {
+      void update(Map<String, dynamic> c) {
+        if ((c['id'] as int? ?? 0) == commentId) {
+          c['liked'] = res.liked;
+          c['likes_count'] = res.likesCount;
+        }
+      }
+
+      for (final c in _comments) {
+        update(c);
+        final replies = (c['replies'] as List<dynamic>?) ?? const [];
+        for (final r in replies.cast<Map<String, dynamic>>()) {
+          update(r);
+        }
+      }
+    });
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1400);
+      if (picked != null) setState(() => _image = picked);
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open the photo library.')));
+    }
+  }
+
+  void _insertEmoji(String emoji) {
+    final start = _message.selection.start;
+    final end = _message.selection.end;
+    final text = _message.text;
+    _message.value = TextEditingValue(
+      text: text.replaceRange(start, end, emoji),
+      selection: TextSelection.collapsed(offset: start + emoji.length),
+    );
+    setState(() => _emojiOpen = false);
+  }
+
+  Widget _commentTile(Map<String, dynamic> c, {required bool isReply}) {
+    final name = (c['name'] as String?) ?? 'Anonymous';
+    final message = (c['message'] as String?) ?? '';
+    final created = (c['created_at'] as String?) ?? '';
+    final imagePath = c['image_path'] as String?;
+    final likes = (c['likes_count'] as int? ?? 0);
+    final liked = (c['liked'] as bool? ?? false);
+    final replies = (c['replies'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? const [];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: const BoxDecoration(color: Color(0xFF262626), shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Text(_initial(name), style: const TextStyle(color: AppColors.goldSoft, fontWeight: FontWeight.w700, fontSize: 12)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Flexible(child: Text(name, style: const TextStyle(color: AppColors.goldSoft, fontWeight: FontWeight.w700, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                    const SizedBox(width: 6),
+                    Text(created, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                  ],
+                ),
+                if (message.isNotEmpty) Text(message, style: const TextStyle(color: Colors.white, fontSize: 13.5)),
+                if (imagePath != null && imagePath.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: GestureDetector(
+                        onTap: () {
+                          final url = _commentImageUrl(imagePath);
+                          if (url.isNotEmpty) openImageLightbox(context, url);
+                        },
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 200, maxHeight: 200),
+                          child: CachedNetworkImage(imageUrl: _commentImageUrl(imagePath), fit: BoxFit.cover, placeholder: (_, __) => const SizedBox(width: 60, height: 60, child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)))), errorWidget: (_, __, ___) => const SizedBox(width: 60, height: 60)),
+                        ),
+                      ),
+                    ),
+                  ),
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _toggleLike(c['id'] as int? ?? 0),
+                      child: Row(
+                        children: [
+                          Icon(liked ? Icons.favorite : Icons.favorite_border, size: 15, color: liked ? const Color(0xFFFF3B5C) : Colors.white54),
+                          const SizedBox(width: 4),
+                          Text(likes.toString(), style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 18),
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _replyToId = c['id'] as int?;
+                        _replyToName = name;
+                      }),
+                      child: const Text('Reply', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                    ),
+                  ],
+                ),
+                if (!isReply && replies.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 14),
+                    child: Column(
+                      children: replies.map((r) => _commentTile(r, isReply: true)).toList(),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -848,39 +1002,7 @@ class _CommentSheetState extends State<_CommentSheet> {
                       : ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           itemCount: _comments.length,
-                          itemBuilder: (_, i) {
-                            final c = _comments[i];
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    width: 30,
-                                    height: 30,
-                                    decoration: const BoxDecoration(color: Color(0xFF262626), shape: BoxShape.circle),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      _initial(c['name'] as String?),
-                                      style: const TextStyle(color: AppColors.goldSoft, fontWeight: FontWeight.w700, fontSize: 12),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        if (c['name'] != null)
-                                          Text(c['name'] as String, style: const TextStyle(color: AppColors.goldSoft, fontWeight: FontWeight.w700, fontSize: 13)),
-                                        Text(c['message'] as String? ?? '', style: const TextStyle(color: Colors.white, fontSize: 13.5)),
-                                        Text(c['created_at'] as String? ?? '', style: const TextStyle(color: Colors.white38, fontSize: 11)),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                          itemBuilder: (_, i) => _commentTile(_comments[i], isReply: false),
                         ),
             ),
             const Divider(height: 1, color: Color(0xFF2A2A2A)),
@@ -888,6 +1010,24 @@ class _CommentSheetState extends State<_CommentSheet> {
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: [
+                  if (_replyToName != null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(color: const Color(0xFF202020), borderRadius: BorderRadius.circular(8)),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text('Replying to $_replyToName', style: const TextStyle(color: AppColors.goldSoft, fontSize: 12.5), overflow: TextOverflow.ellipsis)),
+                          GestureDetector(
+                            onTap: () => setState(() {
+                              _replyToId = null;
+                              _replyToName = null;
+                            }),
+                            child: const Icon(Icons.close, size: 15, color: Colors.white54),
+                          ),
+                        ],
+                      ),
+                    ),
                   TextField(
                     controller: _name,
                     maxLength: 100,
@@ -895,16 +1035,57 @@ class _CommentSheetState extends State<_CommentSheet> {
                     decoration: _inputDeco('Your name (optional)'),
                   ),
                   const SizedBox(height: 8),
+                  if (_emojiOpen)
+                    SizedBox(
+                      height: 44,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: _emojis
+                            .map((e) => InkWell(
+                                  onTap: () => _insertEmoji(e),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                                    child: Center(child: Text(e, style: const TextStyle(fontSize: 22))),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                  if (_image != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(File(_image!.path), width: 56, height: 56, fit: BoxFit.cover),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => setState(() => _image = null),
+                            child: const Icon(Icons.close, size: 16, color: Colors.white54),
+                          ),
+                        ],
+                      ),
+                    ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                      IconButton(
+                        onPressed: () => setState(() => _emojiOpen = !_emojiOpen),
+                        icon: const Text('😊', style: TextStyle(fontSize: 20)),
+                      ),
+                      IconButton(
+                        onPressed: _posting ? null : _pickImage,
+                        icon: const Icon(Icons.photo_library_outlined, color: Colors.white70, size: 20),
+                      ),
                       Expanded(
                         child: TextField(
                           controller: _message,
                           maxLines: 2,
                           maxLength: 1000,
                           style: const TextStyle(color: Colors.white, fontSize: 13.5),
-                          decoration: _inputDeco('Add a comment…'),
+                          decoration: _inputDeco(_replyToName != null ? 'Reply to $_replyToName…' : 'Add a comment…'),
                         ),
                       ),
                       const SizedBox(width: 8),

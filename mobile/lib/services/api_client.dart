@@ -86,9 +86,39 @@ class ApiClient {
     return (json['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
   }
 
-  Future<Map<String, dynamic>> postComment({required int postId, String? name, required String message}) async {
-    final json = await _post('/api/comments', {'post_id': postId, 'name': name, 'message': message});
+  /// Post a comment or reply. If [imagePath] is given it is uploaded as
+  /// multipart so the server can auto-compress it; otherwise a JSON body is used.
+  Future<Map<String, dynamic>> postComment({
+    required int postId,
+    String? name,
+    String? message,
+    int? parentId,
+    String? imagePath,
+  }) async {
+    if (imagePath != null) {
+      final req = http.MultipartRequest('POST', _uri('/api/comments'));
+      req.fields['post_id'] = postId.toString();
+      if (name != null && name.isNotEmpty) req.fields['name'] = name;
+      if (message != null && message.isNotEmpty) req.fields['message'] = message;
+      if (parentId != null) req.fields['parent_id'] = parentId.toString();
+      req.files.add(await http.MultipartFile.fromPath('image', imagePath));
+      final streamed = await req.send();
+      final res = await http.Response.fromStream(streamed);
+      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      return (json['data'] as Map<String, dynamic>?) ?? {};
+    }
+    final json = await _post('/api/comments', {
+      'post_id': postId,
+      'name': name,
+      'message': message,
+      if (parentId != null) 'parent_id': parentId,
+    });
     return (json['data'] as Map<String, dynamic>?) ?? {};
+  }
+
+  Future<({bool liked, int likesCount})> toggleCommentLike(int commentId) async {
+    final json = await _post('/api/comments', {'action': 'like', 'comment_id': commentId});
+    return (liked: json['liked'] as bool? ?? false, likesCount: json['likes_count'] as int? ?? 0);
   }
 
   Future<({List<ChurchEvent> events, bool hasMore})> fetchEvents({String scope = 'upcoming', int page = 1}) async {

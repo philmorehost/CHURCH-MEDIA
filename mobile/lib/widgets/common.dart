@@ -1,5 +1,28 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+
+/// Full-screen image viewer used by comment image attachments.
+void openImageLightbox(BuildContext context, String url) {
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        body: GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Center(
+            child: CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.contain,
+              placeholder: (_, __) => const CircularProgressIndicator(color: AppColors.gold),
+              errorWidget: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white54, size: 48),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
 
 class LoadingView extends StatelessWidget {
   const LoadingView({super.key});
