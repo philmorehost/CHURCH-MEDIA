@@ -7,12 +7,12 @@ $user = Auth::user();
 $action = $_GET['action'] ?? 'list';
 $errors = [];
 
-// Unit scoping: non-super admins only manage media in their own unit subtree
-// (a zone admin sees their areas + parishes; a parish admin only their parish).
+// Unit scoping: strictly per-church — non-super admins only manage posts that
+// belong to the exact unit they are assigned to (no roll-up of sub-units).
 $scopeIds = [];
 $scopeClause = '';
 if (!$user || empty($user['is_super_admin'])) {
-    $scopeIds = !empty($user['org_unit_id']) ? Unit::subtreeIds((int) $user['org_unit_id']) : [];
+    $scopeIds = !empty($user['org_unit_id']) ? [(int) $user['org_unit_id']] : [];
     $scopeClause = $scopeIds ? ' AND p.org_unit_id IN (' . implode(',', array_map('intval', $scopeIds)) . ')' : ' AND 1 = 0';
 }
 

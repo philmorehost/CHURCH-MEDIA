@@ -4,13 +4,13 @@ declare(strict_types=1);
 Auth::requireLogin();
 $pdo = Database::getInstance()->getConnection();
 
-// Non-super admins only see their own unit subtree on the dashboard.
+// Non-super admins only see their own church's posts (strict per-unit match).
 $user = Auth::user();
 $scopeClause = '';
 $myUnitLabel = '';
 if ($user && empty($user['is_super_admin'])) {
     $myUnitLabel = !empty($user['org_unit_id']) ? Unit::label((int) $user['org_unit_id']) : '';
-    $scopeIds = !empty($user['org_unit_id']) ? Unit::subtreeIds((int) $user['org_unit_id']) : [];
+    $scopeIds = !empty($user['org_unit_id']) ? [(int) $user['org_unit_id']] : [];
     $scopeClause = $scopeIds ? ' AND p.org_unit_id IN (' . implode(',', array_map('intval', $scopeIds)) . ')' : ' AND 1 = 0';
 }
 
