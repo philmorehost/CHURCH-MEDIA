@@ -103,19 +103,19 @@ jobs:
           path: mobile/build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 
-      # Google Play upload is temporarily disabled so it doesn't fail the build.
-      # It was failing with "Precondition check failed" because the Play Console
-      # app isn't fully set up yet (app must exist as com.churchmedia.app
-      # and have production-track access + content rating / data safety / store
-      # listing). Re-enable once Play Console is ready:
-      #
-      # - name: Upload to Google Play
-      #   env:
-      #     SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-      #   uses: r0adkll/upload-google-play@v1
-      #   with:
-      #     serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-      #     packageName: com.churchmedia.app
-      #     releaseFiles: mobile/build/app/outputs/bundle/release/app-release.aab
-      #     tracks: production
-      #     status: draft
+      # Publish to Google Play automatically when the SERVICE_ACCOUNT_JSON
+      # secret is configured. Add it in: repo Settings → Secrets and variables
+      # → Actions → New repository secret. The value is the full JSON contents
+      # of a Google Play service-account key (Play Console → Setup → API access
+      # → Create service account → Create JSON key) that has "Release" access
+      # to the app. The step is skipped (build still succeeds) until it exists.
+      # Releases upload as DRAFT — publish them in Play Console when ready.
+      - name: Upload to Google Play
+        if: ${{ secrets.SERVICE_ACCOUNT_JSON != '' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          packageName: com.churchmedia.app
+          releaseFiles: mobile/build/app/outputs/bundle/release/app-release.aab
+          tracks: production
+          status: draft

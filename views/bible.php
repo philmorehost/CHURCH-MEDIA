@@ -189,8 +189,12 @@ $bibleBooks = [
   .bible-loading{color:var(--ink-dim); text-align:center; padding:60px 0; margin:0;}
   .bible-spin{width:34px; height:34px; margin:0 auto 14px; border:3px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:bible-spin .8s linear infinite;}
   @keyframes bible-spin{to{transform:rotate(360deg);}}
-  .bible-reader-nav{display:flex; gap:12px; margin-top:26px; padding-top:20px; border-top:1px solid var(--border-soft);}
-  .btn-nav{flex:1;}
+  .bible-reader-nav{display:flex; flex-wrap:nowrap; gap:10px; margin-top:26px; padding-top:20px; border-top:1px solid var(--border-soft);}
+  .btn-nav{flex:1 1 0; min-width:0; min-height:48px; white-space:nowrap; justify-content:center; padding:0 14px;}
+  @media (max-width:520px){
+    .bible-reader-nav{gap:8px;}
+    .btn-nav{font-size:13.5px; padding:0 10px;}
+  }
   @media (max-width:520px){
     .bible-hero{padding:40px 18px 32px;}
     .bible-reader{padding:22px 18px;}

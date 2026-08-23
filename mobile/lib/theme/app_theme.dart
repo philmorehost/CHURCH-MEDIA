@@ -12,9 +12,9 @@ class AppColors {
   static const border = Color(0xFF2C2850);
   static const gold = Color(0xFFE8B95F);
   static const goldSoft = Color(0xFFF3D38F);
-  static const ink = Color(0xFFF5F3FC);
-  static const inkDim = Color(0xFFB6B1D6);
-  static const inkFaint = Color(0xFF7A759C);
+  static const ink = Color(0xFFFFFFFF);
+  static const inkDim = Color(0xFFDCD8F2);
+  static const inkFaint = Color(0xFF9B96BC);
   static const danger = Color(0xFFFF6B6B);
   static const success = Color(0xFF5FE0A4);
 }

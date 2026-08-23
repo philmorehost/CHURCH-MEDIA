@@ -418,13 +418,28 @@ class _BibleScreenState extends State<BibleScreen> {
         const SizedBox(height: 4),
         Expanded(child: _buildContent(theme)),
         if (_passage.isNotEmpty && !_showSearch)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-            child: Row(children: [
-              Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.chevron_left), label: const Text('Previous'), onPressed: () => _navChapter(-1))),
-              const SizedBox(width: 12),
-              Expanded(child: FilledButton.icon(icon: const Icon(Icons.chevron_right), label: const Text('Next'), onPressed: () => _navChapter(1))),
-            ]),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+              child: Row(children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.chevron_left),
+                    label: const Text('Previous', overflow: TextOverflow.ellipsis),
+                    onPressed: () => _navChapter(-1),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.chevron_right),
+                    label: const Text('Next', overflow: TextOverflow.ellipsis),
+                    onPressed: () => _navChapter(1),
+                  ),
+                ),
+              ]),
+            ),
           ),
       ]),
     );
