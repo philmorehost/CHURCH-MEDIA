@@ -7,6 +7,27 @@ $user = Auth::user();
 $action = $_GET['action'] ?? 'list';
 $errors = [];
 
+// Unit scoping: non-super admins only manage media in their own unit subtree
+// (a zone admin sees their areas + parishes; a parish admin only their parish).
+$scopeIds = [];
+$scopeClause = '';
+if (!$user || empty($user['is_super_admin'])) {
+    $scopeIds = !empty($user['org_unit_id']) ? Unit::subtreeIds((int) $user['org_unit_id']) : [];
+    $scopeClause = $scopeIds ? ' AND p.org_unit_id IN (' . implode(',', array_map('intval', $scopeIds)) . ')' : ' AND 1 = 0';
+}
+
+function mediaPostOrgUnit(PDO $pdo, int $postId): ?int
+{
+    $stmt = $pdo->prepare('SELECT org_unit_id FROM media_posts WHERE id = ?');
+    $stmt->execute([$postId]);
+    $oid = $stmt->fetchColumn();
+    return ($oid === false || $oid === null) ? null : (int) $oid;
+}
+function mediaInScope(array $scopeIds, ?int $orgUnitId): bool
+{
+    return $orgUnitId !== null && in_array($orgUnitId, $scopeIds, true);
+}
+
 $categories = $pdo->query('SELECT * FROM media_categories ORDER BY name ASC')->fetchAll();
 
 $allowedImageMime = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'];
@@ -242,6 +263,10 @@ if ($action === 'process' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'reprocess' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $id = (int) ($_POST['id'] ?? 0);
+    if (!empty($scopeIds) && !mediaInScope($scopeIds, mediaPostOrgUnit($pdo, $id))) {
+        flash('error', 'You can only manage media in your own parish/zone.');
+        redirect('/admin/media');
+    }
     set_time_limit(600);
     $stmt = $pdo->prepare("SELECT id FROM media_post_items WHERE media_post_id = ? AND type = 'video' AND source = 'upload' AND file_path LIKE 'originals/%'");
     $stmt->execute([$id]);
@@ -259,6 +284,10 @@ if ($action === 'reprocess' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'toggle' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $id = (int) ($_POST['id'] ?? 0);
+    if (!empty($scopeIds) && !mediaInScope($scopeIds, mediaPostOrgUnit($pdo, $id))) {
+        flash('error', 'You can only manage media in your own parish/zone.');
+        redirect('/admin/media');
+    }
     $pdo->prepare('UPDATE media_posts SET is_published = NOT is_published WHERE id = ?')->execute([$id]);
     redirect('/admin/media');
 }
@@ -266,6 +295,10 @@ if ($action === 'toggle' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $id = (int) ($_POST['id'] ?? 0);
+    if (!empty($scopeIds) && !mediaInScope($scopeIds, mediaPostOrgUnit($pdo, $id))) {
+        flash('error', 'You can only manage media in your own parish/zone.');
+        redirect('/admin/media');
+    }
     $itemStmt = $pdo->prepare('SELECT type, file_path, thumbnail_path FROM media_post_items WHERE media_post_id = ?');
     $itemStmt->execute([$id]);
     foreach ($itemStmt->fetchAll() as $item) {
@@ -285,6 +318,10 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $id = (int) ($_POST['id'] ?? 0);
+    if (!empty($scopeIds) && !mediaInScope($scopeIds, mediaPostOrgUnit($pdo, $id))) {
+        flash('error', 'You can only manage media in your own parish/zone.');
+        redirect('/admin/media');
+    }
     $caption = trim($_POST['caption'] ?? '');
     $isPublished = isset($_POST['is_published']) ? 1 : 0;
     $categoryIds = array_map('intval', $_POST['categories'] ?? []);
@@ -305,6 +342,10 @@ if ($action === 'edit') {
     $editPost = $pdo->prepare('SELECT * FROM media_posts WHERE id = ?');
     $editPost->execute([(int) ($_GET['id'] ?? 0)]);
     $editPost = $editPost->fetch() ?: null;
+    if ($editPost && !empty($scopeIds) && !mediaInScope($scopeIds, $editPost['org_unit_id'] !== null ? (int) $editPost['org_unit_id'] : null)) {
+        flash('error', 'You can only manage media in your own parish/zone.');
+        redirect('/admin/media');
+    }
 }
 
 $posts = $action === 'list' ? $pdo->query('
@@ -316,6 +357,7 @@ $posts = $action === 'list' ? $pdo->query('
       (SELECT file_path FROM media_post_items WHERE media_post_id = p.id AND type = \'video\' AND source = \'upload\' ORDER BY sort_order ASC LIMIT 1) AS video_path,
       (SELECT converted_at FROM media_post_items WHERE media_post_id = p.id AND type = \'video\' AND source = \'upload\' ORDER BY sort_order ASC LIMIT 1) AS video_converted_at
     FROM media_posts p JOIN users u ON u.id = p.user_id
+    WHERE 1=1' . $scopeClause . '
     ORDER BY p.created_at DESC LIMIT 60
 ')->fetchAll() : [];
 

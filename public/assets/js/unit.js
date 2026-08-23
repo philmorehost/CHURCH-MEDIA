@@ -7,6 +7,19 @@
   var shuffle = true;
   var countEl = document.getElementById('unitCount');
   var shuffleBtn = document.getElementById('unitShuffle');
+  var activeCat = '';
+
+  var chips = document.querySelectorAll('.unit-chip');
+  if (chips.length) {
+    chips.forEach(function (ch) {
+      ch.addEventListener('click', function () {
+        var slug = ch.getAttribute('data-category') || '';
+        activeCat = (activeCat === slug) ? '' : slug;
+        chips.forEach(function (c) { c.classList.toggle('active', (c.getAttribute('data-category') || '') === activeCat); });
+        load();
+      });
+    });
+  }
 
   function escapeHtml(str) {
     var div = document.createElement('div');
@@ -30,7 +43,9 @@
 
   function load() {
     grid.innerHTML = '<div class="unit-loading">Loading media…</div>';
-    fetch('/api/unit.php?slug=' + encodeURIComponent(slug) + '&shuffle=' + (shuffle ? '1' : '0') + '&per_page=100')
+    var url = '/api/unit.php?slug=' + encodeURIComponent(slug) + '&shuffle=' + (shuffle ? '1' : '0') + '&per_page=100';
+    if (activeCat) { url += '&category=' + encodeURIComponent(activeCat); }
+    fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || data.status !== 'success') {

@@ -20,6 +20,10 @@ $router->get('/unit/{slug}', function (array $params) {
     render('unit', ['slug' => $params['slug']]);
 });
 
+$router->get('/units', function () {
+    render('units');
+});
+
 $router->get('/events', function () {
     render('events');
 });
