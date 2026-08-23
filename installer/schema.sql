@@ -353,3 +353,24 @@ SET @mig_converted_at = IF(@has_converted_at = 0, 'ALTER TABLE `media_post_items
 PREPARE mig_converted_at FROM @mig_converted_at;
 EXECUTE mig_converted_at;
 DEALLOCATE PREPARE mig_converted_at;
+
+-- Provincial announcements: province admin broadcasts to all/selected churches.
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `sender_id` INT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `body` TEXT NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`sender_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `notification_recipients` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `notification_id` INT NOT NULL,
+  `org_unit_id` INT NOT NULL,
+  `read_at` DATETIME NULL,
+  `delivered_at` DATETIME NULL,
+  FOREIGN KEY (`notification_id`) REFERENCES `notifications`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE CASCADE,
+  UNIQUE KEY `uq_notif_recipient` (`notification_id`, `org_unit_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

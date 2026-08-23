@@ -38,6 +38,14 @@ $recentSecurity = $pdo->query('
     FROM security_logs ORDER BY created_at DESC LIMIT 8
 ')->fetchAll();
 
+$unitNotifications = [];
+$unitUnread = 0;
+if ($user && !empty($user['org_unit_id'])) {
+    $unitId = (int) $user['org_unit_id'];
+    $unitUnread = (int) $pdo->query("SELECT COUNT(*) FROM notification_recipients WHERE org_unit_id = {$unitId} AND read_at IS NULL")->fetchColumn();
+    $unitNotifications = $pdo->query("SELECT n.id, n.title, n.body, n.created_at, nr.read_at FROM notifications n JOIN notification_recipients nr ON nr.notification_id = n.id AND nr.org_unit_id = {$unitId} ORDER BY n.created_at DESC LIMIT 4")->fetchAll();
+}
+
 $pageTitle = 'Dashboard';
 $activeNav = 'dashboard';
 require __DIR__ . '/partials/layout-open.php';
@@ -48,6 +56,21 @@ require __DIR__ . '/partials/layout-open.php';
   <h2 style="margin:0 0 4px;">📍 My Unit</h2>
   <p style="margin:0;color:var(--ink-dim);"><?= e($myUnitLabel) ?></p>
   <p style="margin:6px 0 0;color:var(--ink-dim);"><strong><?= $stats['my_posts'] ?? 0 ?></strong> post(s) in your scope.</p>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($user['org_unit_id']) && $unitNotifications): ?>
+<div class="card" style="margin-bottom:18px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <h2 style="margin:0;">🔔 Notifications <?= $unitUnread ? '<span class="badge danger">' . $unitUnread . ' new</span>' : '' ?></h2>
+    <a href="/admin/notifications" style="color:var(--gold-soft);font-size:13px;">View all →</a>
+  </div>
+  <?php foreach ($unitNotifications as $n): ?>
+  <div style="padding:9px 0;border-bottom:1px solid var(--border);">
+    <strong><?= e($n['title']) ?><?= $n['read_at'] ? '' : ' <span class="badge info">new</span>' ?></strong>
+    <div style="color:var(--ink-dim);font-size:13px;"><?= e(mb_strimwidth((string) $n['body'], 0, 110, '…')) ?></div>
+  </div>
+  <?php endforeach; ?>
 </div>
 <?php endif; ?>
 

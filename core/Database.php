@@ -306,6 +306,29 @@ class Database
                     self::addColumnIfMissing($pdo, 'settings', $col, $def, 'bible_api_key');
                 }
             },
+            '2026_08_notifications' => function (PDO $pdo): void {
+                // Provincial announcements: a province admin (or super admin)
+                // broadcasts to all churches, one church, or selected churches.
+                // Recipients surface on the admin dashboard and get an email.
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `notifications` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `sender_id` INT NULL,
+                    `title` VARCHAR(255) NOT NULL,
+                    `body` TEXT NOT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (`sender_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `notification_recipients` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `notification_id` INT NOT NULL,
+                    `org_unit_id` INT NOT NULL,
+                    `read_at` DATETIME NULL,
+                    `delivered_at` DATETIME NULL,
+                    FOREIGN KEY (`notification_id`) REFERENCES `notifications`(`id`) ON DELETE CASCADE,
+                    FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE CASCADE,
+                    UNIQUE KEY `uq_notif_recipient` (`notification_id`, `org_unit_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            },
             '2026_08_privacy_policy' => function (PDO $pdo): void {
                 // Seed a comprehensive privacy policy page (served at /privacy-policy).
                 // Content uses {{site_title}} / {{contact_email}} / {{contact_phone}}
