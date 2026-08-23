@@ -32,6 +32,46 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $targetId = (int) ($_POST['id'] ?? 0);
+    $name = trim($_POST['name'] ?? '');
+    $username = trim($_POST['username'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $password = (string) ($_POST['password'] ?? '');
+    $role = in_array($_POST['role'] ?? '', ['admin', 'editor', 'media_team'], true) ? $_POST['role'] : 'media_team';
+    if ($targetId === (int) $currentUser['id']) {
+        // Never allow changing your own role — prevents locking yourself out.
+        $role = $currentUser['role'];
+    }
+
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE id = ?');
+    $stmt->execute([$targetId]);
+    if (!$stmt->fetch()) {
+        $errors[] = 'User not found.';
+    } elseif ($name === '' || $username === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Please provide a valid name, username, and email.';
+    } elseif ($password !== '' && strlen($password) < 10) {
+        $errors[] = 'Password must be at least 10 characters if you change it.';
+    } else {
+        $check = $pdo->prepare('SELECT id FROM users WHERE (username = ? OR email = ?) AND id <> ?');
+        $check->execute([$username, $email, $targetId]);
+        if ($check->fetch()) {
+            $errors[] = 'That username or email is already taken.';
+        } else {
+            if ($password !== '') {
+                $pdo->prepare('UPDATE users SET name = ?, username = ?, email = ?, role = ?, password = ? WHERE id = ?')
+                    ->execute([$name, $username, $email, $role, password_hash($password, PASSWORD_ARGON2ID), $targetId]);
+            } else {
+                $pdo->prepare('UPDATE users SET name = ?, username = ?, email = ?, role = ? WHERE id = ?')
+                    ->execute([$name, $username, $email, $role, $targetId]);
+            }
+            flash('success', 'User updated.');
+            redirect('/admin/users');
+        }
+    }
+}
+
 if ($action === 'toggle_suspend' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
     $targetId = (int) ($_POST['id'] ?? 0);
@@ -51,6 +91,31 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('error', "You can't delete your own account.");
     }
     redirect('/admin/users');
+}
+
+$editUser = null;
+if ($action === 'edit') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // Re-render the form with the submitted values after a validation error
+        // (a successful save above has already redirected).
+        $editUser = [
+            'id' => (int) ($_POST['id'] ?? 0),
+            'name' => trim($_POST['name'] ?? ''),
+            'username' => trim($_POST['username'] ?? ''),
+            'email' => trim($_POST['email'] ?? ''),
+            'role' => $_POST['role'] ?? 'media_team',
+        ];
+        if ((int) $editUser['id'] === (int) $currentUser['id']) {
+            $editUser['role'] = $currentUser['role'];
+        }
+    } else {
+        $stmt = $pdo->prepare('SELECT id, name, username, email, role FROM users WHERE id = ?');
+        $stmt->execute([$id]);
+        $editUser = $stmt->fetch() ?: null;
+    }
+    if (!$editUser || !isset($editUser['id']) || !$editUser['id']) {
+        redirect('/admin/users');
+    }
 }
 
 $users = $pdo->query('SELECT id, name, username, email, role, is_suspended, last_login_at, last_login_ip FROM users ORDER BY id ASC')->fetchAll();
@@ -87,6 +152,37 @@ require __DIR__ . '/partials/layout-open.php';
       </div>
     </form>
   </div>
+<?php elseif ($action === 'edit' && $editUser): ?>
+  <div class="card" style="max-width:520px;">
+    <h2>Edit User</h2>
+    <form method="post" action="/admin/users?action=edit">
+      <?= Csrf::field() ?>
+      <input type="hidden" name="id" value="<?= (int) $editUser['id'] ?>">
+      <label for="name">Full Name</label>
+      <input type="text" id="name" name="name" value="<?= e($editUser['name']) ?>" required>
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" value="<?= e($editUser['username']) ?>" required>
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" value="<?= e($editUser['email']) ?>" required>
+      <label for="password">New Password <small style="color:var(--ink-faint);">(leave blank to keep current)</small></label>
+      <input type="password" id="password" name="password" minlength="10">
+      <label for="role">Role</label>
+      <?php if ((int) $editUser['id'] === (int) $currentUser['id']): ?>
+        <input type="hidden" name="role" value="<?= e($editUser['role']) ?>">
+        <div class="form-note">You cannot change your own role.</div>
+      <?php else: ?>
+      <select id="role" name="role">
+        <option value="media_team" <?= $editUser['role'] === 'media_team' ? 'selected' : '' ?>>Media Team — upload &amp; manage posts</option>
+        <option value="editor" <?= $editUser['role'] === 'editor' ? 'selected' : '' ?>>Editor — posts, events, sermons</option>
+        <option value="admin" <?= $editUser['role'] === 'admin' ? 'selected' : '' ?>>Admin — full access</option>
+      </select>
+      <?php endif; ?>
+      <div class="btn-row">
+        <button class="btn" type="submit">Save Changes</button>
+        <a class="btn secondary" href="/admin/users">Cancel</a>
+      </div>
+    </form>
+  </div>
 <?php else: ?>
   <div class="btn-row" style="margin-bottom:20px;"><a class="btn" href="/admin/users?action=create">+ Add Team Account</a></div>
   <div class="card">
@@ -111,6 +207,7 @@ require __DIR__ . '/partials/layout-open.php';
           <?php endif; ?>
         </td>
         <td>
+          <a class="btn sm" href="/admin/users?action=edit&id=<?= (int) $u['id'] ?>">Edit</a>
           <?php if ((int) $u['id'] !== $currentUser['id']): ?>
           <form method="post" action="/admin/users?action=delete" onsubmit="return confirm('Delete this user?');" style="display:inline;">
             <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $u['id'] ?>">
