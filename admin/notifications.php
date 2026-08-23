@@ -94,6 +94,15 @@ if ($action === 'send' && $_SERVER['REQUEST_METHOD'] === 'POST' && $canSend) {
                 $ins->execute([$nid, $tid]);
             }
 
+            // Push to each targeted church's device topic (best-effort).
+            try {
+                foreach ($targetIds as $tid) {
+                    Pusher::sendToUnit($tid, $title, $body, null, ['type' => 'admin_notice', 'notification_id' => (string) $nid]);
+                }
+            } catch (Throwable $e) {
+                error_log('Push notify failed: ' . $e->getMessage());
+            }
+
             // Email every admin/editor of the targeted churches.
             $in = implode(',', $targetIds);
             $emailed = 0;

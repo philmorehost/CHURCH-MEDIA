@@ -142,12 +142,6 @@ class Pusher
     /** Push a newly published post to its church's subscribers + broadcast. */
     public static function notifyNewPost(PDO $pdo, int $postId, ?int $orgUnitId, string $caption): void
     {
-        if ($orgUnitId !== null && $orgUnitId > 0) {
-            $unit = Unit::find($orgUnitId);
-            $title = $unit ? $unit['name'] . ' posted a new reel' : 'New reel';
-        } else {
-            $title = 'New reel in the feed';
-        }
         $body = $caption !== '' ? mb_strimwidth($caption, 0, 100, '…') : 'Tap to watch it now.';
         $imageUrl = null;
         $stmt = $pdo->prepare("SELECT file_path FROM media_post_items WHERE media_post_id = ? AND type = 'image' ORDER BY sort_order ASC LIMIT 1");
@@ -156,9 +150,32 @@ class Pusher
         if ($cover && !str_starts_with((string) $cover, 'http')) {
             $imageUrl = 'https://' . ($_SERVER['HTTP_HOST'] ?? '') . '/uploads/' . $cover;
         }
-        $data = ['type' => 'post', 'post_id' => (string) $postId];
+        self::notifyContent($orgUnitId, 'New reel', $body, $imageUrl, ['type' => 'post', 'post_id' => (string) $postId]);
+    }
+
+    /** Push a newly published event to its church's subscribers + broadcast. */
+    public static function notifyNewEvent(PDO $pdo, int $eventId, ?int $orgUnitId, string $title, ?string $location = null): void
+    {
+        $body = mb_strimwidth($title, 0, 90, '…');
+        if ($location !== null && $location !== '') {
+            $body .= ' · ' . mb_strimwidth($location, 0, 40, '…');
+        }
+        self::notifyContent($orgUnitId, 'New event', $body, null, ['type' => 'event', 'event_id' => (string) $eventId]);
+    }
+
+    /** Push a newly published sermon to its church's subscribers + broadcast. */
+    public static function notifyNewSermon(PDO $pdo, int $sermonId, ?int $orgUnitId, string $title): void
+    {
+        self::notifyContent($orgUnitId, 'New sermon', mb_strimwidth($title, 0, 100, '…'), null, ['type' => 'sermon', 'sermon_id' => (string) $sermonId]);
+    }
+
+    /** Shared: send to the church's topic (with church name) + broadcast. */
+    private static function notifyContent(?int $orgUnitId, string $title, string $body, ?string $imageUrl = null, array $data = []): void
+    {
         if ($orgUnitId !== null && $orgUnitId > 0) {
-            self::sendToUnit($orgUnitId, $title, $body, $imageUrl, $data);
+            $unit = Unit::find($orgUnitId);
+            $unitTitle = $unit ? $unit['name'] . ' — ' . $title : $title;
+            self::sendToUnit($orgUnitId, $unitTitle, $body, $imageUrl, $data);
         }
         self::broadcast($title, $body, $imageUrl, $data);
     }

@@ -68,6 +68,13 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
         if ($action === 'create') {
             $stmt = $pdo->prepare('INSERT INTO events (title, slug, description, cover_image, start_at, end_at, location, rsvp_enabled, rsvp_url, is_published, org_unit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
             $stmt->execute([$title, eventSlug($pdo, $title), $description, $coverPath, $startAt, $endAt ?: null, $location, $rsvpEnabled, $rsvpUrl ?: null, $isPublished, $user['org_unit_id'] ?? null]);
+            if ($isPublished) {
+                try {
+                    Pusher::notifyNewEvent($pdo, (int) $pdo->lastInsertId(), $user['org_unit_id'] ?? null, $title, $location);
+                } catch (Throwable $e) {
+                    error_log('Push notify failed: ' . $e->getMessage());
+                }
+            }
             flash('success', 'Event created.');
         } else {
             $sql = 'UPDATE events SET title=?, slug=?, description=?, start_at=?, end_at=?, location=?, rsvp_enabled=?, rsvp_url=?, is_published=?';

@@ -84,6 +84,13 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
             if ($action === 'create') {
                 $stmt = $pdo->prepare('INSERT INTO sermons (title, slug, speaker, series, scripture_ref, description, audio_path, video_embed_url, cover_image, is_published, published_at, org_unit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                 $stmt->execute([$title, sermonSlug($pdo, $title), $speaker, $series, $scripture, $description, $audioPath, $videoUrl ?: null, $coverPath, $isPublished, $publishedAt, $user['org_unit_id'] ?? null]);
+                if ($isPublished) {
+                    try {
+                        Pusher::notifyNewSermon($pdo, (int) $pdo->lastInsertId(), $user['org_unit_id'] ?? null, $title);
+                    } catch (Throwable $e) {
+                        error_log('Push notify failed: ' . $e->getMessage());
+                    }
+                }
                 flash('success', 'Sermon added.');
             } else {
                 $sql = 'UPDATE sermons SET title=?, slug=?, speaker=?, series=?, scripture_ref=?, description=?, video_embed_url=?, is_published=?, published_at=?';
