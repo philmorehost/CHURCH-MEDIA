@@ -140,3 +140,56 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--gold);}
   .topbar h1{font-size:16px;}
   .alert{padding:11px 13px;}
 }
+
+/* Attendance growth trend chart */
+.trend-chart{
+  display:flex;
+  align-items:flex-end;
+  gap:8px;
+  height:200px;
+  padding:0 4px;
+}
+.trend-col{
+  flex:1 1 0;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  height:100%;
+  gap:4px;
+}
+.trend-value{
+  font-size:11px;
+  color:var(--ink-dim);
+  font-weight:600;
+  line-height:1;
+}
+.trend-bar-wrap{
+  flex:1 1 0;
+  width:100%;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  background:#ffffff06;
+  border-radius:8px 8px 4px 4px;
+  overflow:hidden;
+  min-height:2px;
+}
+.trend-bar{
+  width:100%;
+  background:linear-gradient(180deg,var(--gold-soft),var(--gold));
+  border-radius:6px 6px 2px 2px;
+  min-height:2px;
+  transition:height .3s ease;
+}
+.trend-label{
+  font-size:10px;
+  color:var(--ink-faint);
+  white-space:nowrap;
+  text-align:center;
+  line-height:1;
+}
+@media (max-width:560px){
+  .trend-chart{gap:4px;height:160px;}
+  .trend-label{font-size:9px;}
+}

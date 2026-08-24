@@ -65,10 +65,38 @@ if ($action === 'edit') {
 
 $records = [];
 $summary = ['services' => 0, 'adult' => 0, 'children' => 0, 'youth' => 0, 'total' => 0];
+$trend = [];
 if ($action === 'list') {
     $records = $pdo->query('SELECT a.*, u.name AS recorded_by FROM attendance_records a LEFT JOIN users u ON u.id = a.created_by WHERE 1=1' . $scopeSql . ' ORDER BY a.service_date DESC, a.id DESC LIMIT 200')->fetchAll();
     $agg = $pdo->query('SELECT COUNT(*) AS services, COALESCE(SUM(adult_count),0) AS adult, COALESCE(SUM(children_count),0) AS children, COALESCE(SUM(youth_count),0) AS youth, COALESCE(SUM(adult_count + children_count + youth_count),0) AS total FROM attendance_records WHERE 1=1' . $scopeSql)->fetch();
     $summary = $agg ?: $summary;
+
+    // Weekly growth trend for the last 12 weeks (from the earliest day of the
+    // window, so the bars read left-to-right oldest → newest).
+    $trendStmt = $pdo->query('
+        SELECT MIN(service_date) AS week_start,
+               SUM(adult_count + children_count + youth_count) AS total
+        FROM attendance_records
+        WHERE 1=1' . $scopeSql . '
+          AND service_date >= DATE_SUB(CURDATE(), INTERVAL 12 WEEK)
+        GROUP BY YEARWEEK(service_date, 1)
+        ORDER BY week_start ASC');
+    foreach ($trendStmt->fetchAll() as $row) {
+        $trend[] = ['label' => date('M j', strtotime((string) $row['week_start'])), 'total' => (int) $row['total']];
+    }
+    // Fill gaps so the chart always spans 12 bars (weeks with no record = 0).
+    $trendMap = [];
+    foreach ($trend as $t) {
+        $trendMap[$t['label']] = $t['total'];
+    }
+    $filled = [];
+    $day = new DateTimeImmutable('today');
+    for ($i = 11; $i >= 0; $i--) {
+        $d = $day->modify('-' . $i . ' weeks');
+        $label = $d->format('M j');
+        $filled[] = ['label' => $label, 'total' => $trendMap[$label] ?? 0];
+    }
+    $trend = $filled;
 }
 
 $pageTitle = 'Attendance';
@@ -154,6 +182,25 @@ require __DIR__ . '/partials/layout-open.php';
     </div>
   </div>
 
+  <?php if ($trend): ?>
+  <div class="card" style="padding:20px;margin-bottom:20px;">
+    <h2 style="margin-bottom:4px;">Growth Trend <span style="color:var(--ink-faint);font-size:12px;font-weight:400;">— last 12 weeks</span></h2>
+    <p class="sub" style="margin-bottom:18px;">Total attendance (adults + children + youth) per week. Weeks with no record are shown as zero.</p>
+    <div class="trend-chart">
+      <?php $trendMax = max(array_column($trend, 'total')); $trendMax = $trendMax > 0 ? $trendMax : 1; ?>
+      <?php foreach ($trend as $t): ?>
+        <div class="trend-col">
+          <div class="trend-value"><?= (int) $t['total'] ?></div>
+          <div class="trend-bar-wrap">
+            <div class="trend-bar" style="height:<?= max(2, round(((int) $t['total'] / $trendMax) * 100)) ?>%;"></div>
+          </div>
+          <div class="trend-label"><?= e($t['label']) ?></div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <?php if (!$records): ?>
     <div class="card empty">No attendance records yet. Click "+ Add Attendance" to record your first service.</div>
   <?php else: ?>
@@ -182,6 +229,7 @@ require __DIR__ . '/partials/layout-open.php';
         <td><strong><?= (int) $r['adult_count'] + (int) $r['children_count'] + (int) $r['youth_count'] ?></strong></td>
         <td><?= e((string) ($r['recorded_by'] ?? '')) ?></td>
         <td class="actions">
+          <a class="btn sm secondary" href="/admin/newcomers?action=create&attendance_id=<?= (int) $r['id'] ?>" title="Quick-add a newcomer who attended this service">+ Newcomer</a>
           <a class="btn sm secondary" href="/admin/attendance?action=edit&id=<?= (int) $r['id'] ?>">Edit</a>
           <form method="post" action="/admin/attendance?action=delete" style="display:inline;" onsubmit="return confirm('Delete this attendance record?');">
             <?= Csrf::field() ?>

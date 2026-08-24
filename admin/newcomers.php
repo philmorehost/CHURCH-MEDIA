@@ -68,9 +68,20 @@ if ($action === 'edit') {
 $attendanceOptions = [];
 $newcomers = [];
 $statusCounts = ['new' => 0, 'contacted' => 0, 'followed_up' => 0, 'returned' => 0, 'inactive' => 0, 'total' => 0];
+// Quick-add from an attendance row: /admin/newcomers?action=create&attendance_id=X
+$prefillAttendanceId = (int) ($_GET['attendance_id'] ?? 0);
+$prefillVisitDate = null;
 // Attendance options are needed by both the form (create/edit) and the list.
 if (in_array($action, ['list', 'create', 'edit'], true)) {
     $attendanceOptions = $pdo->query('SELECT id, service_date, service_name, topic FROM attendance_records WHERE 1=1' . $scopeSql . ' ORDER BY service_date DESC, id DESC LIMIT 100')->fetchAll();
+    if ($prefillAttendanceId > 0) {
+        foreach ($attendanceOptions as $a) {
+            if ((int) $a['id'] === $prefillAttendanceId) {
+                $prefillVisitDate = $a['service_date'];
+                break;
+            }
+        }
+    }
 }
 if ($action === 'list') {
     $statusWhere = '';
@@ -130,7 +141,7 @@ require __DIR__ . '/partials/layout-open.php';
         </div>
         <div>
           <label for="visit_date">Visit Date</label>
-          <input type="date" id="visit_date" name="visit_date" value="<?= e($editing['visit_date'] ?? date('Y-m-d')) ?>">
+          <input type="date" id="visit_date" name="visit_date" value="<?= e($editing['visit_date'] ?? ($prefillVisitDate ?? date('Y-m-d'))) ?>">
         </div>
       </div>
       <label for="address">Address</label>
@@ -138,8 +149,9 @@ require __DIR__ . '/partials/layout-open.php';
       <label for="attendance_id">Attended Service</label>
       <select id="attendance_id" name="attendance_id">
         <option value="0">— None / Not logged —</option>
+        <?php $selectedAttendanceId = (int) ($editing['attendance_id'] ?? ($prefillAttendanceId > 0 ? $prefillAttendanceId : 0)); ?>
         <?php foreach ($attendanceOptions as $a): ?>
-          <option value="<?= (int) $a['id'] ?>" <?= (int) ($editing['attendance_id'] ?? 0) === (int) $a['id'] ? 'selected' : '' ?>>
+          <option value="<?= (int) $a['id'] ?>" <?= $selectedAttendanceId === (int) $a['id'] ? 'selected' : '' ?>>
             <?= e(date('M j, Y', strtotime((string) $a['service_date']))) ?> · <?= e($a['service_name']) ?><?= $a['topic'] ? ' — ' . e((string) $a['topic']) : '' ?>
           </option>
         <?php endforeach; ?>
