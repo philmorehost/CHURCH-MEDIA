@@ -20,7 +20,7 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
     $name = trim($_POST['name'] ?? '');
     $whatsapp = trim($_POST['whatsapp_phone'] ?? '');
     $address = trim($_POST['address'] ?? '');
-    $gender = in_array($_POST['gender'] ?? '', ['male', 'female', 'other'], true) ? $_POST['gender'] : null;
+    $gender = in_array($_POST['gender'] ?? '', ['male', 'female'], true) ? $_POST['gender'] : null;
     $ageGroup = in_array($_POST['age_group'] ?? '', ['adult', 'children', 'youth'], true) ? $_POST['age_group'] : 'adult';
     $attendanceId = (int) ($_POST['attendance_id'] ?? 0);
     $visitDate = trim($_POST['visit_date'] ?? '') ?: null;
@@ -53,6 +53,31 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->prepare('DELETE FROM newcomers WHERE id = ?')->execute([$targetId]);
     flash('success', 'Newcomer removed.');
     redirect('/admin/newcomers');
+}
+
+// Quick follow-up status change straight from the list (no need to open edit).
+if ($action === 'update_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $targetId = (int) ($_POST['id'] ?? 0);
+    $newStatus = $_POST['follow_up_status'] ?? '';
+    if (!in_array($newStatus, ['new', 'contacted', 'followed_up', 'returned', 'inactive'], true)) {
+        flash('error', 'Invalid follow-up status.');
+        redirect('/admin/newcomers');
+    }
+    if (!Unit::recordInScope($pdo, 'newcomers', $targetId, $user)) {
+        flash('error', 'You can only manage newcomers for your own church.');
+        redirect('/admin/newcomers');
+    }
+    $pdo->prepare('UPDATE newcomers SET follow_up_status = ? WHERE id = ?')->execute([$newStatus, $targetId]);
+    $statusLabel = match ($newStatus) {
+        'contacted' => 'Contacted',
+        'followed_up' => 'Followed Up',
+        'returned' => 'Returned',
+        'inactive' => 'Inactive',
+        default => 'New',
+    };
+    flash('success', 'Follow-up status updated to ' . $statusLabel . '.');
+    redirect('/admin/newcomers' . ($statusFilter !== '' ? '?status=' . rawurlencode($statusFilter) : ''));
 }
 
 // CSV export of newcomers (scoped to the current church + status filter).
@@ -152,7 +177,6 @@ require __DIR__ . '/partials/layout-open.php';
             <option value="">— Select —</option>
             <option value="male" <?= ($editing['gender'] ?? '') === 'male' ? 'selected' : '' ?>>Male</option>
             <option value="female" <?= ($editing['gender'] ?? '') === 'female' ? 'selected' : '' ?>>Female</option>
-            <option value="other" <?= ($editing['gender'] ?? '') === 'other' ? 'selected' : '' ?>>Other</option>
           </select>
         </div>
       </div>
@@ -254,16 +278,17 @@ require __DIR__ . '/partials/layout-open.php';
           <?php if ($n['attended_on']): ?><br><small style="color:var(--ink-faint);"><?= e(date('M j', strtotime((string) $n['attended_on']))) ?> · <?= e((string) $n['attended_service']) ?></small><?php endif; ?>
         </td>
         <td>
-          <?php
-            $statusBadge = match ($n['follow_up_status'] ?? 'new') {
-              'contacted' => ['Contacted', 'info'],
-              'followed_up' => ['Followed Up', 'warn'],
-              'returned' => ['Returned', 'ok'],
-              'inactive' => ['Inactive', 'fail'],
-              default => ['New', 'warn'],
-            };
-          ?>
-          <span class="badge <?= $statusBadge[1] ?>"><?= $statusBadge[0] ?></span>
+          <form method="post" action="/admin/newcomers?action=update_status<?= $statusFilter !== '' ? '&status=' . rawurlencode($statusFilter) : '' ?>" class="status-form" title="Change follow-up status">
+            <?= Csrf::field() ?>
+            <input type="hidden" name="id" value="<?= (int) $n['id'] ?>">
+            <select name="follow_up_status" class="status-select status--<?= e($n['follow_up_status'] ?? 'new') ?>" onchange="this.form.submit()" aria-label="Follow-up status for <?= e($n['name']) ?>">
+              <option value="new" <?= ($n['follow_up_status'] ?? 'new') === 'new' ? 'selected' : '' ?>>New</option>
+              <option value="contacted" <?= ($n['follow_up_status'] ?? '') === 'contacted' ? 'selected' : '' ?>>Contacted</option>
+              <option value="followed_up" <?= ($n['follow_up_status'] ?? '') === 'followed_up' ? 'selected' : '' ?>>Followed Up</option>
+              <option value="returned" <?= ($n['follow_up_status'] ?? '') === 'returned' ? 'selected' : '' ?>>Returned</option>
+              <option value="inactive" <?= ($n['follow_up_status'] ?? '') === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+            </select>
+          </form>
         </td>
         <td class="actions">
           <a class="btn sm secondary" href="/admin/newcomers?action=edit&id=<?= (int) $n['id'] ?>">Edit</a>

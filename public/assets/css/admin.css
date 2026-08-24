@@ -185,6 +185,27 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--gold);}
 .trend-bar--newcomer{
   background:linear-gradient(180deg,#6fb3ff,#3d7eff);
 }
+
+/* Inline newcomer follow-up status dropdown */
+.status-form{ display:inline-block; margin:0; }
+.status-select{
+  padding:6px 8px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:#ffffff08;
+  color:var(--ink-dim);
+  font-size:12px;
+  font-weight:600;
+  cursor:pointer;
+}
+.status-select option{ background:#161428; color:var(--ink); }
+.status--new{ color:var(--gold-soft); }
+.status--contacted{ color:var(--info); }
+.status--followed_up{ color:var(--gold-soft); }
+.status--returned{ color:var(--success); }
+.status--inactive{ color:var(--danger); }
+.status-select:hover{ border-color:var(--gold); }
+.status-select:focus-visible{ outline:2px solid var(--gold); outline-offset:1px; }
 .trend-label{
   font-size:10px;
   color:var(--ink-faint);
