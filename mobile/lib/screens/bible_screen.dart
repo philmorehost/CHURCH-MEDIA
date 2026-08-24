@@ -48,6 +48,11 @@ class _BibleScreenState extends State<BibleScreen> {
   double _fontSize = 18;
   OfflineVerseOfDay _verseOfDay = const OfflineVerseOfDay(text: '', reference: '');
 
+  /// Scroll target for “search a verse → show the whole chapter, scrolled to it”.
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _verseAnchorKey = GlobalKey();
+  int _targetVerse = 0;
+
   @override
   void initState() {
     super.initState();
@@ -88,6 +93,7 @@ class _BibleScreenState extends State<BibleScreen> {
   void dispose() {
     _verseController.dispose();
     _chapterController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -130,11 +136,11 @@ class _BibleScreenState extends State<BibleScreen> {
       if (mounted) setState(() { _isLoading = false; _errorMessage = 'Chapter not found.'; });
       return;
     }
+    // Always show the whole chapter; if a specific verse was requested, keep
+    // that verse as the scroll target so it is highlighted in view (KJV-app style).
     final start = vText.isNotEmpty ? (int.tryParse(vText) ?? 1) : 1;
-    final shown = vText.isNotEmpty
-        ? (start <= verses.length ? [verses[start - 1]] : <String>[])
-        : verses;
-    final passage = [for (var i = 0; i < shown.length; i++) (verse: start + i, text: shown[i])];
+    final passage = [for (var i = 0; i < verses.length; i++) (verse: i + 1, text: verses[i])];
+    final target = vText.isNotEmpty ? start : 0;
 
     final highlights = await BibleLocalStore.instance.highlightsForChapter(_selectedBook, _selectedChapter);
     final notes = await BibleLocalStore.instance.notesForChapter(_selectedBook, _selectedChapter);
@@ -149,17 +155,20 @@ class _BibleScreenState extends State<BibleScreen> {
       _translation = OfflineBibleService.versions[key] ?? _selectedVersion;
       _isLoading = false;
       _showSearch = false;
+      _targetVerse = target;
     });
     await BibleLocalStore.instance.savePosition(_selectedVersion, _selectedBook, _selectedChapter, start);
+    _scrollToVerse();
   }
 
   Future<void> _readOnline(String vText) async {
+    // Fetch the full chapter (no verse filter) so every verse is shown, then
+    // scroll down to the requested verse.
     final response = await _api.fetchBible(
       book: _selectedBook,
       chapter: _selectedChapter,
       version: _selectedVersion,
       lang: _selectedLang,
-      verse: vText.isEmpty ? null : vText,
     );
     if (response['error'] != null) {
       if (mounted) setState(() { _isLoading = false; _errorMessage = response['error'] as String; });
@@ -169,6 +178,8 @@ class _BibleScreenState extends State<BibleScreen> {
     final passage = <({int verse, String text})>[
       for (final v in verses) (verse: int.tryParse('${v['verse']}') ?? 1, text: '${v['text']}'),
     ];
+    final start = vText.isNotEmpty ? (int.tryParse(vText) ?? 1) : 1;
+    final target = vText.isNotEmpty ? start : 0;
     final highlights = await BibleLocalStore.instance.highlightsForChapter(_selectedBook, _selectedChapter);
     final notes = await BibleLocalStore.instance.notesForChapter(_selectedBook, _selectedChapter);
     final bookmarked = await BibleLocalStore.instance.bookmarkedVerses(_selectedBook, _selectedChapter);
@@ -178,13 +189,42 @@ class _BibleScreenState extends State<BibleScreen> {
       _highlights = highlights;
       _notes = notes;
       _bookmarked = bookmarked;
-      _reference = response['reference'] as String? ?? '$_selectedBook $_selectedChapter';
+      _reference = '$_selectedBook $_selectedChapter${vText.isNotEmpty ? ':$start' : ''}';
       _translation = response['translation'] as String? ?? '';
       _isLoading = false;
       _showSearch = false;
+      _targetVerse = target;
     });
-    final start = vText.isNotEmpty ? (int.tryParse(vText) ?? 1) : 1;
     await BibleLocalStore.instance.savePosition(_selectedVersion, _selectedBook, _selectedChapter, start);
+    _scrollToVerse();
+  }
+
+  /// Scrolls the chapter so `_targetVerse` is in view. When no verse was
+  /// requested (whole chapter read), jumps back to the top.
+  void _scrollToVerse() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final target = _targetVerse;
+      if (target <= 0) {
+        _scrollController.jumpTo(0);
+        return;
+      }
+      final total = _passage.length;
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      // 1) Jump near the verse (proportional estimate) so its tile gets built…
+      if (total > 0 && maxExtent > 0) {
+        final approx = (target - 1) / total * maxExtent;
+        _scrollController.jumpTo(approx.clamp(0.0, maxExtent));
+      }
+      // 2) …then scroll exactly to it once the anchor tile exists.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final ctx = _verseAnchorKey.currentContext;
+        if (ctx != null) {
+          Scrollable.ensureVisible(ctx, alignment: 0.2, duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
+        }
+      });
+    });
   }
 
   Future<void> _refreshChapterMeta() async {
@@ -543,6 +583,7 @@ class _BibleScreenState extends State<BibleScreen> {
     }
     if (_passage.isEmpty) return _emptyState(theme);
     return ListView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       itemCount: _passage.length + 1,
       itemBuilder: (context, index) {
@@ -561,17 +602,27 @@ class _BibleScreenState extends State<BibleScreen> {
           );
         }
         final p = _passage[index - 1];
-        return _verseTile(theme, p.verse, p.text);
+        final tile = _verseTile(theme, p.verse, p.text);
+        // Anchor the searched verse so the chapter can scroll straight to it.
+        if (p.verse == _targetVerse && _targetVerse > 0) {
+          return KeyedSubtree(key: _verseAnchorKey, child: tile);
+        }
+        return tile;
       },
     );
   }
 
   Widget _verseTile(ThemeData theme, int verse, String text) {
     final color = _highlights[verse];
+    final isTarget = _targetVerse > 0 && verse == _targetVerse;
     return GestureDetector(
       onLongPress: () => _showVerseActions(verse, text),
       child: Container(
-        color: color != null ? (_highlightColors[color] ?? Colors.yellow).withValues(alpha: 0.35) : null,
+        // A short-lived-ish golden tint draws the eye to the verse that was
+        // searched for (overrides only when no manual highlight is set).
+        color: isTarget && color == null
+            ? const Color(0x33E8B95F)
+            : (color != null ? (_highlightColors[color] ?? Colors.yellow).withValues(alpha: 0.35) : null),
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
