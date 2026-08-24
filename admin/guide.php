@@ -37,6 +37,8 @@ require __DIR__ . '/partials/layout-open.php';
     <a href="#newsletter">Newsletter</a>
     <a href="#forms">Forms</a>
     <a href="#notifications">Notifications</a>
+    <a href="#attendance">Attendance</a>
+    <a href="#newcomers">Newcomers</a>
     <a href="#pages">Pages</a>
     <a href="#units">Units</a>
     <a href="#security">Security</a>
@@ -63,16 +65,19 @@ require __DIR__ . '/partials/layout-open.php';
 
   <div class="card" style="margin-bottom:18px;">
     <h2 id="dashboard">Dashboard (<code>/admin</code>)</h2>
-    <p>Your landing page. It shows your church's key numbers (media posts, upcoming events, sermons, new prayer requests, subscribers) and your latest posts. It also shows <strong>📍 My Unit</strong> so you always know which church you're managing, plus any <strong>🔔 Notifications</strong> sent to your church.</p>
+    <p>Your landing page. It shows your church's key numbers (media posts, upcoming events, sermons, new prayer requests, newsletter subscribers, blocked IPs) and your latest posts. It also shows <strong>📍 My Unit</strong> so you always know which church you're managing, plus any <strong>🔔 Notifications</strong> sent to your church.</p>
+    <p>With the growth tools enabled you'll also see a <strong>Newcomers (7 days)</strong> stat and a <strong>Recent Newcomers</strong> card with tap-to-chat WhatsApp links and follow-up status badges — so the follow-up queue is visible the moment you log in.</p>
   </div>
 
   <div class="card" style="margin-bottom:18px;">
     <h2 id="media">Media &amp; Reels (<code>/admin/media</code>)</h2>
     <p>The heart of the app — full-screen vertical reels. You can:</p>
     <ul>
-      <li><strong>Create a post</strong> from uploaded photos/videos or a YouTube link (Shorts supported). Videos play instantly and are automatically cropped to 9:16 in the background.</li>
+      <li><strong>Create a post</strong> by uploading photos/videos. Videos play instantly and are automatically cropped to 9:16 in the background.</li>
       <li><strong>Add categories</strong> (Worship, Sermon Clip, etc.) so visitors can filter the feed.</li>
       <li><strong>Edit any item on a post</strong>: replace an image or video, set a new video cover, reorder items (↑/↓), delete a single item, or add new media to an existing post. Changes appear in the feed immediately.</li>
+      <li><strong>Replace a YouTube item with an upload</strong> — older YouTube posts show as a tappable thumbnail that opens YouTube externally, and you can swap them for a directly-played MP4 so reels always swipe smoothly.</li>
+      <li><strong>Bulk select &amp; delete</strong> — tick the checkbox on multiple posts (or use “Select all” in the header), then delete them all at once. Out-of-scope posts are skipped automatically.</li>
       <li><strong>Reprocess videos</strong> if a conversion is ever stuck (the cron note at the bottom of Settings covers the safety net).</li>
     </ul>
   </div>
@@ -126,6 +131,32 @@ require __DIR__ . '/partials/layout-open.php';
   </div>
 
   <div class="card" style="margin-bottom:18px;">
+    <h2 id="attendance">Attendance (<code>/admin/attendance</code>) <span class="pill role">ADMIN/EDITOR</span></h2>
+    <p>Track your church's growth service by service. Record the <strong>date</strong>, <strong>service</strong> (Sunday Worship, Midweek, Youth, etc.), <strong>topic</strong>, <strong>bible text</strong>, and the number of <strong>adults / children / youth</strong> who attended, plus optional notes.</p>
+    <ul>
+      <li><strong>Growth cards</strong> at the top summarise services logged, total attendance, and the adult/child/youth split.</li>
+      <li><strong>Growth Trend chart</strong> shows total attendance per period — toggle <strong>Weekly</strong> (last 12 weeks) or <strong>Monthly</strong> (last 12 months).</li>
+      <li><strong>Attendance vs. Newcomers</strong> chart pairs monthly attendance with newcomers added, so you can see whether growth in the service is translating into the follow-up funnel.</li>
+      <li><strong>⬇ Export CSV</strong> downloads every record in your scope.</li>
+      <li>Each row has a <strong>+ Newcomer</strong> shortcut that jumps to the Newcomers form with that service pre-selected.</li>
+    </ul>
+    <p>Attendance is private — only logged-in admins/editors of your church can see it; it is never shown on the public site.</p>
+  </div>
+
+  <div class="card" style="margin-bottom:18px;">
+    <h2 id="newcomers">Newcomers (<code>/admin/newcomers</code>) <span class="pill role">ADMIN/EDITOR</span></h2>
+    <p>Capture first-time guests so you can follow them up. Enter their <strong>name</strong>, <strong>WhatsApp phone number</strong>, <strong>address</strong>, <strong>gender</strong> (Male/Female), and <strong>age group</strong> (Adult / Children / Youth), optionally link them to the <strong>attended service</strong>, and set their <strong>follow-up status</strong>.</p>
+    <ul>
+      <li><strong>Status workflow:</strong> New → Contacted → Followed Up → Returned → Inactive. Change it <strong>instantly from the list</strong> with the inline colour-coded dropdown — no need to open Edit.</li>
+      <li><strong>WhatsApp tap-to-chat</strong> — every phone number is a <code>wa.me</code> link, so one tap opens the chat to follow up.</li>
+      <li><strong>Status filter buttons</strong> at the top show live counts and let you focus on, say, everyone still “New”.</li>
+      <li><strong>⬇ Export CSV</strong> exports the current filtered list (or everyone).</li>
+      <li>Add newcomers straight from an attendance row via the <strong>+ Newcomer</strong> shortcut.</li>
+    </ul>
+    <p>Newcomers are private too — only your church's admins/editors can see them.</p>
+  </div>
+
+  <div class="card" style="margin-bottom:18px;">
     <h2 id="pages">Pages (<code>/admin/pages</code>) <span class="pill super">SUPER</span></h2>
     <p>Manage the site's content pages (About, Privacy Policy, and any new pages) with a visual section builder (hero, text, columns, image, quote, CTA). This is organisation-wide, so only the super admin can edit pages.</p>
   </div>
@@ -142,7 +173,9 @@ require __DIR__ . '/partials/layout-open.php';
 
   <div class="card" style="margin-bottom:18px;">
     <h2 id="settings">Settings (<code>/admin/settings</code>) <span class="pill super">SUPER</span></h2>
-    <p>Site-wide configuration — name, tagline, hero content, contact details, social links, live stream link, giving URL, footer &amp; SEO, Bible source, and <strong>Email (SMTP)</strong> settings used for all outgoing mail (newsletters, notifications, security alerts). Super-admin only.</p>
+    <p>Site-wide configuration — name, tagline, hero content, contact details, social links, live stream link, giving URL, footer &amp; SEO, Bible source, and <strong>Email (SMTP)</strong> settings used for all outgoing mail (newsletters, notifications, security alerts).</p>
+    <p>It also includes the <strong>Mobile App Download Button</strong> — enable it, paste your Google Play link, and choose whether it shows on <code>all</code> pages or only selected ones (e.g. <code>/, /feed, /events</code>). A floating “Get it on Google Play” button then appears on the left edge of the public site.</p>
+    <p>The <strong>Video Conversion (Cron Job)</strong> card explains how to keep the 9:16 video conversion running automatically on your server. Super-admin only.</p>
   </div>
 
   <div class="card" style="margin-bottom:18px;">
