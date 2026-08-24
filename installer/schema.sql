@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS `settings` (
   `livestream_embed_url` VARCHAR(500) NULL,
   `livestream_is_live` TINYINT(1) NOT NULL DEFAULT 0,
   `giving_url` VARCHAR(500) NULL,
+  `app_download_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+  `app_download_url` VARCHAR(500) NULL,
+  `app_download_pages` TEXT NULL COMMENT "'all' or comma-separated page paths",
   `footer_about_text` TEXT NULL,
   `meta_description` VARCHAR(255) NULL,
   `bible_source` VARCHAR(20) NOT NULL DEFAULT 'keyless' COMMENT 'keyless or api_bible',
@@ -400,4 +403,43 @@ CREATE TABLE IF NOT EXISTS `device_tokens` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY `uniq_device_token` (`token`(255)),
   FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Church growth tracking: per-service attendance + newcomer follow-up.
+CREATE TABLE IF NOT EXISTS `attendance_records` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `org_unit_id` INT NULL,
+  `service_date` DATE NOT NULL,
+  `service_name` VARCHAR(120) NOT NULL,
+  `topic` VARCHAR(255) NULL,
+  `bible_text` VARCHAR(255) NULL,
+  `adult_count` INT NOT NULL DEFAULT 0,
+  `children_count` INT NOT NULL DEFAULT 0,
+  `youth_count` INT NOT NULL DEFAULT 0,
+  `notes` TEXT NULL,
+  `created_by` INT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_attendance_unit_date` (`org_unit_id`, `service_date`),
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `newcomers` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `org_unit_id` INT NULL,
+  `name` VARCHAR(150) NOT NULL,
+  `whatsapp_phone` VARCHAR(40) NULL,
+  `address` VARCHAR(255) NULL,
+  `gender` ENUM('male','female','other') NULL,
+  `age_group` ENUM('adult','children','youth') NOT NULL DEFAULT 'adult',
+  `attendance_id` INT NULL,
+  `visit_date` DATE NULL,
+  `follow_up_status` ENUM('new','contacted','followed_up','returned','inactive') NOT NULL DEFAULT 'new',
+  `notes` TEXT NULL,
+  `created_by` INT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_newcomer_unit_status` (`org_unit_id`, `follow_up_status`),
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`attendance_id`) REFERENCES `attendance_records`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -35,6 +35,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'livestream_embed_url' => trim($_POST['livestream_embed_url'] ?? ''),
         'livestream_is_live' => isset($_POST['livestream_is_live']) ? 1 : 0,
         'giving_url' => trim($_POST['giving_url'] ?? ''),
+        'app_download_enabled' => isset($_POST['app_download_enabled']) ? 1 : 0,
+        'app_download_url' => trim($_POST['app_download_url'] ?? ''),
+        'app_download_pages' => trim($_POST['app_download_pages'] ?? ''),
         'footer_about_text' => trim($_POST['footer_about_text'] ?? ''),
         'meta_description' => trim($_POST['meta_description'] ?? ''),
         'bible_source' => trim($_POST['bible_source'] ?? 'keyless'),
@@ -223,6 +226,20 @@ require __DIR__ . '/partials/layout-open.php';
     </div>
     <label for="giving_url">Giving / Donation URL</label>
     <input type="url" id="giving_url" name="giving_url" value="<?= e((string) $row['giving_url']) ?>" placeholder="https://giving-platform.com/your-church">
+  </div>
+
+  <div class="card">
+    <h2>Mobile App Download Button</h2>
+    <p class="sub">Shows a floating "Get it on Google Play" button on the left edge of the website so visitors can download your app. Paste the Google Play listing link for the app below.</p>
+    <div class="checkbox-row">
+      <input type="checkbox" id="app_download_enabled" name="app_download_enabled" <?= !empty($row['app_download_enabled']) ? 'checked' : '' ?>>
+      <label for="app_download_enabled" style="margin:0;">Enable the app download button on the website</label>
+    </div>
+    <label for="app_download_url">Google Play App Link</label>
+    <input type="url" id="app_download_url" name="app_download_url" value="<?= e((string) ($row['app_download_url'] ?? '')) ?>" placeholder="https://play.google.com/store/apps/details?id=com.churchmedia.app">
+    <label for="app_download_pages">Show on pages</label>
+    <input type="text" id="app_download_pages" name="app_download_pages" value="<?= e((string) ($row['app_download_pages'] ?? '')) ?>" placeholder="all">
+    <p class="hint" style="margin-top:6px;">Type <code>all</code> to show it on every page, or a comma-separated list of page paths, e.g. <code>/, /feed, /media, /events, /sermons</code>.</p>
   </div>
 
   <div class="card">
