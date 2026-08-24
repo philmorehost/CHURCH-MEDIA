@@ -129,13 +129,14 @@ if ($appDownloadEnabled) {
 <?php endif; ?>
 
 <?php
-// "Admin & App only" redirect: optional (off/interstitial/force), Android phone
-// only. Search engines and desktop/iOS visitors are never redirected.
+// "Admin & App only" mode: optional (off/banner/interstitial/force), Android
+// phone only. Search engines and desktop/iOS visitors are never redirected.
 $appRedirectMode = trim((string) ($s['app_redirect_mode'] ?? 'off'));
 $appRedirectUrl = trim((string) ($s['app_download_url'] ?? ''));
-$appRedirectOn = in_array($appRedirectMode, ['interstitial', 'force'], true) && $appRedirectUrl !== '';
+$appRedirectOn = in_array($appRedirectMode, ['banner', 'interstitial', 'force'], true) && $appRedirectUrl !== '';
 $currentPathForRedirect = rtrim((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/') ?: '/';
 $isAppPage = $currentPathForRedirect === '/app';
+$appRedirectInterstitialOrForce = in_array($appRedirectMode, ['interstitial', 'force'], true);
 ?>
 <?php if ($appRedirectOn && !$isAppPage): ?>
 <script>
@@ -146,6 +147,8 @@ $isAppPage = $currentPathForRedirect === '/app';
   if (!isAndroidPhone) { return; }
   var mode = <?= json_encode($appRedirectMode) ?>;
   var url = <?= json_encode($appRedirectUrl) ?>;
+
+  <?php if ($appRedirectInterstitialOrForce): ?>
   try {
     // Interstitial: remember the visitor's "Continue to website" choice.
     if (mode === 'interstitial' && localStorage.getItem('cm_skip_app') === '1') { return; }
@@ -155,6 +158,39 @@ $isAppPage = $currentPathForRedirect === '/app';
   } else {
     location.replace('/app');
   }
+  <?php else: ?>
+  // Banner mode: show a small dismissible strip instead of redirecting.
+  try {
+    if (localStorage.getItem('cm_dismiss_app_banner') === '1') { return; }
+  } catch (e) { /* storage unavailable — still show */ }
+  var bar = document.getElementById('appBanner');
+  if (bar) { bar.hidden = false; }
+  <?php endif; ?>
+})();
+</script>
+<?php endif; ?>
+
+<?php if ($appRedirectMode === 'banner' && !$isAppPage && $appRedirectUrl !== ''): ?>
+<div class="app-banner" id="appBanner" hidden>
+  <div class="app-banner__inner">
+    <span class="app-banner__mark"><?= e(mb_substr((string) $s['site_title'], 0, 1)) ?></span>
+    <div class="app-banner__text">
+      <strong>Get the <?= e((string) $s['site_title']) ?> app</strong>
+      <small>Reels, notifications &amp; the offline Bible</small>
+    </div>
+    <a class="app-banner__cta" href="<?= e($appRedirectUrl) ?>" target="_blank" rel="noopener">Get it on Google Play</a>
+    <button type="button" class="app-banner__close" id="appBannerClose" aria-label="Dismiss app banner">✕</button>
+  </div>
+</div>
+<script>
+(function () {
+  var bar = document.getElementById('appBanner');
+  var close = document.getElementById('appBannerClose');
+  if (!bar || !close) { return; }
+  close.addEventListener('click', function () {
+    try { localStorage.setItem('cm_dismiss_app_banner', '1'); } catch (e) { /* ignore */ }
+    bar.hidden = true;
+  });
 })();
 </script>
 <?php endif; ?>

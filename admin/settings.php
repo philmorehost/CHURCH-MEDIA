@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'app_download_enabled' => isset($_POST['app_download_enabled']) ? 1 : 0,
         'app_download_url' => trim($_POST['app_download_url'] ?? ''),
         'app_download_pages' => trim($_POST['app_download_pages'] ?? ''),
-        'app_redirect_mode' => in_array($_POST['app_redirect_mode'] ?? 'off', ['off', 'interstitial', 'force'], true) ? $_POST['app_redirect_mode'] : 'off',
+        'app_redirect_mode' => in_array($_POST['app_redirect_mode'] ?? 'off', ['off', 'banner', 'interstitial', 'force'], true) ? $_POST['app_redirect_mode'] : 'off',
         'footer_about_text' => trim($_POST['footer_about_text'] ?? ''),
         'meta_description' => trim($_POST['meta_description'] ?? ''),
         'bible_source' => trim($_POST['bible_source'] ?? 'keyless'),
@@ -248,6 +248,7 @@ require __DIR__ . '/partials/layout-open.php';
     <label for="app_redirect_mode">Redirect Android mobile visitors</label>
     <select id="app_redirect_mode" name="app_redirect_mode">
       <option value="off" <?= ($row['app_redirect_mode'] ?? 'off') === 'off' ? 'selected' : '' ?>>Off — keep the website as-is</option>
+      <option value="banner" <?= ($row['app_redirect_mode'] ?? '') === 'banner' ? 'selected' : '' ?>>Show a small dismissible banner (light touch)</option>
       <option value="interstitial" <?= ($row['app_redirect_mode'] ?? '') === 'interstitial' ? 'selected' : '' ?>>Show a “Get the App” landing page (recommended)</option>
       <option value="force" <?= ($row['app_redirect_mode'] ?? '') === 'force' ? 'selected' : '' ?>>Force — send straight to the Play link</option>
     </select>

@@ -362,3 +362,80 @@ p{margin:0 0 1em;}
   .app-download-fab__text strong{ font-size:11px; }
   .app-download-fab__close{ width:20px; height:20px; font-size:12px; }
 }
+
+/* Dismissible "Get the App" banner (light-touch Admin & App Only mode) */
+.app-banner{
+  position:fixed;
+  left:12px;
+  right:12px;
+  bottom:12px;
+  z-index:2100;
+  background:linear-gradient(135deg,#161428,#1d1836);
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:0 14px 40px rgba(0,0,0,.5);
+  padding:12px;
+}
+.app-banner__inner{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.app-banner__mark{
+  flex:0 0 auto;
+  width:42px;
+  height:42px;
+  border-radius:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:20px;
+  font-weight:800;
+  color:var(--bg-0);
+  background:linear-gradient(135deg,var(--gold-soft),var(--gold));
+}
+.app-banner__text{
+  flex:1 1 auto;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  line-height:1.25;
+}
+.app-banner__text strong{
+  font-size:13.5px;
+  color:var(--ink);
+}
+.app-banner__text small{
+  font-size:11px;
+  color:var(--ink-faint);
+}
+.app-banner__cta{
+  flex:0 0 auto;
+  background:#fff;
+  color:#111;
+  font-size:12px;
+  font-weight:700;
+  padding:9px 14px;
+  border-radius:10px;
+  text-decoration:none;
+  white-space:nowrap;
+}
+.app-banner__close{
+  flex:0 0 auto;
+  width:26px;
+  height:26px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border:none;
+  background:transparent;
+  color:var(--ink-faint);
+  font-size:14px;
+  cursor:pointer;
+  border-radius:50%;
+}
+.app-banner__close:hover{ color:var(--ink); background:#ffffff14; }
+@media (max-width:480px){
+  .app-banner__text small{ display:none; }
+  .app-banner__cta{ font-size:11px; padding:9px 11px; }
+}
