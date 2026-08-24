@@ -35,6 +35,12 @@ class _BibleScreenState extends State<BibleScreen> {
   String _selectedLang = 'en';
   String _selectedBook = 'Genesis';
   int _selectedChapter = 1;
+  int _selectedVerse = 0; // 0 = whole chapter
+
+  /// Available options for the Chapter / Verse dropdowns, derived from the
+  /// bundled Bible structure (identical across translations).
+  List<int> _chapterOptions = [1];
+  List<int> _verseOptions = <int>[];
 
   List<String> _books = [];
   List<({int verse, String text})> _passage = [];
@@ -77,6 +83,7 @@ class _BibleScreenState extends State<BibleScreen> {
       if (_books.isNotEmpty) _selectedBook = _books.first;
     });
     await _restorePosition();
+    await _loadStructure();
     if (mounted) await _read();
   }
 
@@ -88,9 +95,10 @@ class _BibleScreenState extends State<BibleScreen> {
     setState(() {
       _selectedBook = _books[idx];
       _selectedChapter = pos.chapter;
+      _selectedVerse = pos.verse > 0 ? pos.verse : 0;
       _chapterController.text = '${pos.chapter}';
+      _verseController.text = pos.verse > 0 ? '${pos.verse}' : '';
     });
-    if (pos.verse > 0) _verseController.text = '${pos.verse}';
   }
 
   @override
@@ -105,7 +113,7 @@ class _BibleScreenState extends State<BibleScreen> {
   bool get _offline => OfflineBibleService.isOffline(_selectedVersion);
 
   Future<void> _read() async {
-    final vText = _verseController.text.trim();
+    final vText = _selectedVerse > 0 ? '$_selectedVerse' : '';
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -265,16 +273,78 @@ class _BibleScreenState extends State<BibleScreen> {
       _selectedVersion = v;
       _selectedLang = 'en';
     });
+    _loadStructure();
     _read();
+  }
+
+  /// Rebuilds the Chapter / Verse dropdown options for the selected book and
+  /// chapter, using the bundled Bible structure (identical across versions).
+  Future<void> _loadStructure() async {
+    try {
+      final books = await OfflineBibleService.instance.books('kjv');
+      final idx = books.indexWhere((b) => b.name.toLowerCase() == _selectedBook.toLowerCase());
+      if (idx < 0) {
+        if (mounted) setState(() { _chapterOptions = [1]; _verseOptions = <int>[]; });
+        return;
+      }
+      final book = books[idx];
+      final chapterCount = book.chapterCount;
+      final chapters = [for (var c = 1; c <= chapterCount; c++) c];
+      // Clamp the current chapter into range and load its verses.
+      var chapter = _selectedChapter;
+      if (chapter < 1 || chapter > chapterCount) chapter = 1;
+      var verses = <int>[];
+      if (chapter >= 1 && chapter <= book.chapters.length) {
+        final count = book.chapters[chapter - 1].length;
+        verses = [for (var v = 1; v <= count; v++) v];
+      }
+      if (mounted) {
+        setState(() {
+          _chapterOptions = chapters;
+          _verseOptions = verses;
+          _selectedChapter = chapter;
+          _chapterController.text = '$chapter';
+          if (_selectedVerse > verses.length) _selectedVerse = 0;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() { _chapterOptions = [1]; _verseOptions = <int>[]; });
+    }
+  }
+
+  /// Refreshes only the Verse options when the chapter changes.
+  Future<void> _loadVersesForChapter() async {
+    try {
+      final books = await OfflineBibleService.instance.books('kjv');
+      final idx = books.indexWhere((b) => b.name.toLowerCase() == _selectedBook.toLowerCase());
+      if (idx < 0) return;
+      final book = books[idx];
+      var verses = <int>[];
+      if (_selectedChapter >= 1 && _selectedChapter <= book.chapters.length) {
+        final count = book.chapters[_selectedChapter - 1].length;
+        verses = [for (var v = 1; v <= count; v++) v];
+      }
+      if (mounted) {
+        setState(() {
+          _verseOptions = verses;
+          if (_selectedVerse > verses.length) _selectedVerse = 0;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _verseOptions = <int>[]);
+    }
   }
 
   void _navChapter(int delta) {
     final next = _selectedChapter + delta;
-    if (next < 1) return;
+    if (next < 1 || next > _chapterOptions.length) return;
     setState(() {
       _selectedChapter = next;
       _chapterController.text = '$next';
+      _selectedVerse = 0;
+      _verseController.text = '';
     });
+    _loadVersesForChapter();
     _read();
   }
 
@@ -288,10 +358,12 @@ class _BibleScreenState extends State<BibleScreen> {
       setState(() {
         _selectedBook = result.book;
         _selectedChapter = result.chapter;
+        _selectedVerse = result.verse;
         _chapterController.text = '${result.chapter}';
-        _verseController.text = '${result.verse}';
+        _verseController.text = result.verse > 0 ? '${result.verse}' : '';
         _showSearch = true;
       });
+      await _loadStructure();
       await _read();
     }
   }
@@ -546,31 +618,64 @@ class _BibleScreenState extends State<BibleScreen> {
             ],
           ]),
           const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: _selectedBook,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Book', isDense: true),
+            items: _books.map((b) => DropdownMenuItem(value: b, child: Text(b, overflow: TextOverflow.ellipsis))).toList(),
+            onChanged: (val) {
+              if (val != null && val != _selectedBook) {
+                setState(() {
+                  _selectedBook = val;
+                  _selectedChapter = 1;
+                  _selectedVerse = 0;
+                  _chapterController.text = '1';
+                  _verseController.text = '';
+                });
+                _loadStructure();
+              }
+            },
+          ),
+          const SizedBox(height: 12),
           Row(children: [
             Expanded(
-              flex: 2,
-              child: DropdownButtonFormField<String>(
-                value: _selectedBook,
-                decoration: const InputDecoration(labelText: 'Book', isDense: true),
-                items: _books.map((b) => DropdownMenuItem(value: b, child: Text(b, overflow: TextOverflow.ellipsis))).toList(),
-                onChanged: (val) { if (val != null) setState(() => _selectedBook = val); },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextFormField(
-                controller: _chapterController,
+              child: DropdownButtonFormField<int>(
+                value: _selectedChapter,
                 decoration: const InputDecoration(labelText: 'Chapter', isDense: true),
-                keyboardType: TextInputType.number,
-                onChanged: (val) => setState(() => _selectedChapter = int.tryParse(val) ?? 1),
+                items: _chapterOptions
+                    .map((c) => DropdownMenuItem(value: c, child: Text('$c')))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null && val != _selectedChapter) {
+                    setState(() {
+                      _selectedChapter = val;
+                      _selectedVerse = 0;
+                      _chapterController.text = '$val';
+                      _verseController.text = '';
+                    });
+                    _loadVersesForChapter();
+                  }
+                },
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: TextFormField(
-                controller: _verseController,
-                decoration: const InputDecoration(labelText: 'Verse (optional)', hintText: 'All', isDense: true),
-                keyboardType: TextInputType.number,
+              child: DropdownButtonFormField<int>(
+                value: _selectedVerse,
+                decoration: const InputDecoration(labelText: 'Verse', isDense: true),
+                hint: const Text('All'),
+                items: [
+                  const DropdownMenuItem(value: 0, child: Text('All')),
+                  for (final v in _verseOptions) DropdownMenuItem(value: v, child: Text('$v')),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      _selectedVerse = val;
+                      _verseController.text = val > 0 ? '$val' : '';
+                    });
+                  }
+                },
               ),
             ),
           ]),
@@ -580,7 +685,7 @@ class _BibleScreenState extends State<BibleScreen> {
             child: FilledButton.icon(icon: const Icon(Icons.menu_book), label: const Text('Read'), onPressed: _read),
           ),
           const SizedBox(height: 4),
-          const Text('Leave Verse empty to read the whole chapter from verse 1.', style: TextStyle(fontSize: 11, color: AppColors.inkFaint)),
+          const Text('Pick “All” in Verse to read the whole chapter from verse 1.', style: TextStyle(fontSize: 11, color: AppColors.inkFaint)),
         ]),
       ),
     );
