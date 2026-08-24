@@ -50,6 +50,17 @@ function removeMediaFiles(?string $filePath, ?string $thumbPath): void
     }
 }
 
+/** Deletes a post's media files (disk) then the post row itself. */
+function deletePostAndFiles(PDO $pdo, int $postId): void
+{
+    $itemStmt = $pdo->prepare('SELECT type, file_path, thumbnail_path FROM media_post_items WHERE media_post_id = ?');
+    $itemStmt->execute([$postId]);
+    foreach ($itemStmt->fetchAll() as $item) {
+        removeMediaFiles($item['file_path'], $item['thumbnail_path']);
+    }
+    $pdo->prepare('DELETE FROM media_posts WHERE id = ?')->execute([$postId]);
+}
+
 $categories = $pdo->query('SELECT * FROM media_categories ORDER BY name ASC')->fetchAll();
 
 $allowedImageMime = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'];
@@ -328,19 +339,30 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('error', 'You can only manage media in your own parish/zone.');
         redirect('/admin/media');
     }
-    $itemStmt = $pdo->prepare('SELECT type, file_path, thumbnail_path FROM media_post_items WHERE media_post_id = ?');
-    $itemStmt->execute([$id]);
-    foreach ($itemStmt->fetchAll() as $item) {
-        if (str_starts_with((string) $item['file_path'], 'http')) {
+    deletePostAndFiles($pdo, $id);
+    flash('success', 'Post deleted.');
+    redirect('/admin/media');
+}
+
+/** Bulk delete multiple posts at once (from the list checkboxes). */
+if ($action === 'bulk_delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $ids = array_values(array_unique(array_map('intval', explode(',', (string) ($_POST['ids'] ?? '')))));
+    $ids = array_values(array_filter($ids, fn (int $i): bool => $i > 0));
+    if (!$ids) {
+        flash('error', 'No posts were selected.');
+        redirect('/admin/media');
+    }
+    $deleted = 0;
+    foreach ($ids as $postId) {
+        // Respect the strict per-church scope: skip anything not owned by this user.
+        if (!empty($scopeIds) && !mediaInScope($scopeIds, mediaPostOrgUnit($pdo, $postId))) {
             continue;
         }
-        @unlink(UPLOADS_PATH . '/' . $item['file_path']);
-        if ($item['thumbnail_path'] && !str_starts_with((string) $item['thumbnail_path'], 'http')) {
-            @unlink(UPLOADS_PATH . '/' . $item['thumbnail_path']);
-        }
+        deletePostAndFiles($pdo, $postId);
+        $deleted++;
     }
-    $pdo->prepare('DELETE FROM media_posts WHERE id = ?')->execute([$id]);
-    flash('success', 'Post deleted.');
+    flash('success', $deleted > 0 ? "$deleted post(s) deleted." : 'Nothing was deleted (out of scope).');
     redirect('/admin/media');
 }
 
@@ -784,10 +806,20 @@ require __DIR__ . '/partials/layout-open.php';
     <?php if (!$posts): ?>
       <div class="empty">No posts yet. Create your first one above.</div>
     <?php else: ?>
+      <div id="bulkBar" hidden style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:#ffffff06;margin-bottom:14px;">
+        <span id="bulkCount" style="color:var(--ink-dim);font-size:13px;">0 selected</span>
+        <form method="post" action="/admin/media?action=bulk_delete" style="display:inline-flex;align-items:center;gap:10px;margin:0;">
+          <?= Csrf::field() ?>
+          <input type="hidden" name="ids" id="bulkIds" value="">
+          <button type="submit" class="btn danger sm" id="bulkDeleteBtn" disabled>Delete selected</button>
+        </form>
+        <button type="button" class="btn sm secondary" onclick="clearBulkSelection()">Clear</button>
+      </div>
       <table>
-        <tr><th>Cover</th><th>Caption</th><th>Type</th><th>Status</th><th>Likes</th><th>Views</th><th>Saves</th><th>Posted</th><th></th></tr>
+        <tr><th style="width:34px;"><input type="checkbox" id="bulkSelectAll" title="Select all" aria-label="Select all"></th><th>Cover</th><th>Caption</th><th>Type</th><th>Status</th><th>Likes</th><th>Views</th><th>Saves</th><th>Posted</th><th></th></tr>
         <?php foreach ($posts as $p): ?>
         <tr>
+          <td><input type="checkbox" class="bulk-check" value="<?= (int) $p['id'] ?>" aria-label="Select post <?= (int) $p['id'] ?>"></td>
           <td>
             <?php
             $coverSrc = null;
@@ -849,6 +881,52 @@ require __DIR__ . '/partials/layout-open.php';
   </div>
 
 <?php endif; ?>
+
+<script>
+(function () {
+  var all = document.getElementById('bulkSelectAll');
+  var checks = Array.prototype.slice.call(document.querySelectorAll('.bulk-check'));
+  var bar = document.getElementById('bulkBar');
+  var countEl = document.getElementById('bulkCount');
+  var idsEl = document.getElementById('bulkIds');
+  var btn = document.getElementById('bulkDeleteBtn');
+  var form = btn ? btn.closest('form') : null;
+
+  function update() {
+    var sel = checks.filter(function (c) { return c.checked; });
+    countEl.textContent = sel.length + ' selected';
+    idsEl.value = sel.map(function (c) { return c.value; }).join(',');
+    btn.disabled = sel.length === 0;
+    bar.hidden = sel.length === 0;
+  }
+
+  checks.forEach(function (c) { c.addEventListener('change', update); });
+
+  if (all) {
+    all.addEventListener('change', function () {
+      checks.forEach(function (c) { c.checked = all.checked; });
+      update();
+    });
+  }
+
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      var n = checks.filter(function (c) { return c.checked; }).length;
+      if (!window.confirm('Delete ' + n + ' post' + (n === 1 ? '' : 's') + ' permanently? This cannot be undone.')) {
+        e.preventDefault();
+      }
+    });
+  }
+
+  window.clearBulkSelection = function () {
+    if (all) all.checked = false;
+    checks.forEach(function (c) { c.checked = false; });
+    update();
+  };
+
+  update();
+})();
+</script>
 
 <?php if ($action === 'create'): ?>
   <script src="<?= asset('js/admin-media.js') ?>"></script>
