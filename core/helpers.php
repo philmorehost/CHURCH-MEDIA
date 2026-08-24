@@ -55,6 +55,25 @@ function jsonResponse(array $payload, int $status = 200): never
     exit;
 }
 
+/**
+ * Streams rows as an Excel-friendly CSV download and exits. fputcsv handles
+ * quoting/escaping, and the UTF-8 BOM makes it open correctly in Excel.
+ */
+function csvDownload(string $filename, array $headers, array $rows): never
+{
+    http_response_code(200);
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads accents correctly
+    fputcsv($out, $headers);
+    foreach ($rows as $row) {
+        fputcsv($out, array_values($row));
+    }
+    fclose($out);
+    exit;
+}
+
 function slugify(string $text): string
 {
     $text = trim($text);

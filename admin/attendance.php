@@ -53,6 +53,23 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/admin/attendance');
 }
 
+// CSV export of all attendance records (scoped to the current church).
+if ($action === 'export_csv') {
+    $rows = $pdo->query('SELECT service_date, service_name, topic, bible_text, adult_count, children_count, youth_count, notes FROM attendance_records WHERE 1=1' . $scopeSql . ' ORDER BY service_date DESC, id DESC')->fetchAll();
+    $csv = array_map(fn (array $r): array => [
+        $r['service_date'],
+        $r['service_name'],
+        $r['topic'] ?? '',
+        $r['bible_text'] ?? '',
+        (int) $r['adult_count'],
+        (int) $r['children_count'],
+        (int) $r['youth_count'],
+        (int) $r['adult_count'] + (int) $r['children_count'] + (int) $r['youth_count'],
+        $r['notes'] ?? '',
+    ], $rows);
+    csvDownload('attendance-' . date('Y-m-d') . '.csv', ['Date', 'Service', 'Topic', 'Bible Text', 'Adults', 'Children', 'Youth', 'Total', 'Notes'], $csv);
+}
+
 $editing = null;
 if ($action === 'edit') {
     $stmt = $pdo->prepare('SELECT * FROM attendance_records WHERE id = ?');
@@ -66,6 +83,7 @@ if ($action === 'edit') {
 $records = [];
 $summary = ['services' => 0, 'adult' => 0, 'children' => 0, 'youth' => 0, 'total' => 0];
 $trend = [];
+$compare = [];
 $trendMode = $_GET['trend'] ?? 'weekly';
 if (!in_array($trendMode, ['weekly', 'monthly'], true)) {
     $trendMode = 'weekly';
@@ -124,6 +142,31 @@ if ($action === 'list') {
             $filled[] = ['label' => $label, 'total' => $trendMap[$label] ?? 0];
         }
         $trend = $filled;
+    }
+
+    // Monthly attendance vs. newcomers comparison (last 6 months). This pairs
+    // total attendance with the number of newcomers added each month so growth
+    // in the service and follow-up funnel can be read side by side.
+    $attByMonth = [];
+    $stmt = $pdo->query('SELECT DATE_FORMAT(service_date, "%Y-%m") AS ym, SUM(adult_count + children_count + youth_count) AS total FROM attendance_records WHERE 1=1' . $scopeSql . ' AND service_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) GROUP BY ym');
+    foreach ($stmt->fetchAll() as $row) {
+        $attByMonth[$row['ym']] = (int) $row['total'];
+    }
+    $newByMonth = [];
+    $stmt = $pdo->query('SELECT DATE_FORMAT(created_at, "%Y-%m") AS ym, COUNT(*) AS total FROM newcomers WHERE 1=1' . $scopeSql . ' AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH) GROUP BY ym');
+    foreach ($stmt->fetchAll() as $row) {
+        $newByMonth[$row['ym']] = (int) $row['total'];
+    }
+    $compare = [];
+    $month = new DateTimeImmutable('first day of this month');
+    for ($i = 5; $i >= 0; $i--) {
+        $d = $month->modify('-' . $i . ' months');
+        $ym = $d->format('Y-m');
+        $compare[] = [
+            'label' => $d->format('M y'),
+            'attendance' => $attByMonth[$ym] ?? 0,
+            'newcomers' => $newByMonth[$ym] ?? 0,
+        ];
     }
 }
 
@@ -185,6 +228,7 @@ require __DIR__ . '/partials/layout-open.php';
 <?php else: ?>
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
     <a href="/admin/attendance?action=create" class="btn">+ Add Attendance</a>
+    <a href="/admin/attendance?action=export_csv" class="btn secondary">⬇ Export CSV</a>
   </div>
 
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px;">
@@ -229,6 +273,32 @@ require __DIR__ . '/partials/layout-open.php';
             <div class="trend-bar" style="height:<?= max(2, round(((int) $t['total'] / $trendMax) * 100)) ?>%;"></div>
           </div>
           <div class="trend-label"><?= e($t['label']) ?></div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($compare): ?>
+  <div class="card" style="padding:20px;margin-bottom:20px;">
+    <h2 style="margin:0 0 4px;">Attendance vs. Newcomers</h2>
+    <p class="sub" style="margin-bottom:16px;">Total attendance vs. newcomers added each month (last 6 months) — growth vs. follow-up funnel at a glance.</p>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px;font-size:12px;color:var(--ink-dim);">
+      <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:3px;background:linear-gradient(180deg,var(--gold-soft),var(--gold));display:inline-block;"></span> Attendance</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:3px;background:linear-gradient(180deg,#6fb3ff,#3d7eff);display:inline-block;"></span> Newcomers</span>
+    </div>
+    <div class="trend-chart">
+      <?php $compareMax = max(array_merge(array_column($compare, 'attendance'), array_column($compare, 'newcomers'))); $compareMax = $compareMax > 0 ? $compareMax : 1; ?>
+      <?php foreach ($compare as $c): ?>
+        <div class="trend-col">
+          <div class="trend-value"><?= (int) ($c['attendance'] + $c['newcomers']) ?></div>
+          <div class="trend-bar-wrap">
+            <div style="display:flex;align-items:flex-end;gap:3px;width:100%;height:100%;justify-content:center;">
+              <div class="trend-bar" style="height:<?= max(2, round(((int) $c['attendance'] / $compareMax) * 100)) ?>%;"></div>
+              <div class="trend-bar trend-bar--newcomer" style="height:<?= max(2, round(((int) $c['newcomers'] / $compareMax) * 100)) ?>%;"></div>
+            </div>
+          </div>
+          <div class="trend-label"><?= e($c['label']) ?></div>
         </div>
       <?php endforeach; ?>
     </div>

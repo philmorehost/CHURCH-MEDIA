@@ -55,6 +55,32 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/admin/newcomers');
 }
 
+// CSV export of newcomers (scoped to the current church + status filter).
+if ($action === 'export_csv') {
+    $statusWhere = '';
+    $statusParams = [];
+    if ($statusFilter !== '') {
+        $statusWhere = ' AND n.follow_up_status = ?';
+        $statusParams[] = $statusFilter;
+    }
+    $stmt = $pdo->prepare('SELECT n.name, n.whatsapp_phone, n.address, n.gender, n.age_group, n.visit_date, n.follow_up_status, n.notes, n.created_at, a.service_date AS attended_on, a.service_name AS attended_service FROM newcomers n LEFT JOIN attendance_records a ON a.id = n.attendance_id WHERE 1=1' . $scopeSql . $statusWhere . ' ORDER BY n.created_at DESC, n.id DESC');
+    $stmt->execute($statusParams);
+    $csv = array_map(fn (array $r): array => [
+        $r['name'],
+        $r['whatsapp_phone'] ?? '',
+        $r['address'] ?? '',
+        $r['gender'] ?? '',
+        $r['age_group'] ?? '',
+        $r['visit_date'] ?? '',
+        $r['attended_on'] ?? '',
+        $r['attended_service'] ?? '',
+        $r['follow_up_status'] ?? '',
+        $r['notes'] ?? '',
+        $r['created_at'] ?? '',
+    ], $stmt->fetchAll());
+    csvDownload('newcomers-' . date('Y-m-d') . ($statusFilter !== '' ? '-' . $statusFilter : '') . '.csv', ['Name', 'WhatsApp Phone', 'Address', 'Gender', 'Age Group', 'Visit Date', 'Attended Date', 'Attended Service', 'Follow-up Status', 'Notes', 'Added'], $csv);
+}
+
 $editing = null;
 if ($action === 'edit') {
     $stmt = $pdo->prepare('SELECT * FROM newcomers WHERE id = ?');
@@ -177,7 +203,10 @@ require __DIR__ . '/partials/layout-open.php';
   </div>
 <?php else: ?>
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
-    <a href="/admin/newcomers?action=create" class="btn">+ Add Newcomer</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="/admin/newcomers?action=create" class="btn">+ Add Newcomer</a>
+      <a href="/admin/newcomers?action=export_csv<?= $statusFilter !== '' ? '&status=' . e($statusFilter) : '' ?>" class="btn secondary">⬇ Export CSV</a>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <a class="btn sm <?= $statusFilter === '' ? '' : 'secondary' ?>" href="/admin/newcomers">All (<?= (int) $statusCounts['total'] ?>)</a>
       <?php foreach (['new' => 'New', 'contacted' => 'Contacted', 'followed_up' => 'Followed Up', 'returned' => 'Returned', 'inactive' => 'Inactive'] as $key => $label): ?>
