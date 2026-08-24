@@ -105,69 +105,22 @@ if ($appDownloadEnabled) {
     </span>
   </a>
 </div>
-<script>
-(function () {
-  var KEY = 'cm_hide_download_fab';
-  var fab = document.getElementById('appDownloadFab');
-  var close = document.getElementById('appDownloadClose');
-  if (!fab) { return; }
-  try {
-    if (localStorage.getItem(KEY) === '1') {
-      fab.style.display = 'none';
-      return;
-    }
-  } catch (e) { /* storage unavailable */ }
-  if (close) {
-    close.addEventListener('click', function (e) {
-      e.preventDefault();
-      try { localStorage.setItem(KEY, '1'); } catch (err) { /* ignore */ }
-      fab.style.display = 'none';
-    });
-  }
-})();
-</script>
 <?php endif; ?>
 
 <?php
 // "Admin & App only" mode: optional (off/banner/interstitial/force), Android
 // phone only. Search engines and desktop/iOS visitors are never redirected.
+// All behaviour lives in js/app-download.js (CSP-safe — the site blocks inline
+// scripts), configured via the data-* attributes below.
 $appRedirectMode = trim((string) ($s['app_redirect_mode'] ?? 'off'));
 $appRedirectUrl = trim((string) ($s['app_download_url'] ?? ''));
 $appRedirectOn = in_array($appRedirectMode, ['banner', 'interstitial', 'force'], true) && $appRedirectUrl !== '';
 $currentPathForRedirect = rtrim((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/') ?: '/';
 $isAppPage = $currentPathForRedirect === '/app';
-$appRedirectInterstitialOrForce = in_array($appRedirectMode, ['interstitial', 'force'], true);
 ?>
-<?php if ($appRedirectOn && !$isAppPage): ?>
-<script>
-(function () {
-  // Android phone only (excludes tablets, iPhones, desktops, and bots).
-  var ua = navigator.userAgent || '';
-  var isAndroidPhone = /Android/i.test(ua) && /Mobile/i.test(ua) && !/iPad/i.test(ua);
-  if (!isAndroidPhone) { return; }
-  var mode = <?= json_encode($appRedirectMode) ?>;
-  var url = <?= json_encode($appRedirectUrl) ?>;
 
-  <?php if ($appRedirectInterstitialOrForce): ?>
-  try {
-    // Interstitial: remember the visitor's "Continue to website" choice.
-    if (mode === 'interstitial' && localStorage.getItem('cm_skip_app') === '1') { return; }
-  } catch (e) { /* storage unavailable — still redirect */ }
-  if (mode === 'force') {
-    location.replace(url);
-  } else {
-    location.replace('/app');
-  }
-  <?php else: ?>
-  // Banner mode: show a small dismissible strip instead of redirecting.
-  try {
-    if (localStorage.getItem('cm_dismiss_app_banner') === '1') { return; }
-  } catch (e) { /* storage unavailable — still show */ }
-  var bar = document.getElementById('appBanner');
-  if (bar) { bar.hidden = false; }
-  <?php endif; ?>
-})();
-</script>
+<?php if ($appRedirectOn && !$isAppPage): ?>
+<div id="appRedirectConfig" data-mode="<?= e($appRedirectMode) ?>" data-url="<?= e($appRedirectUrl) ?>" hidden></div>
 <?php endif; ?>
 
 <?php if ($appRedirectMode === 'banner' && !$isAppPage && $appRedirectUrl !== ''): ?>
@@ -182,19 +135,9 @@ $appRedirectInterstitialOrForce = in_array($appRedirectMode, ['interstitial', 'f
     <button type="button" class="app-banner__close" id="appBannerClose" aria-label="Dismiss app banner">✕</button>
   </div>
 </div>
-<script>
-(function () {
-  var bar = document.getElementById('appBanner');
-  var close = document.getElementById('appBannerClose');
-  if (!bar || !close) { return; }
-  close.addEventListener('click', function () {
-    try { localStorage.setItem('cm_dismiss_app_banner', '1'); } catch (e) { /* ignore */ }
-    bar.hidden = true;
-  });
-})();
-</script>
 <?php endif; ?>
 
+<script src="<?= asset('js/app-download.js') ?>"></script>
 <script src="<?= asset('js/site.js') ?>"></script>
 </body>
 </html>
