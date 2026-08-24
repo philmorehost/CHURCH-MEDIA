@@ -21,7 +21,12 @@ class Database
         $this->connection = new PDO($dsn, $config['username'], $config['password'], [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
+            // Use client-side emulated prepares: avoids MySQL/MariaDB error 1615
+            // ("Prepared statement needs to be re-prepared") on shared hosts where
+            // the server-side statement cache is small and evicts statements
+            // between prepare() and execute(). PDO quotes values itself, so this
+            // is still injection-safe and is PDO's default mode.
+            PDO::ATTR_EMULATE_PREPARES => true,
             PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
         ]);
     }
