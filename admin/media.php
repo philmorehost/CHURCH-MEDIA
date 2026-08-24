@@ -354,10 +354,6 @@ if ($action === 'replace_item' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('error', 'Item not found or out of scope.');
         redirect('/admin/media');
     }
-    if ($item['source'] !== 'upload') {
-        flash('error', 'Only uploaded media can be replaced.');
-        redirect('/admin/media?action=edit&id=' . $postId);
-    }
     $file = $_FILES['file'] ?? null;
     if (!$file || empty($file['name']) || !is_uploaded_file($file['tmp_name'] ?? '')) {
         flash('error', 'Choose a file to replace this item.');
@@ -386,8 +382,10 @@ if ($action === 'replace_item' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $newThumb = null; // re-captured when the reel converts
     }
     removeMediaFiles($item['file_path'], $item['thumbnail_path']);
-    $pdo->prepare('UPDATE media_post_items SET file_path = ?, thumbnail_path = ?, processing_status = ?, converted_at = NULL WHERE id = ?')
-        ->execute([$newPath, $newThumb, 'ready', $itemId]);
+    // Replacing a YouTube link with an uploaded file converts the item to an
+    // upload (source='upload') so it plays inline everywhere.
+    $pdo->prepare('UPDATE media_post_items SET source = ?, file_path = ?, thumbnail_path = ?, processing_status = ?, converted_at = NULL WHERE id = ?')
+        ->execute(['upload', $newPath, $newThumb, 'ready', $itemId]);
     if ($item['type'] === 'video') {
         set_time_limit(600);
         MediaProcessor::convertOriginalVideo($pdo, $itemId);
@@ -721,15 +719,15 @@ require __DIR__ . '/partials/layout-open.php';
               <span style="color:var(--ink-faint);font-size:12px;">#<?= (int) $it['id'] ?> · item <?= $i + 1 ?> of <?= count($editItems) ?></span>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-              <?php if ($it['source'] === 'upload'): ?>
+              <?php if ($it['source'] === 'upload' || $it['source'] === 'youtube'): ?>
                 <form method="post" action="/admin/media?action=replace_item" enctype="multipart/form-data" style="display:inline-flex;gap:6px;align-items:center;">
                   <?= Csrf::field() ?>
                   <input type="hidden" name="id" value="<?= (int) $editPost['id'] ?>">
                   <input type="hidden" name="item_id" value="<?= (int) $it['id'] ?>">
                   <input type="file" name="file" accept="<?= $it['type'] === 'image' ? 'image/*' : 'video/*' ?>" required style="font-size:12px;max-width:150px;">
-                  <button class="btn secondary sm" type="submit">Replace</button>
+                  <button class="btn secondary sm" type="submit"><?= $it['source'] === 'youtube' ? 'Upload MP4 (replace)' : 'Replace' ?></button>
                 </form>
-                <?php if ($it['type'] === 'video'): ?>
+                <?php if ($it['type'] === 'video' && $it['source'] === 'upload'): ?>
                   <form method="post" action="/admin/media?action=replace_cover" enctype="multipart/form-data" style="display:inline-flex;gap:6px;align-items:center;">
                     <?= Csrf::field() ?>
                     <input type="hidden" name="id" value="<?= (int) $editPost['id'] ?>">
