@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart' show Factory;
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import '../models/models.dart';
 import '../services/api_client.dart';
 import '../services/share_service.dart';
@@ -317,31 +315,24 @@ class _FeedSlide extends StatefulWidget {
 
 class _FeedSlideState extends State<_FeedSlide> {
   VideoPlayerController? _videoController;
-  YoutubePlayerController? _youtubeController;
   int _mediaIndex = 0;
   bool _muted = false; // default sound ON — videos are not muted by default
   bool _liking = false;
   bool _saving = false;
   bool _burst = false;
   bool _likePop = false;
-  bool _isActive = false;
 
   MediaItem? get _activeMedia => widget.post.mediaItems.isEmpty ? null : widget.post.mediaItems[_mediaIndex];
 
   @override
   void dispose() {
     _videoController?.dispose();
-    _youtubeController?.close();
     super.dispose();
   }
 
   void _setupVideoIfNeeded() {
     final media = _activeMedia;
     if (media == null || media.type != 'video' || media.fileUrl == null) return;
-    if (media.source == 'youtube') {
-      _setupYoutubeIfNeeded(media.fileUrl!);
-      return;
-    }
     if (_videoController != null) return;
     // Uploaded videos autoplay WITH sound — ExoPlayer has no browser-style
     // autoplay policy, so there's no reason to start them muted. This default
@@ -357,36 +348,13 @@ class _FeedSlideState extends State<_FeedSlide> {
     });
   }
 
-  /// Creates the YouTube player for the current slide. Uses youtube_player_iframe
-  /// (built on webview_flutter) instead of a raw WebView embed — YouTube blocks
-  /// plain WebView embeds on Android ("Video unavailable"), while this package
-  /// uses the official IFrame player API and plays reliably.
-  void _setupYoutubeIfNeeded(String url) {
-    if (_youtubeController != null) return;
-    final id = _youtubeId(url);
-    if (id.isEmpty) return;
-    // youtube_player_iframe already configures the WebView with
-    // setMediaPlaybackRequiresUserGesture(false), so YouTube CAN autoplay
-    // with sound. Honor the "sound on by default" state (_muted = false).
-    _youtubeController = YoutubePlayerController.fromVideoId(
-      videoId: id,
-      autoPlay: true,
-      params: YoutubePlayerParams(
-        mute: _muted,
-        loop: true,
-        showControls: false,
-      ),
-    );
-  }
-
+  /// Extracts a YouTube video id from an embed URL (used to build the watch
+  /// link for existing YouTube posts, which open in the YouTube app/browser).
   String _youtubeId(String url) =>
       RegExp(r'/embed/([a-zA-Z0-9_-]+)').firstMatch(url)?.group(1) ?? url.trim();
 
   void _onVisibilityChanged(VisibilityInfo info) {
     final visible = info.visibleFraction > 0.6;
-    if (visible != _isActive) {
-      setState(() => _isActive = visible);
-    }
     final vc = _videoController;
     if (vc != null) {
       if (visible) {
@@ -395,27 +363,11 @@ class _FeedSlideState extends State<_FeedSlide> {
         vc.pause();
       }
     }
-    final yc = _youtubeController;
-    if (yc != null) {
-      if (visible) {
-        if (yc.value.playerState != PlayerState.playing) yc.playVideo();
-      } else {
-        yc.pauseVideo();
-      }
-    }
   }
 
   void _toggleMute() {
     setState(() => _muted = !_muted);
     _videoController?.setVolume(_muted ? 0 : 1);
-    final yc = _youtubeController;
-    if (yc != null) {
-      if (_muted) {
-        yc.mute();
-      } else {
-        yc.unMute();
-      }
-    }
   }
 
   Future<void> _toggleLike({bool doubleTap = false}) async {
@@ -695,16 +647,12 @@ class _FeedSlideState extends State<_FeedSlide> {
   void _prevMedia() => setState(() {
         _videoController?.dispose();
         _videoController = null;
-        _youtubeController?.close();
-        _youtubeController = null;
         _mediaIndex = (_mediaIndex - 1 + widget.post.mediaItems.length) % widget.post.mediaItems.length;
       });
 
   void _nextMedia() => setState(() {
         _videoController?.dispose();
         _videoController = null;
-        _youtubeController?.close();
-        _youtubeController = null;
         _mediaIndex = (_mediaIndex + 1) % widget.post.mediaItems.length;
       });
 
@@ -714,25 +662,46 @@ class _FeedSlideState extends State<_FeedSlide> {
 
     if (media.type == 'video' && media.source == 'youtube') {
       final id = _youtubeId(media.fileUrl ?? '');
-      final yc = _youtubeController;
+      // Existing YouTube reels render as a tappable thumbnail that opens the
+      // video in the YouTube app/browser — no webview is ever mounted, so it
+      // can never block the vertical swipe.
       return GestureDetector(
-        onTap: _toggleMute,
+        onTap: () => launchUrl(
+          Uri.parse('https://www.youtube.com/watch?v=$id'),
+          mode: LaunchMode.externalApplication,
+        ),
         onDoubleTap: () => _toggleLike(doubleTap: true),
         child: Container(
           color: Colors.black,
-          // Mount the live webview only on the ACTIVE slide. Off-screen slides
-          // show the static thumbnail, so a webview is never present to block
-          // the vertical swipe and only one player exists at a time.
-          child: _isActive && id.isNotEmpty && yc != null
-              ? _YoutubePlayerView(controller: yc)
-              : (media.thumbnailUrl != null
-                  ? CachedNetworkImage(
-                      imageUrl: media.thumbnailUrl!,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: double.infinity,
-                    )
-                  : const LoadingView()),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (media.thumbnailUrl != null)
+                CachedNetworkImage(imageUrl: media.thumbnailUrl!, fit: BoxFit.cover, errorWidget: (_, __, ___) => Container(color: AppColors.bg2))
+              else
+                Container(color: AppColors.bg2),
+              const Center(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
+                  child: Padding(
+                    padding: EdgeInsets.all(14),
+                    child: Icon(Icons.play_arrow, size: 44, color: Colors.white),
+                  ),
+                ),
+              ),
+              const Positioned(
+                bottom: 12,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Text(
+                    '▶ Watch on YouTube',
+                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700, shadows: [Shadow(color: Colors.black, blurRadius: 6)]),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -795,63 +764,6 @@ class _FeedSlideState extends State<_FeedSlide> {
         ],
       ),
     );
-  }
-}
-
-class _YoutubePlayerView extends StatelessWidget {
-  final YoutubePlayerController controller;
-  const _YoutubePlayerView({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final w = constraints.maxWidth;
-      final h = constraints.maxHeight;
-      if (w <= 0 || h <= 0) return const SizedBox.shrink();
-
-      // Size the 16:9 iframe so it ALWAYS covers the full screen edge-to-edge
-      // (like Instagram Reels) and crop any overflow, so every reel is a
-      // constant vertical format. We pick the larger cover dimension in each
-      // axis so it works on any screen shape.
-      final playerW = (h * 16 / 9) > w ? (h * 16 / 9) : w;
-      final playerH = (w * 9 / 16) > h ? (w * 9 / 16) : h;
-
-      // Disable the package's fullscreen-on-vertical-drag and auto-fullscreen:
-      // with them enabled, a fling to the next reel triggers the player's own
-      // fullscreen mode, which letterboxes the video (black bars top/bottom)
-      // so it appears small — and it traps swipes so you can't scroll past it.
-      // We manage our own full-screen reel layout, so they must stay off.
-      return ClipRect(
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Positioned(
-              left: (w - playerW) / 2,
-              top: (h - playerH) / 2,
-              width: playerW,
-              height: playerH,
-              child: YoutubePlayer(
-                controller: controller,
-                enableFullScreenOnVerticalDrag: false,
-                autoFullScreen: false,
-                // Let the reels PageView scroll when the swipe starts on the
-                // video. Without this the platform WebView claims every touch
-                // (Eager default), so vertical swipes on the video go nowhere.
-                // With vertical+horizontal drag recognizers the parent scroll
-                // wins the gesture arena, while taps/double-taps still reach
-                // our mute/like handlers below.
-                gestureRecognizers: {
-                  Factory<VerticalDragGestureRecognizer>(
-                      () => VerticalDragGestureRecognizer()),
-                  Factory<HorizontalDragGestureRecognizer>(
-                      () => HorizontalDragGestureRecognizer()),
-                },
-              ),
-            ),
-          ],
-        ),
-      );
-    });
   }
 }
 

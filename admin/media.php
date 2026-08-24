@@ -611,13 +611,12 @@ require __DIR__ . '/partials/layout-open.php';
         <p class="hint">Video covers are auto-captured as the default — tap a preview to replace it.</p>
       </div>
 
-      <div class="media-zone">
-        <label for="youtube_url">Or use a YouTube link <small style="font-weight:400;color:var(--ink-dim);">(a link is used instead of uploads)</small></label>
-        <input type="url" id="youtube_url" name="youtube_url" placeholder="https://www.youtube.com/watch?v=… or a Shorts link">
-        <div class="yt-preview" id="ytPreview"></div>
-        <label for="youtube_cover">Cover image <small style="font-weight:400;color:var(--ink-dim);">(optional — defaults to the video's own thumbnail)</small></label>
-        <input type="file" id="youtube_cover" name="youtube_cover" accept="image/*">
-        <div class="yt-cover-preview" id="ytCoverPreview"></div>
+      <div class="media-zone" style="border-style:dashed;">
+        <p style="margin:0;color:var(--ink-dim);font-size:13.5px;line-height:1.6;">
+          🎥 <strong>Upload-only feed</strong> — link sharing isn't accepted here. To post a YouTube video,
+          <strong>download it as an MP4</strong> and upload it above; it plays instantly and is cropped to the
+          vertical reel automatically. This keeps every reel swipeable on all devices.
+        </p>
       </div>
 
       <label for="caption">Caption</label>
