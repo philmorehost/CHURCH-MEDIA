@@ -15,6 +15,8 @@ if (!$user || empty($user['is_super_admin'])) {
     $scopeIds = !empty($user['org_unit_id']) ? [(int) $user['org_unit_id']] : [];
     $scopeClause = $scopeIds ? ' AND p.org_unit_id IN (' . implode(',', array_map('intval', $scopeIds)) . ')' : ' AND 1 = 0';
 }
+$assignableUnits = Unit::assignableScope($user);
+$unitLabels = Unit::labelsById();
 
 function mediaPostOrgUnit(PDO $pdo, int $postId): ?int
 {
@@ -192,6 +194,24 @@ if ($action === 'category_create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/admin/media?action=create');
 }
 
+/** Move a post to a different church (from the list's Church column). */
+if ($action === 'reassign' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $targetId = (int) ($_POST['id'] ?? 0);
+    $unitId = (int) ($_POST['org_unit_id'] ?? 0);
+    // Scope: you can only move a post you can already manage, and only to a
+    // unit you're allowed to assign to.
+    if (!empty($scopeIds) && !mediaInScope($scopeIds, mediaPostOrgUnit($pdo, $targetId))) {
+        flash('error', 'You can only manage media in your own parish/zone.');
+    } elseif ($unitId > 0 && Unit::inAssignableScope($user, $unitId)) {
+        $pdo->prepare('UPDATE media_posts SET org_unit_id = ? WHERE id = ?')->execute([$unitId, $targetId]);
+        flash('success', 'Post moved to ' . Unit::label($unitId) . '.');
+    } else {
+        flash('error', 'Could not move that post to the selected church.');
+    }
+    redirect('/admin/media');
+}
+
 /** Shared by both the classic form POST and the instant XHR upload. */
 function handleCreatePost(PDO $pdo, array $user): array
 {
@@ -201,6 +221,19 @@ function handleCreatePost(PDO $pdo, array $user): array
     $errors = [];
     $youtubeUrl = trim((string) ($_POST['youtube_url'] ?? ''));
     $videoId = $youtubeUrl !== '' ? youtubeVideoId($youtubeUrl) : null;
+
+    // Church/unit for the new post. Super admins can pick any unit; everyone
+    // else is locked to their own church so they can never post elsewhere.
+    $orgUnitId = (int) ($_POST['org_unit_id'] ?? 0);
+    if (!empty($user['is_super_admin'])) {
+        if ($orgUnitId > 0 && !Unit::inAssignableScope($user, $orgUnitId)) {
+            $orgUnitId = 0;
+        }
+        $orgUnitId = $orgUnitId > 0 ? $orgUnitId : (int) ($user['org_unit_id'] ?? 0);
+    } else {
+        $orgUnitId = (int) ($user['org_unit_id'] ?? 0);
+    }
+    $postUnitId = $orgUnitId > 0 ? $orgUnitId : null;
 
     if ($videoId) {
         $youtubeCover = null;
@@ -237,7 +270,7 @@ function handleCreatePost(PDO $pdo, array $user): array
         $postType = $hasVideo ? 'vertical_reel' : (count($items) > 1 ? 'carousel' : 'single_image');
 
         $stmt = $pdo->prepare('INSERT INTO media_posts (user_id, slug, caption, post_type, is_published, org_unit_id) VALUES (?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$user['id'], mediaSlug($pdo, $caption), $caption, $postType, $isPublished, $user['org_unit_id'] ?? null]);
+        $stmt->execute([$user['id'], mediaSlug($pdo, $caption), $caption, $postType, $isPublished, $postUnitId]);
         $postId = (int) $pdo->lastInsertId();
 
         $pending = storeMediaItems($pdo, $postId, $items, $covers);
@@ -252,7 +285,7 @@ function handleCreatePost(PDO $pdo, array $user): array
         $pdo->commit();
         if ($isPublished) {
             try {
-                Pusher::notifyNewPost($pdo, $postId, $user['org_unit_id'] ?? null, $caption);
+                Pusher::notifyNewPost($pdo, $postId, $postUnitId, $caption);
             } catch (Throwable $e) {
                 error_log('Push notify failed: ' . $e->getMessage());
             }
@@ -563,7 +596,19 @@ if ($action === 'edit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $caption = trim($_POST['caption'] ?? '');
     $isPublished = isset($_POST['is_published']) ? 1 : 0;
     $categoryIds = array_map('intval', $_POST['categories'] ?? []);
-    $pdo->prepare('UPDATE media_posts SET caption = ?, is_published = ? WHERE id = ?')->execute([$caption, $isPublished, $id]);
+    // Church/unit change is allowed for super admins (any assignable unit);
+    // non-super admins keep their own unit (locked to their church).
+    $editUnitId = (int) ($_POST['org_unit_id'] ?? 0);
+    $currentUnitId = mediaPostOrgUnit($pdo, $id);
+    if (!empty($user['is_super_admin'])) {
+        if ($editUnitId > 0 && !Unit::inAssignableScope($user, $editUnitId)) {
+            $editUnitId = 0;
+        }
+        $newUnitId = $editUnitId > 0 ? $editUnitId : $currentUnitId;
+    } else {
+        $newUnitId = $currentUnitId;
+    }
+    $pdo->prepare('UPDATE media_posts SET caption = ?, is_published = ?, org_unit_id = ? WHERE id = ?')->execute([$caption, $isPublished, $newUnitId, $id]);
     $pdo->prepare('DELETE FROM media_post_categories WHERE media_post_id = ?')->execute([$id]);
     if ($categoryIds) {
         $catStmt = $pdo->prepare('INSERT IGNORE INTO media_post_categories (media_post_id, media_category_id) VALUES (?, ?)');
@@ -651,6 +696,20 @@ require __DIR__ . '/partials/layout-open.php';
         <?php endforeach; ?>
       </div>
 
+      <?php if (!empty($user['is_super_admin'])): ?>
+        <label for="org_unit_id">Church / Unit</label>
+        <select name="org_unit_id" id="org_unit_id">
+          <option value="0">— No church / unassigned —</option>
+          <?php foreach ($assignableUnits as $au): ?>
+            <option value="<?= (int) $au['id'] ?>" <?= (int) ($user['org_unit_id'] ?? 0) === (int) $au['id'] ? 'selected' : '' ?>><?= e($au['name'] . ' (' . $au['type'] . ')') ?></option>
+          <?php endforeach; ?>
+        </select>
+        <p class="hint">Choose the church this post belongs to. It will appear on that church's unit page (and roll up to its province/zone).</p>
+      <?php else: ?>
+        <input type="hidden" name="org_unit_id" value="<?= (int) ($user['org_unit_id'] ?? 0) ?>">
+        <p class="hint">This post will belong to <strong><?= e($unitLabels[(int) ($user['org_unit_id'] ?? 0)] ?? 'your church') ?></strong>.</p>
+      <?php endif; ?>
+
       <div class="checkbox-row">
         <input type="checkbox" id="is_published" name="is_published" checked>
         <label for="is_published" style="margin:0;">Publish immediately</label>
@@ -686,6 +745,19 @@ require __DIR__ . '/partials/layout-open.php';
       <input type="hidden" name="id" value="<?= (int) $editPost['id'] ?>">
       <label for="edit_caption">Caption</label>
       <textarea id="edit_caption" name="caption" placeholder="Write a caption…"><?= e((string) $editPost['caption']) ?></textarea>
+
+      <?php if (!empty($user['is_super_admin'])): ?>
+        <label for="edit_org_unit_id">Church / Unit</label>
+        <select name="org_unit_id" id="edit_org_unit_id">
+          <option value="0">— No church / unassigned —</option>
+          <?php foreach ($assignableUnits as $au): ?>
+            <option value="<?= (int) $au['id'] ?>" <?= (int) ($editPost['org_unit_id'] ?? 0) === (int) $au['id'] ? 'selected' : '' ?>><?= e($au['name'] . ' (' . $au['type'] . ')') ?></option>
+          <?php endforeach; ?>
+        </select>
+        <p class="hint">The unit page for this church (and its roll-up) shows this post.</p>
+      <?php else: ?>
+        <input type="hidden" name="org_unit_id" value="<?= (int) ($editPost['org_unit_id'] ?? 0) ?>">
+      <?php endif; ?>
 
       <label>Categories</label>
       <div class="row three" style="margin-bottom:15px;">
@@ -816,7 +888,7 @@ require __DIR__ . '/partials/layout-open.php';
         <button type="button" class="btn sm secondary" onclick="clearBulkSelection()">Clear</button>
       </div>
       <table>
-        <tr><th style="width:34px;"><input type="checkbox" id="bulkSelectAll" title="Select all" aria-label="Select all"></th><th>Cover</th><th>Caption</th><th>Type</th><th>Status</th><th>Likes</th><th>Views</th><th>Saves</th><th>Posted</th><th></th></tr>
+        <tr><th style="width:34px;"><input type="checkbox" id="bulkSelectAll" title="Select all" aria-label="Select all"></th><th>Cover</th><th>Caption</th><th>Church</th><th>Type</th><th>Status</th><th>Likes</th><th>Views</th><th>Saves</th><th>Posted</th><th></th></tr>
         <?php foreach ($posts as $p): ?>
         <tr>
           <td><input type="checkbox" class="bulk-check" value="<?= (int) $p['id'] ?>" aria-label="Select post <?= (int) $p['id'] ?>"></td>
@@ -836,6 +908,22 @@ require __DIR__ . '/partials/layout-open.php';
             <?php else: ?><div class="thumb"></div><?php endif; ?>
           </td>
           <td><?= e(mb_strimwidth((string) $p['caption'], 0, 50, '…')) ?: '<em>No caption</em>' ?></td>
+          <td>
+            <?php if (!empty($p['org_unit_id'])): ?>
+              <span style="color:var(--gold-soft);font-size:12px;"><?= e($unitLabels[(int) $p['org_unit_id']] ?? '') ?></span>
+            <?php else: ?>
+              <span class="badge warn">Unassigned</span>
+            <?php endif; ?>
+            <div style="margin-top:6px;">
+              <?php
+                $reassignId = (int) $p['id'];
+                $reassignUnitId = !empty($p['org_unit_id']) ? (int) $p['org_unit_id'] : null;
+                $showUnassignedOnly = false;
+                $assignAction = '/admin/media?action=reassign';
+                require __DIR__ . '/partials/unit-assign.php';
+              ?>
+            </div>
+          </td>
           <td>
             <span class="badge info"><?= e(str_replace('_', ' ', $p['post_type'])) ?></span>
             <?php if ($p['video_path']): ?>

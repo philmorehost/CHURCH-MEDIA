@@ -47,7 +47,10 @@
     if (activeCat) { qs += '&category=' + encodeURIComponent(activeCat); }
     // empty slug = global gallery (all media), otherwise a unit gallery
     var endpoint = slug ? ('/api/unit.php?slug=' + encodeURIComponent(slug)) : '/api/media';
-    var url = endpoint + '?' + qs;
+    // The unit endpoint already has a query string, so join with '&' — using
+    // '?' again would corrupt the slug (e.g. ?slug=x?shuffle=1) and make the
+    // API return "unit not found", which surfaced as "No media found.".
+    var url = endpoint + (slug ? '&' : '?') + qs;
     fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {

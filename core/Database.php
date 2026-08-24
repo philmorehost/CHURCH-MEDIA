@@ -447,6 +447,24 @@ class Database
                     FOREIGN KEY (`attendance_id`) REFERENCES `attendance_records`(`id`) ON DELETE SET NULL
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             },
+            '2026_08_backfill_media_units' => function (PDO $pdo): void {
+                // Posts created before the org hierarchy existed (or by an admin
+                // with no home unit) have org_unit_id = NULL and therefore never
+                // show up on any church's unit page. Assign them to the super
+                // admin's home unit when set, otherwise to the first parish, so
+                // they become visible and can be moved with the Church control.
+                $nullCount = (int) $pdo->query('SELECT COUNT(*) FROM media_posts WHERE org_unit_id IS NULL')->fetchColumn();
+                if ($nullCount === 0) {
+                    return;
+                }
+                $target = (int) $pdo->query("SELECT org_unit_id FROM users WHERE is_super_admin = 1 AND org_unit_id IS NOT NULL ORDER BY id ASC LIMIT 1")->fetchColumn();
+                if ($target <= 0) {
+                    $target = (int) $pdo->query("SELECT id FROM org_units WHERE type = 'parish' ORDER BY id ASC LIMIT 1")->fetchColumn();
+                }
+                if ($target > 0) {
+                    $pdo->prepare('UPDATE media_posts SET org_unit_id = ? WHERE org_unit_id IS NULL')->execute([$target]);
+                }
+            },
         ];
     }
 
