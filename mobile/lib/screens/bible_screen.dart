@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_client.dart';
@@ -52,6 +54,8 @@ class _BibleScreenState extends State<BibleScreen> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _verseAnchorKey = GlobalKey();
   int _targetVerse = 0;
+  Timer? _targetFadeTimer;
+  bool _targetFading = false;
 
   @override
   void initState() {
@@ -91,6 +95,7 @@ class _BibleScreenState extends State<BibleScreen> {
 
   @override
   void dispose() {
+    _targetFadeTimer?.cancel();
     _verseController.dispose();
     _chapterController.dispose();
     _scrollController.dispose();
@@ -158,6 +163,7 @@ class _BibleScreenState extends State<BibleScreen> {
       _targetVerse = target;
     });
     await BibleLocalStore.instance.savePosition(_selectedVersion, _selectedBook, _selectedChapter, start);
+    _scheduleTargetFade();
     _scrollToVerse();
   }
 
@@ -196,7 +202,23 @@ class _BibleScreenState extends State<BibleScreen> {
       _targetVerse = target;
     });
     await BibleLocalStore.instance.savePosition(_selectedVersion, _selectedBook, _selectedChapter, start);
+    _scheduleTargetFade();
     _scrollToVerse();
+  }
+
+  /// Briefly highlights the searched verse, then fades it out so it doesn't
+  /// stay gold. Scroll-to-verse is unaffected by the fade.
+  void _scheduleTargetFade() {
+    _targetFadeTimer?.cancel();
+    _targetFading = false;
+    if (_targetVerse <= 0) return;
+    _targetFadeTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      setState(() => _targetFading = true); // fades over the next 1s
+      _targetFadeTimer = Timer(const Duration(seconds: 1), () {
+        if (mounted) setState(() => _targetVerse = 0);
+      });
+    });
   }
 
   /// Scrolls the chapter so `_targetVerse` is in view. When no verse was
@@ -615,14 +637,19 @@ class _BibleScreenState extends State<BibleScreen> {
   Widget _verseTile(ThemeData theme, int verse, String text) {
     final color = _highlights[verse];
     final isTarget = _targetVerse > 0 && verse == _targetVerse;
+    final tileColor = isTarget && color == null
+        // Fade from a golden tint to transparent once the search highlight
+        // has served its purpose (manual highlights still win).
+        ? (_targetFading
+            ? const Color(0x00E8B95F)
+            : const Color(0x33E8B95F))
+        : (color != null ? (_highlightColors[color] ?? Colors.yellow).withValues(alpha: 0.35) : null);
     return GestureDetector(
       onLongPress: () => _showVerseActions(verse, text),
-      child: Container(
-        // A short-lived-ish golden tint draws the eye to the verse that was
-        // searched for (overrides only when no manual highlight is set).
-        color: isTarget && color == null
-            ? const Color(0x33E8B95F)
-            : (color != null ? (_highlightColors[color] ?? Colors.yellow).withValues(alpha: 0.35) : null),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 1000),
+        curve: Curves.easeOut,
+        color: tileColor,
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(

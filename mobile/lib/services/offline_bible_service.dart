@@ -54,6 +54,18 @@ class OfflineBibleService {
 
   final Map<String, List<OfflineBook>> _cache = {};
 
+  /// version -> book -> chapter -> lowercased verse text. Built once per version
+  /// at load time so a whole-Bible search never re-lowercases every verse.
+  final Map<String, List<List<List<String>>>> _lowerCache = {};
+
+  /// Preloads every bundled version into memory so the Bible opens and searches
+  /// instantly (no decode delay on first read/search). Call once at startup.
+  Future<void> warmUp() async {
+    for (final key in versions.keys) {
+      await books(key);
+    }
+  }
+
   Future<List<OfflineBook>> books(String versionKey) async {
     final key = versionKey.toLowerCase();
     final cached = _cache[key];
@@ -61,19 +73,25 @@ class OfflineBibleService {
 
     final raw = await rootBundle.loadString('assets/bible/$key.json');
     final decoded = jsonDecode(raw) as List<dynamic>;
-    final list = decoded.map((b) {
+    final list = <OfflineBook>[];
+    final lower = <List<List<String>>>[];
+    for (final b in decoded) {
       final map = b as Map<String, dynamic>;
       final chapters = (map['chapters'] as List<dynamic>)
           .map((c) => (c as List<dynamic>).cast<String>())
           .toList();
-      return OfflineBook(
+      list.add(OfflineBook(
         abbrev: (map['abbrev'] as String?) ?? '',
         name: (map['name'] as String?) ?? (map['abbrev'] as String?) ?? '',
         chapters: chapters,
-      );
-    }).toList();
+      ));
+      lower.add(chapters
+          .map((c) => c.map((s) => s.toLowerCase()).toList())
+          .toList());
+    }
 
     _cache[key] = list;
+    _lowerCache[key] = lower;
     return list;
   }
 
@@ -93,18 +111,29 @@ class OfflineBibleService {
   }
 
   /// Case-insensitive whole-Bible search. Returns up to [limit] hits.
+  /// Fast: scans a precomputed lowercase index instead of lowercasing every
+  /// verse on each keystroke.
   Future<List<OfflineSearchHit>> search(String versionKey, String query, {int limit = 50}) async {
     final q = query.toLowerCase().trim();
     if (q.isEmpty) return const [];
-    final all = await books(versionKey);
+    final key = versionKey.toLowerCase();
+    final all = await books(key); // ensures both caches are built
+    final lower = _lowerCache[key] ?? [];
     final hits = <OfflineSearchHit>[];
     for (var bi = 0; bi < all.length && hits.length < limit; bi++) {
       final book = all[bi];
-      for (var c = 0; c < book.chapters.length && hits.length < limit; c++) {
-        final verses = book.chapters[c];
+      final bookLower = lower.isNotEmpty ? lower[bi] : null;
+      final chapters = bookLower ?? book.chapters;
+      for (var c = 0; c < chapters.length && hits.length < limit; c++) {
+        final verses = chapters[c];
         for (var v = 0; v < verses.length && hits.length < limit; v++) {
-          if (verses[v].toLowerCase().contains(q)) {
-            hits.add(OfflineSearchHit(book: book.name, chapter: c + 1, verse: v + 1, text: verses[v]));
+          if (verses[v].contains(q)) {
+            hits.add(OfflineSearchHit(
+              book: book.name,
+              chapter: c + 1,
+              verse: v + 1,
+              text: book.chapters[c][v],
+            ));
           }
         }
       }
