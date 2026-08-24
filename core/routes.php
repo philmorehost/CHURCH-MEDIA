@@ -12,6 +12,14 @@ $router->get('/', function () {
     render('home');
 });
 
+$router->get('/app', function () {
+    render('app', [
+        'metaTitle' => 'Get the App',
+        'metaDescription' => 'Download ' . e(setting('site_title')) . ' on Google Play.',
+        'metaRobots' => 'noindex, nofollow',
+    ]);
+});
+
 $router->get('/feed', function () {
     render('feed');
 });

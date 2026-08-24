@@ -474,6 +474,13 @@ class Database
                 self::addColumnIfMissing($pdo, 'media_posts', 'pinned_at', 'DATETIME NULL', 'is_pinned');
                 self::addColumnIfMissing($pdo, 'media_posts', 'pinned_expires_at', 'DATETIME NULL', 'pinned_at');
             },
+            '2026_08_app_redirect' => function (PDO $pdo): void {
+                // "Admin & App only" mode: when enabled, Android phone visitors
+                // are sent to the app. 'interstitial' shows a landing page with a
+                // Google Play button + a "Continue to website" escape (remembered
+                // per browser); 'force' redirects straight to the Play link.
+                self::addColumnIfMissing($pdo, 'settings', 'app_redirect_mode', "VARCHAR(12) NOT NULL DEFAULT 'off'", 'app_download_pages');
+            },
         ];
     }
 

@@ -38,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'app_download_enabled' => isset($_POST['app_download_enabled']) ? 1 : 0,
         'app_download_url' => trim($_POST['app_download_url'] ?? ''),
         'app_download_pages' => trim($_POST['app_download_pages'] ?? ''),
+        'app_redirect_mode' => in_array($_POST['app_redirect_mode'] ?? 'off', ['off', 'interstitial', 'force'], true) ? $_POST['app_redirect_mode'] : 'off',
         'footer_about_text' => trim($_POST['footer_about_text'] ?? ''),
         'meta_description' => trim($_POST['meta_description'] ?? ''),
         'bible_source' => trim($_POST['bible_source'] ?? 'keyless'),
@@ -240,6 +241,16 @@ require __DIR__ . '/partials/layout-open.php';
     <label for="app_download_pages">Show on pages</label>
     <input type="text" id="app_download_pages" name="app_download_pages" value="<?= e((string) ($row['app_download_pages'] ?? '')) ?>" placeholder="all">
     <p class="hint" style="margin-top:6px;">Type <code>all</code> to show it on every page, or a comma-separated list of page paths, e.g. <code>/, /feed, /media, /events, /sermons</code>.</p>
+
+    <hr style="border:0;border-top:1px solid var(--border);margin:18px 0;">
+    <h3 style="margin:0 0 6px;">Admin &amp; App Only Mode</h3>
+    <p class="sub">Push Android phone visitors toward the app. A landing page is shown with the Google Play button and a “Continue to website” link; <em>force</em> sends them straight to the Play link. iPhone and desktop visitors always keep the normal site, and search engines are never redirected.</p>
+    <label for="app_redirect_mode">Redirect Android mobile visitors</label>
+    <select id="app_redirect_mode" name="app_redirect_mode">
+      <option value="off" <?= ($row['app_redirect_mode'] ?? 'off') === 'off' ? 'selected' : '' ?>>Off — keep the website as-is</option>
+      <option value="interstitial" <?= ($row['app_redirect_mode'] ?? '') === 'interstitial' ? 'selected' : '' ?>>Show a “Get the App” landing page (recommended)</option>
+      <option value="force" <?= ($row['app_redirect_mode'] ?? '') === 'force' ? 'selected' : '' ?>>Force — send straight to the Play link</option>
+    </select>
   </div>
 
   <div class="card">

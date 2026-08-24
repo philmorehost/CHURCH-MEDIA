@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS `settings` (
   `app_download_enabled` TINYINT(1) NOT NULL DEFAULT 0,
   `app_download_url` VARCHAR(500) NULL,
   `app_download_pages` TEXT NULL COMMENT "'all' or comma-separated page paths",
+  `app_redirect_mode` VARCHAR(12) NOT NULL DEFAULT 'off' COMMENT 'off | interstitial | force',
   `footer_about_text` TEXT NULL,
   `meta_description` VARCHAR(255) NULL,
   `bible_source` VARCHAR(20) NOT NULL DEFAULT 'keyless' COMMENT 'keyless or api_bible',

@@ -128,6 +128,37 @@ if ($appDownloadEnabled) {
 </script>
 <?php endif; ?>
 
+<?php
+// "Admin & App only" redirect: optional (off/interstitial/force), Android phone
+// only. Search engines and desktop/iOS visitors are never redirected.
+$appRedirectMode = trim((string) ($s['app_redirect_mode'] ?? 'off'));
+$appRedirectUrl = trim((string) ($s['app_download_url'] ?? ''));
+$appRedirectOn = in_array($appRedirectMode, ['interstitial', 'force'], true) && $appRedirectUrl !== '';
+$currentPathForRedirect = rtrim((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/') ?: '/';
+$isAppPage = $currentPathForRedirect === '/app';
+?>
+<?php if ($appRedirectOn && !$isAppPage): ?>
+<script>
+(function () {
+  // Android phone only (excludes tablets, iPhones, desktops, and bots).
+  var ua = navigator.userAgent || '';
+  var isAndroidPhone = /Android/i.test(ua) && /Mobile/i.test(ua) && !/iPad/i.test(ua);
+  if (!isAndroidPhone) { return; }
+  var mode = <?= json_encode($appRedirectMode) ?>;
+  var url = <?= json_encode($appRedirectUrl) ?>;
+  try {
+    // Interstitial: remember the visitor's "Continue to website" choice.
+    if (mode === 'interstitial' && localStorage.getItem('cm_skip_app') === '1') { return; }
+  } catch (e) { /* storage unavailable — still redirect */ }
+  if (mode === 'force') {
+    location.replace(url);
+  } else {
+    location.replace('/app');
+  }
+})();
+</script>
+<?php endif; ?>
+
 <script src="<?= asset('js/site.js') ?>"></script>
 </body>
 </html>
