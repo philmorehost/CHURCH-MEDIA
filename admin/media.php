@@ -212,6 +212,50 @@ if ($action === 'reassign' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/admin/media');
 }
 
+/** Pin a post to the top of its church's feed (max 3 active per church, 3-day expiry). */
+if ($action === 'pin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $targetId = (int) ($_POST['id'] ?? 0);
+    if (!empty($scopeIds) && !mediaInScope($scopeIds, mediaPostOrgUnit($pdo, $targetId))) {
+        flash('error', 'You can only manage media in your own parish/zone.');
+        redirect('/admin/media');
+    }
+    $orgUnitId = mediaPostOrgUnit($pdo, $targetId);
+    if ($orgUnitId === null) {
+        flash('error', 'Assign this post to a church before pinning it.');
+        redirect('/admin/media');
+    }
+    $stmt = $pdo->prepare('SELECT is_published FROM media_posts WHERE id = ?');
+    $stmt->execute([$targetId]);
+    if (!(int) $stmt->fetchColumn()) {
+        flash('error', 'Only published posts can be pinned.');
+        redirect('/admin/media');
+    }
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM media_posts WHERE org_unit_id = ? AND is_pinned = 1 AND pinned_expires_at > NOW()');
+    $stmt->execute([$orgUnitId]);
+    $count = (int) $stmt->fetchColumn();
+    if ($count >= 3) {
+        flash('error', 'This church already has 3 pinned posts. Unpin one first.');
+        redirect('/admin/media');
+    }
+    $pdo->prepare('UPDATE media_posts SET is_pinned = 1, pinned_at = NOW(), pinned_expires_at = DATE_ADD(NOW(), INTERVAL 3 DAY) WHERE id = ?')->execute([$targetId]);
+    flash('success', 'Post pinned — it will show first and auto-unpin in 3 days.');
+    redirect('/admin/media');
+}
+
+/** Unpin a post (frees a pin slot for another reel). */
+if ($action === 'unpin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $targetId = (int) ($_POST['id'] ?? 0);
+    if (!empty($scopeIds) && !mediaInScope($scopeIds, mediaPostOrgUnit($pdo, $targetId))) {
+        flash('error', 'You can only manage media in your own parish/zone.');
+        redirect('/admin/media');
+    }
+    $pdo->prepare('UPDATE media_posts SET is_pinned = 0, pinned_at = NULL, pinned_expires_at = NULL WHERE id = ?')->execute([$targetId]);
+    flash('success', 'Post unpinned.');
+    redirect('/admin/media');
+}
+
 /** Shared by both the classic form POST and the instant XHR upload. */
 function handleCreatePost(PDO $pdo, array $user): array
 {
@@ -888,7 +932,7 @@ require __DIR__ . '/partials/layout-open.php';
         <button type="button" class="btn sm secondary" onclick="clearBulkSelection()">Clear</button>
       </div>
       <table>
-        <tr><th style="width:34px;"><input type="checkbox" id="bulkSelectAll" title="Select all" aria-label="Select all"></th><th>Cover</th><th>Caption</th><th>Church</th><th>Type</th><th>Status</th><th>Likes</th><th>Views</th><th>Saves</th><th>Posted</th><th></th></tr>
+        <tr><th style="width:34px;"><input type="checkbox" id="bulkSelectAll" title="Select all" aria-label="Select all"></th><th>Cover</th><th>Caption</th><th>Church</th><th>Type</th><th>Status</th><th>Pin</th><th>Likes</th><th>Views</th><th>Saves</th><th>Posted</th><th></th></tr>
         <?php foreach ($posts as $p): ?>
         <tr>
           <td><input type="checkbox" class="bulk-check" value="<?= (int) $p['id'] ?>" aria-label="Select post <?= (int) $p['id'] ?>"></td>
@@ -944,6 +988,25 @@ require __DIR__ . '/partials/layout-open.php';
                 <?= $p['is_published'] ? 'published' : 'draft' ?>
               </button>
             </form>
+          </td>
+          <td>
+            <?php
+              $pinnedActive = !empty($p['is_pinned']) && !empty($p['pinned_expires_at']) && strtotime((string) $p['pinned_expires_at']) > time();
+              $expiryLabel = $pinnedActive ? date('M j, g:ia', strtotime((string) $p['pinned_expires_at'])) : '';
+            ?>
+            <?php if ($pinnedActive): ?>
+              <span class="badge" style="background:#e8b95f22;color:var(--gold-soft);" title="Pinned until <?= e($expiryLabel) ?>">📌 pinned</span>
+              <div style="color:var(--ink-faint);font-size:11px;margin-top:4px;">until <?= e($expiryLabel) ?></div>
+              <form method="post" action="/admin/media?action=unpin" style="display:inline;margin-top:4px;">
+                <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $p['id'] ?>">
+                <button type="submit" class="btn sm secondary">Unpin</button>
+              </form>
+            <?php else: ?>
+              <form method="post" action="/admin/media?action=pin" style="display:inline;">
+                <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $p['id'] ?>">
+                <button type="submit" class="btn sm" <?= !$p['is_published'] ? 'disabled title="Publish the post first"' : '' ?>>📌 Pin</button>
+              </form>
+            <?php endif; ?>
           </td>
           <td><?= (int) $p['likes_count'] ?></td>
           <td><?= (int) $p['views_count'] ?></td>

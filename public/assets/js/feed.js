@@ -687,6 +687,15 @@
     // date / time + feed info
     var dateEl = node.querySelector('.reel-date');
     if (dateEl) { dateEl.textContent = formatPostedAt(post.created_at); }
+    var pinEl = node.querySelector('.reel-pinned');
+    if (pinEl) {
+      if (post.is_pinned) {
+        pinEl.textContent = '📌 Pinned';
+        pinEl.hidden = false;
+      } else {
+        pinEl.hidden = true;
+      }
+    }
     var catsEl = node.querySelector('.reel-cats');
     if (catsEl) {
       var cats = post.categories || [];

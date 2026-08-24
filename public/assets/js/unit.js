@@ -35,10 +35,11 @@
     var thumb = isVideo ? (first.thumbnail_url || '') : (first.file_url || '');
     var badge = isVideo ? '<span class="tile-play">▶</span>' : '';
     var chip = post.post_type === 'vertical_reel' ? '<span class="tile-type">Reel</span>' : (post.post_type === 'carousel' ? '<span class="tile-type">Album</span>' : '');
+    var pin = post.is_pinned ? '<span class="tile-type tile-pin">📌 Pinned</span>' : '';
     var cap = escapeHtml(post.caption || '');
     return '<a class="unit-tile" href="/feed?post=' + encodeURIComponent(post.id) + '" title="' + cap + '">' +
       (thumb ? '<img src="' + escapeHtml(thumb) + '" alt="" loading="lazy">' : '<span class="tile-empty">♪</span>') +
-      badge + chip + '</a>';
+      badge + chip + pin + '</a>';
   }
 
   function load() {

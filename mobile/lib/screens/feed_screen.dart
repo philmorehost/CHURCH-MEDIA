@@ -459,7 +459,16 @@ class _FeedSlideState extends State<_FeedSlide> {
           Positioned(
             top: 12,
             left: 16,
-            child: _badge(post.postType == 'vertical_reel' ? 'Reel' : (post.postType == 'carousel' ? 'Carousel' : 'Photo')),
+            child: Row(
+              children: [
+                if (post.isPinned)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _badge('📌 Pinned'),
+                  ),
+                _badge(post.postType == 'vertical_reel' ? 'Reel' : (post.postType == 'carousel' ? 'Carousel' : 'Photo')),
+              ],
+            ),
           ),
           Positioned(
             top: 12,

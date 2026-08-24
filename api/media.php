@@ -30,10 +30,12 @@ if ($categorySlug !== '') {
     $where .= ' AND EXISTS (SELECT 1 FROM media_post_categories mpc JOIN media_categories c ON c.id = mpc.media_category_id WHERE mpc.media_post_id = p.id AND c.slug = ?)';
     $bind[] = $categorySlug;
 }
-$order = $shuffle ? 'RAND()' : 'p.created_at DESC';
+$order = $shuffle
+    ? '(p.is_pinned = 1 AND p.pinned_expires_at > NOW()) DESC, RAND()'
+    : '(p.is_pinned = 1 AND p.pinned_expires_at > NOW()) DESC, p.pinned_at ASC, p.created_at DESC';
 
 $sql = "
-    SELECT p.id, p.slug, p.caption, p.post_type, p.created_at, p.org_unit_id, u.name AS author_name, u.username AS author_username
+    SELECT p.id, p.slug, p.caption, p.post_type, p.created_at, p.org_unit_id, p.is_pinned, p.pinned_at, p.pinned_expires_at, u.name AS author_name, u.username AS author_username
     FROM media_posts p JOIN users u ON u.id = p.user_id
     WHERE $where
     ORDER BY $order

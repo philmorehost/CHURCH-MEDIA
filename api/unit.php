@@ -27,7 +27,9 @@ $unit['label'] = implode(' · ', array_column($unit['path'], 'name'));
 $unitIds = Unit::subtreeIds((int) $unit['id']);
 $in = implode(',', array_fill(0, count($unitIds), '?'));
 $perPage = min(100, max(1, (int) ($_GET['per_page'] ?? 60)));
-$order = $shuffle ? 'RAND()' : 'p.created_at DESC';
+$order = $shuffle
+    ? '(p.is_pinned = 1 AND p.pinned_expires_at > NOW()) DESC, RAND()'
+    : '(p.is_pinned = 1 AND p.pinned_expires_at > NOW()) DESC, p.pinned_at ASC, p.created_at DESC';
 $categorySlug = trim((string) ($_GET['category'] ?? ''));
 
 $where = "p.is_published = 1 AND p.org_unit_id IN ($in)";
@@ -38,7 +40,7 @@ if ($categorySlug !== '') {
 }
 
 $stmt = $pdo->prepare("
-    SELECT p.id, p.slug, p.caption, p.post_type, p.created_at, u.name AS author_name, u.username AS author_username,
+    SELECT p.id, p.slug, p.caption, p.post_type, p.created_at, p.is_pinned, p.pinned_at, p.pinned_expires_at, u.name AS author_name, u.username AS author_username,
       (SELECT COUNT(*) FROM post_comments pc WHERE pc.media_post_id = p.id AND pc.is_published = 1) AS comments_count
     FROM media_posts p JOIN users u ON u.id = p.user_id
     WHERE $where

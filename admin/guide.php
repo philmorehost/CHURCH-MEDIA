@@ -29,6 +29,7 @@ require __DIR__ . '/partials/layout-open.php';
     <a href="#roles">Roles &amp; Permissions</a>
     <a href="#dashboard">Dashboard</a>
     <a href="#media">Media &amp; Reels</a>
+    <a href="#pinned">Pinned Reels</a>
     <a href="#comments">Comments</a>
     <a href="#events">Events</a>
     <a href="#sermons">Sermons</a>
@@ -79,6 +80,18 @@ require __DIR__ . '/partials/layout-open.php';
       <li><strong>Replace a YouTube item with an upload</strong> — older YouTube posts show as a tappable thumbnail that opens YouTube externally, and you can swap them for a directly-played MP4 so reels always swipe smoothly.</li>
       <li><strong>Bulk select &amp; delete</strong> — tick the checkbox on multiple posts (or use “Select all” in the header), then delete them all at once. Out-of-scope posts are skipped automatically.</li>
       <li><strong>Reprocess videos</strong> if a conversion is ever stuck (the cron note at the bottom of Settings covers the safety net).</li>
+    </ul>
+  </div>
+
+  <div class="card" style="margin-bottom:18px;">
+    <h2 id="pinned">Pinned Reels (<code>/admin/media</code>)</h2>
+    <p>Feature a reel at the top of the feed so it is seen first. Pinned reels work across the whole platform while respecting each church's isolation.</p>
+    <ul>
+      <li><strong>How to pin:</strong> in the media list, click <strong>📌 Pin</strong> on any published post. It immediately jumps to the top of the feed, your church's unit page, and its province/zone pages.</li>
+      <li><strong>Up to 3 per church:</strong> each church can have 3 active pinned posts at a time. To pin another, <strong>Unpin</strong> one first — pinned rows show a “📌 pinned” badge with the expiry time and an Unpin button.</li>
+      <li><strong>Auto-expiry:</strong> a pin lasts <strong>3 days</strong>, then it automatically drops back into the normal feed order — no manual cleanup needed. (Unpinning early frees the slot immediately.)</li>
+      <li><strong>Scope:</strong> admins/editors can only pin their own church's reels; the super admin can pin across the whole organisation. Only published posts can be pinned.</li>
+      <li><strong>Visitors see it:</strong> pinned reels are marked with a “📌 Pinned” badge on the website and the mobile app.</li>
     </ul>
   </div>
 

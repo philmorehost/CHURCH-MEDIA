@@ -465,6 +465,15 @@ class Database
                     $pdo->prepare('UPDATE media_posts SET org_unit_id = ? WHERE org_unit_id IS NULL')->execute([$target]);
                 }
             },
+            '2026_08_pinned_reels' => function (PDO $pdo): void {
+                // Pin reels so they always surface first. Up to 3 active pins per
+                // church (org_unit_id); each pin auto-expires after 3 days. The
+                // effective pin check everywhere is:
+                //   is_pinned = 1 AND pinned_expires_at > NOW()
+                self::addColumnIfMissing($pdo, 'media_posts', 'is_pinned', "TINYINT(1) NOT NULL DEFAULT 0", 'org_unit_id');
+                self::addColumnIfMissing($pdo, 'media_posts', 'pinned_at', 'DATETIME NULL', 'is_pinned');
+                self::addColumnIfMissing($pdo, 'media_posts', 'pinned_expires_at', 'DATETIME NULL', 'pinned_at');
+            },
         ];
     }
 

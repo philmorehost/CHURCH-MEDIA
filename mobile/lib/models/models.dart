@@ -72,6 +72,7 @@ class Post {
   final List<Category> categories;
   final List<UnitInfo> unit;
   final String unitLabel;
+  final bool isPinned;
   bool likedByViewer;
   bool savedByViewer;
 
@@ -91,6 +92,7 @@ class Post {
     required this.categories,
     this.unit = const [],
     this.unitLabel = '',
+    this.isPinned = false,
     required this.likedByViewer,
     this.savedByViewer = false,
   });
@@ -117,6 +119,7 @@ class Post {
             .map((e) => UnitInfo.fromJson(e as Map<String, dynamic>))
             .toList(),
         unitLabel: json['unit_label'] as String? ?? '',
+        isPinned: json['is_pinned'] as bool? ?? false,
         likedByViewer: json['liked_by_viewer'] as bool? ?? false,
         savedByViewer: json['saved_by_viewer'] as bool? ?? false,
       );
