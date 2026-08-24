@@ -66,37 +66,65 @@ if ($action === 'edit') {
 $records = [];
 $summary = ['services' => 0, 'adult' => 0, 'children' => 0, 'youth' => 0, 'total' => 0];
 $trend = [];
+$trendMode = $_GET['trend'] ?? 'weekly';
+if (!in_array($trendMode, ['weekly', 'monthly'], true)) {
+    $trendMode = 'weekly';
+}
 if ($action === 'list') {
     $records = $pdo->query('SELECT a.*, u.name AS recorded_by FROM attendance_records a LEFT JOIN users u ON u.id = a.created_by WHERE 1=1' . $scopeSql . ' ORDER BY a.service_date DESC, a.id DESC LIMIT 200')->fetchAll();
     $agg = $pdo->query('SELECT COUNT(*) AS services, COALESCE(SUM(adult_count),0) AS adult, COALESCE(SUM(children_count),0) AS children, COALESCE(SUM(youth_count),0) AS youth, COALESCE(SUM(adult_count + children_count + youth_count),0) AS total FROM attendance_records WHERE 1=1' . $scopeSql)->fetch();
     $summary = $agg ?: $summary;
 
-    // Weekly growth trend for the last 12 weeks (from the earliest day of the
-    // window, so the bars read left-to-right oldest → newest).
-    $trendStmt = $pdo->query('
-        SELECT MIN(service_date) AS week_start,
-               SUM(adult_count + children_count + youth_count) AS total
-        FROM attendance_records
-        WHERE 1=1' . $scopeSql . '
-          AND service_date >= DATE_SUB(CURDATE(), INTERVAL 12 WEEK)
-        GROUP BY YEARWEEK(service_date, 1)
-        ORDER BY week_start ASC');
-    foreach ($trendStmt->fetchAll() as $row) {
-        $trend[] = ['label' => date('M j', strtotime((string) $row['week_start'])), 'total' => (int) $row['total']];
+    if ($trendMode === 'monthly') {
+        // Monthly aggregate for the last 12 months (oldest → newest).
+        $trendStmt = $pdo->query('
+            SELECT MIN(service_date) AS period_start,
+                   SUM(adult_count + children_count + youth_count) AS total
+            FROM attendance_records
+            WHERE 1=1' . $scopeSql . '
+              AND service_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+            GROUP BY YEAR(service_date), MONTH(service_date)
+            ORDER BY period_start ASC');
+        $trendMap = [];
+        foreach ($trendStmt->fetchAll() as $row) {
+            $trendMap[date('Y-m', strtotime((string) $row['period_start']))] = (int) $row['total'];
+        }
+        $filled = [];
+        $month = new DateTimeImmutable('first day of this month');
+        for ($i = 11; $i >= 0; $i--) {
+            $d = $month->modify('-' . $i . ' months');
+            $key = $d->format('Y-m');
+            $filled[] = ['label' => $d->format('M y'), 'total' => $trendMap[$key] ?? 0];
+        }
+        $trend = $filled;
+    } else {
+        // Weekly growth trend for the last 12 weeks (from the earliest day of
+        // the window, so the bars read left-to-right oldest → newest).
+        $trendStmt = $pdo->query('
+            SELECT MIN(service_date) AS week_start,
+                   SUM(adult_count + children_count + youth_count) AS total
+            FROM attendance_records
+            WHERE 1=1' . $scopeSql . '
+              AND service_date >= DATE_SUB(CURDATE(), INTERVAL 12 WEEK)
+            GROUP BY YEARWEEK(service_date, 1)
+            ORDER BY week_start ASC');
+        foreach ($trendStmt->fetchAll() as $row) {
+            $trend[] = ['label' => date('M j', strtotime((string) $row['week_start'])), 'total' => (int) $row['total']];
+        }
+        // Fill gaps so the chart always spans 12 bars (weeks with no record = 0).
+        $trendMap = [];
+        foreach ($trend as $t) {
+            $trendMap[$t['label']] = $t['total'];
+        }
+        $filled = [];
+        $day = new DateTimeImmutable('today');
+        for ($i = 11; $i >= 0; $i--) {
+            $d = $day->modify('-' . $i . ' weeks');
+            $label = $d->format('M j');
+            $filled[] = ['label' => $label, 'total' => $trendMap[$label] ?? 0];
+        }
+        $trend = $filled;
     }
-    // Fill gaps so the chart always spans 12 bars (weeks with no record = 0).
-    $trendMap = [];
-    foreach ($trend as $t) {
-        $trendMap[$t['label']] = $t['total'];
-    }
-    $filled = [];
-    $day = new DateTimeImmutable('today');
-    for ($i = 11; $i >= 0; $i--) {
-        $d = $day->modify('-' . $i . ' weeks');
-        $label = $d->format('M j');
-        $filled[] = ['label' => $label, 'total' => $trendMap[$label] ?? 0];
-    }
-    $trend = $filled;
 }
 
 $pageTitle = 'Attendance';
@@ -184,8 +212,14 @@ require __DIR__ . '/partials/layout-open.php';
 
   <?php if ($trend): ?>
   <div class="card" style="padding:20px;margin-bottom:20px;">
-    <h2 style="margin-bottom:4px;">Growth Trend <span style="color:var(--ink-faint);font-size:12px;font-weight:400;">— last 12 weeks</span></h2>
-    <p class="sub" style="margin-bottom:18px;">Total attendance (adults + children + youth) per week. Weeks with no record are shown as zero.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
+      <h2 style="margin:0;">Growth Trend</h2>
+      <div style="display:flex;gap:6px;">
+        <a class="btn sm <?= $trendMode === 'weekly' ? '' : 'secondary' ?>" href="/admin/attendance?trend=weekly">Weekly</a>
+        <a class="btn sm <?= $trendMode === 'monthly' ? '' : 'secondary' ?>" href="/admin/attendance?trend=monthly">Monthly</a>
+      </div>
+    </div>
+    <p class="sub" style="margin-bottom:18px;">Total attendance (adults + children + youth) per <?= $trendMode === 'monthly' ? 'month' : 'week' ?>. Periods with no record are shown as zero.</p>
     <div class="trend-chart">
       <?php $trendMax = max(array_column($trend, 'total')); $trendMax = $trendMax > 0 ? $trendMax : 1; ?>
       <?php foreach ($trend as $t): ?>

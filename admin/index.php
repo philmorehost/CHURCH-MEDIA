@@ -26,6 +26,19 @@ if ($scopeClause !== '') {
     $stats['my_posts'] = (int) $pdo->query('SELECT COUNT(*) FROM media_posts p WHERE 1=1' . $scopeClause)->fetchColumn();
 }
 
+// Newcomer follow-up scope (mirrors the per-church isolation on /admin/newcomers).
+$newcomerScope = '';
+if ($user && empty($user['is_super_admin'])) {
+    $newcomerScope = $scopeIds ? ' AND n.org_unit_id IN (' . implode(',', array_map('intval', $scopeIds)) . ')' : ' AND 1 = 0';
+}
+$stats['newcomers_week'] = (int) $pdo->query('SELECT COUNT(*) FROM newcomers n WHERE 1=1' . $newcomerScope . ' AND n.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)')->fetchColumn();
+$recentNewcomers = $pdo->query('
+    SELECT n.name, n.whatsapp_phone, n.age_group, n.follow_up_status, n.visit_date, n.created_at
+    FROM newcomers n
+    WHERE 1=1' . $newcomerScope . '
+    ORDER BY n.created_at DESC LIMIT 6
+')->fetchAll();
+
 $recentPosts = $pdo->query('
     SELECT p.id, p.caption, p.post_type, p.likes_count, p.views_count, p.created_at, u.name AS author
     FROM media_posts p JOIN users u ON u.id = p.user_id
@@ -79,6 +92,7 @@ require __DIR__ . '/partials/layout-open.php';
   <div class="stat"><div class="num"><?= $stats['events'] ?></div><div class="label">Upcoming Events</div></div>
   <div class="stat"><div class="num"><?= $stats['sermons'] ?></div><div class="label">Sermons</div></div>
   <div class="stat"><div class="num"><?= $stats['prayers_new'] ?></div><div class="label">New Prayer Requests</div></div>
+  <div class="stat"><div class="num" style="color:var(--gold-soft);"><?= $stats['newcomers_week'] ?></div><div class="label">Newcomers (7 days)</div></div>
   <div class="stat"><div class="num"><?= $stats['subscribers'] ?></div><div class="label">Newsletter Subscribers</div></div>
   <div class="stat"><div class="num" style="color:<?= $stats['blocked_ips'] ? 'var(--danger)' : 'var(--success)' ?>;"><?= $stats['blocked_ips'] ?></div><div class="label">Blocked IPs</div></div>
 </div>
@@ -128,6 +142,54 @@ require __DIR__ . '/partials/layout-open.php';
       </table>
     <?php endif; ?>
   </div>
+</div>
+
+<div class="card" style="margin-top:18px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+    <h2 style="margin:0;">Recent Newcomers</h2>
+    <a href="/admin/newcomers" style="color:var(--gold-soft);font-size:13px;">Manage →</a>
+  </div>
+  <p class="sub">Latest first-time guests for follow-up</p>
+  <?php if (!$recentNewcomers): ?>
+    <div class="empty">No newcomers yet — <a href="/admin/newcomers?action=create" style="color:var(--gold-soft);">add one</a>.</div>
+  <?php else: ?>
+    <table>
+      <tr><th>Name</th><th>WhatsApp</th><th>Age Group</th><th>Status</th><th>Added</th></tr>
+      <?php foreach ($recentNewcomers as $nc): ?>
+      <tr>
+        <td><strong><?= e($nc['name']) ?></strong></td>
+        <td>
+          <?php if ($nc['whatsapp_phone']): ?>
+            <a href="https://wa.me/<?= e(preg_replace('/[^0-9]/', '', (string) $nc['whatsapp_phone'])) ?>" target="_blank" rel="noopener" style="color:var(--gold);"><?= e($nc['whatsapp_phone']) ?> ↗</a>
+          <?php else: ?>—<?php endif; ?>
+        </td>
+        <td>
+          <?php
+            $ageBadge = match ($nc['age_group'] ?? 'adult') {
+              'children' => ['Children', 'info'],
+              'youth' => ['Youth', 'warn'],
+              default => ['Adult', 'ok'],
+            };
+          ?>
+          <span class="badge <?= $ageBadge[1] ?>"><?= $ageBadge[0] ?></span>
+        </td>
+        <td>
+          <?php
+            $statusBadge = match ($nc['follow_up_status'] ?? 'new') {
+              'contacted' => ['Contacted', 'info'],
+              'followed_up' => ['Followed Up', 'warn'],
+              'returned' => ['Returned', 'ok'],
+              'inactive' => ['Inactive', 'fail'],
+              default => ['New', 'warn'],
+            };
+          ?>
+          <span class="badge <?= $statusBadge[1] ?>"><?= $statusBadge[0] ?></span>
+        </td>
+        <td><?= e(timeAgo($nc['created_at'])) ?></td>
+      </tr>
+      <?php endforeach; ?>
+    </table>
+  <?php endif; ?>
 </div>
 
 <?php require __DIR__ . '/partials/layout-close.php'; ?>
