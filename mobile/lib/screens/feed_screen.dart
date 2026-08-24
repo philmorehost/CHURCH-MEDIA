@@ -324,6 +324,7 @@ class _FeedSlideState extends State<_FeedSlide> {
   bool _saving = false;
   bool _burst = false;
   bool _likePop = false;
+  bool _isActive = false;
 
   MediaItem? get _activeMedia => widget.post.mediaItems.isEmpty ? null : widget.post.mediaItems[_mediaIndex];
 
@@ -383,6 +384,9 @@ class _FeedSlideState extends State<_FeedSlide> {
 
   void _onVisibilityChanged(VisibilityInfo info) {
     final visible = info.visibleFraction > 0.6;
+    if (visible != _isActive) {
+      setState(() => _isActive = visible);
+    }
     final vc = _videoController;
     if (vc != null) {
       if (visible) {
@@ -716,9 +720,19 @@ class _FeedSlideState extends State<_FeedSlide> {
         onDoubleTap: () => _toggleLike(doubleTap: true),
         child: Container(
           color: Colors.black,
-          child: id.isNotEmpty && yc != null
+          // Mount the live webview only on the ACTIVE slide. Off-screen slides
+          // show the static thumbnail, so a webview is never present to block
+          // the vertical swipe and only one player exists at a time.
+          child: _isActive && id.isNotEmpty && yc != null
               ? _YoutubePlayerView(controller: yc)
-              : const LoadingView(),
+              : (media.thumbnailUrl != null
+                  ? CachedNetworkImage(
+                      imageUrl: media.thumbnailUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                    )
+                  : const LoadingView()),
         ),
       );
     }
