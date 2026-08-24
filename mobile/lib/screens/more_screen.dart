@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'about_screen.dart';
-import 'bible_screen.dart';
 import 'contact_screen.dart';
+import 'events_screen.dart';
 import 'give_screen.dart';
 import 'live_screen.dart';
 import 'prayer_screen.dart';
@@ -14,7 +14,7 @@ class MoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = <_MoreItem>[
-      _MoreItem('Holy Bible', Icons.menu_book, const BibleScreen()),
+      _MoreItem('Events', Icons.event, const EventsScreen()),
       _MoreItem('Live', Icons.live_tv, const LiveScreen()),
       _MoreItem('Prayer Wall', Icons.favorite_outline, const PrayerScreen()),
       _MoreItem('About Us', Icons.info_outline, const AboutScreen()),

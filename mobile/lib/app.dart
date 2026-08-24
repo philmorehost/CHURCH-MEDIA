@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/events_screen.dart';
+import 'screens/bible_screen.dart';
 import 'screens/feed_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/more_screen.dart';
@@ -24,7 +24,8 @@ class ChurchMediaApp extends StatelessWidget {
   }
 }
 
-/// Bottom-nav shell — Home / Feed(Reels) / Events / Sermons / More.
+/// Bottom-nav shell — Home / Feed(Reels) / Bible / Sermons / More.
+/// Events moved into the More menu; the Bible is always one tap away.
 /// No login anywhere: every screen here is publicly viewable.
 class RootShell extends StatefulWidget {
   const RootShell({super.key});
@@ -56,7 +57,7 @@ class _RootShellState extends State<RootShell> {
     final screens = [
       HomeScreen(onNavigate: _goTo),
       FeedScreen(key: _feedKey),
-      const EventsScreen(),
+      const BibleScreen(),
       const SermonsScreen(),
       const MoreScreen(),
     ];
@@ -69,7 +70,7 @@ class _RootShellState extends State<RootShell> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.play_circle_outline), activeIcon: Icon(Icons.play_circle), label: 'Feed'),
-          BottomNavigationBarItem(icon: Icon(Icons.event_outlined), activeIcon: Icon(Icons.event), label: 'Events'),
+          BottomNavigationBarItem(icon: Icon(Icons.auto_stories_outlined), activeIcon: Icon(Icons.auto_stories), label: 'Bible'),
           BottomNavigationBarItem(icon: Icon(Icons.menu_book_outlined), activeIcon: Icon(Icons.menu_book), label: 'Sermons'),
           BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
         ],
