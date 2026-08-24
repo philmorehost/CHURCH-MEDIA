@@ -89,19 +89,43 @@ if ($appDownloadEnabled) {
 }
 ?>
 <?php if ($appDownloadEnabled): ?>
-<a class="app-download-fab" href="<?= e($appDownloadUrl) ?>" target="_blank" rel="noopener" aria-label="Get the app on Google Play">
-  <svg class="app-download-fab__icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
-    <path fill="#00A0FF" d="M67.9 12.9C42.1 23.2 25 47.5 25 78.8v354.4c0 31.3 17.1 55.6 42.9 65.9l247.8-247.9L67.9 12.9z"/>
-    <path fill="#FFCE00" d="m430.8 292.7-84.9-48.2-76.4 76.4 76.4 76.4 84.9-48.2c41.1-23.2 41.1-81.2 0-104.4z"/>
-    <path fill="#EA4335" d="M269.5 255.9 345.9 179.5l-278-157.7C39.4 33 25.5 53.7 25 78.8v2.6l244.5 174.5z"/>
-    <path fill="#FF3D00" d="M345.9 332.3 269.5 255.9 25 430.4v2.6c.5 25.1 14.4 45.8 42.9 57l278-157.7z"/>
-    <path fill="#00A0FF" d="M269.5 255.9 25 81.4v0l0 0 0 0 244.5 174.5z"/>
-  </svg>
-  <span class="app-download-fab__text">
-    <small>Get it on</small>
-    <strong>Google Play</strong>
-  </span>
-</a>
+<div class="app-download-fab" id="appDownloadFab">
+  <button type="button" class="app-download-fab__close" id="appDownloadClose" aria-label="Hide app download button">✕</button>
+  <a class="app-download-fab__link" href="<?= e($appDownloadUrl) ?>" target="_blank" rel="noopener" aria-label="Get the app on Google Play">
+    <svg class="app-download-fab__icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+      <path fill="#00A0FF" d="M67.9 12.9C42.1 23.2 25 47.5 25 78.8v354.4c0 31.3 17.1 55.6 42.9 65.9l247.8-247.9L67.9 12.9z"/>
+      <path fill="#FFCE00" d="m430.8 292.7-84.9-48.2-76.4 76.4 76.4 76.4 84.9-48.2c41.1-23.2 41.1-81.2 0-104.4z"/>
+      <path fill="#EA4335" d="M269.5 255.9 345.9 179.5l-278-157.7C39.4 33 25.5 53.7 25 78.8v2.6l244.5 174.5z"/>
+      <path fill="#FF3D00" d="M345.9 332.3 269.5 255.9 25 430.4v2.6c.5 25.1 14.4 45.8 42.9 57l278-157.7z"/>
+      <path fill="#00A0FF" d="M269.5 255.9 25 81.4v0l0 0 0 0 244.5 174.5z"/>
+    </svg>
+    <span class="app-download-fab__text">
+      <small>Get it on</small>
+      <strong>Google Play</strong>
+    </span>
+  </a>
+</div>
+<script>
+(function () {
+  var KEY = 'cm_hide_download_fab';
+  var fab = document.getElementById('appDownloadFab');
+  var close = document.getElementById('appDownloadClose');
+  if (!fab) { return; }
+  try {
+    if (localStorage.getItem(KEY) === '1') {
+      fab.style.display = 'none';
+      return;
+    }
+  } catch (e) { /* storage unavailable */ }
+  if (close) {
+    close.addEventListener('click', function (e) {
+      e.preventDefault();
+      try { localStorage.setItem(KEY, '1'); } catch (err) { /* ignore */ }
+      fab.style.display = 'none';
+    });
+  }
+})();
+</script>
 <?php endif; ?>
 
 <script src="<?= asset('js/site.js') ?>"></script>

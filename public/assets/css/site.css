@@ -263,7 +263,9 @@ p{margin:0 0 1em;}
   .reels-page{height:100dvh;}
 }
 
-/* Floating "Get it on Google Play" button — left edge, vertically centered */
+/* Floating "Get it on Google Play" button — left edge, vertically centered.
+   Vertical (column) layout so it takes minimal horizontal space; visitors can
+   close it with the ✕ button (remembered per-browser via localStorage). */
 .app-download-fab{
   position:fixed;
   left:0;
@@ -271,16 +273,16 @@ p{margin:0 0 1em;}
   transform:translateY(-50%);
   z-index:2000;
   display:flex;
+  flex-direction:column;
   align-items:center;
-  gap:10px;
-  padding:10px 16px 10px 10px;
+  gap:6px;
+  padding:26px 9px 12px;
   background:linear-gradient(135deg,#161428,#1d1836);
   border:1px solid var(--border);
   border-left:none;
   border-radius:0 16px 16px 0;
   box-shadow:0 12px 30px rgba(0,0,0,.45);
   color:var(--ink);
-  text-decoration:none;
   transition:transform .25s ease, box-shadow .25s ease, background .25s ease;
 }
 .app-download-fab:hover{
@@ -288,13 +290,48 @@ p{margin:0 0 1em;}
   background:linear-gradient(135deg,#1d1836,#241d42);
   box-shadow:0 14px 34px rgba(0,0,0,.55);
 }
-.app-download-fab:focus-visible{
+.app-download-fab__link{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:7px;
+  color:var(--ink);
+  text-decoration:none;
+}
+.app-download-fab__link:focus-visible{
   outline:2px solid var(--gold);
   outline-offset:2px;
+  border-radius:10px;
+}
+.app-download-fab__close{
+  position:absolute;
+  top:2px;
+  right:2px;
+  width:22px;
+  height:22px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border:none;
+  background:transparent;
+  color:var(--ink-faint);
+  font-size:13px;
+  line-height:1;
+  cursor:pointer;
+  border-radius:50%;
+  transition:color .2s ease, background .2s ease;
+}
+.app-download-fab__close:hover{
+  color:var(--ink);
+  background:#ffffff14;
+}
+.app-download-fab__close:focus-visible{
+  outline:2px solid var(--gold);
+  outline-offset:1px;
 }
 .app-download-fab__icon{
-  width:34px;
-  height:34px;
+  width:32px;
+  height:32px;
   display:block;
   flex:0 0 auto;
   filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));
@@ -302,24 +339,26 @@ p{margin:0 0 1em;}
 .app-download-fab__text{
   display:flex;
   flex-direction:column;
+  align-items:center;
   line-height:1.15;
-  text-align:left;
+  text-align:center;
 }
 .app-download-fab__text small{
-  font-size:10px;
+  font-size:9px;
   text-transform:uppercase;
-  letter-spacing:.6px;
+  letter-spacing:.5px;
   color:var(--ink-faint);
 }
 .app-download-fab__text strong{
-  font-size:14px;
+  font-size:12px;
   font-weight:700;
   color:var(--ink);
   letter-spacing:.2px;
 }
 @media (max-width:640px){
-  .app-download-fab{ padding:8px 12px 8px 8px; border-radius:0 12px 12px 0; }
-  .app-download-fab__icon{ width:28px; height:28px; }
-  .app-download-fab__text small{ font-size:9px; }
-  .app-download-fab__text strong{ font-size:12px; }
+  .app-download-fab{ padding:24px 7px 10px; border-radius:0 12px 12px 0; }
+  .app-download-fab__icon{ width:27px; height:27px; }
+  .app-download-fab__text small{ font-size:8px; }
+  .app-download-fab__text strong{ font-size:11px; }
+  .app-download-fab__close{ width:20px; height:20px; font-size:12px; }
 }
