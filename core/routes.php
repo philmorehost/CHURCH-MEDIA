@@ -12,6 +12,13 @@ $router->get('/', function () {
     render('home');
 });
 
+$router->get('/app-features', function () {
+    render('app-features', [
+        'metaTitle' => 'App Features',
+        'metaDescription' => 'Explore everything the ' . setting('site_title') . ' app offers — reels, the offline Bible, events, sermons, prayer, and push notifications.',
+    ]);
+});
+
 $router->get('/app', function () {
     render('app', [
         'metaTitle' => 'Get the App',

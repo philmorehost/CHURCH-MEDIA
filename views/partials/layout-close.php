@@ -33,6 +33,7 @@ $socials = [
         <a href="/sermons">Sermons</a>
         <a href="/live">Watch Live</a>
         <a href="/prayer">Prayer Wall</a>
+        <a href="/app-features">App Features</a>
       </div>
       <div>
         <h4>Connect</h4>
