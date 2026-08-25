@@ -133,12 +133,41 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--gold);}
   .row.two,.row.three{grid-template-columns:1fr;}
   .btn-row{flex-wrap:wrap;}
 }
+/* Dashboard on phones: stack the two feature cards and turn tables into cards */
+@media (max-width:640px){
+  .grid.cols-2{grid-template-columns:1fr;} /* Recent Media / Recent Security stack */
+  table.resp-table tr:first-child{display:none;} /* hide header row */
+  table.resp-table,
+  table.resp-table tbody,
+  table.resp-table tr{display:block; width:100%;}
+  table.resp-table tr{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:4px 12px 10px;
+    margin-bottom:10px;
+  }
+  table.resp-table td{
+    display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+    padding:9px 0; border:none; border-bottom:1px dashed var(--border);
+    white-space:normal; text-align:right;
+  }
+  table.resp-table td:last-child{border-bottom:none;}
+  table.resp-table td::before{
+    content:attr(data-label);
+    font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--ink-faint); flex-shrink:0;
+  }
+}
 @media (max-width:560px){
-  .grid.cols-4,.grid.cols-3,.grid.cols-2{grid-template-columns:1fr;}
   .card{padding:16px;}
   .stat{padding:14px 16px;}
   .topbar h1{font-size:16px;}
   .alert{padding:11px 13px;}
+}
+/* Very narrow phones: stat tiles drop to a single column */
+@media (max-width:380px){
+  .grid.cols-4,.grid.cols-3{grid-template-columns:1fr;}
 }
 
 /* Attendance growth trend chart */

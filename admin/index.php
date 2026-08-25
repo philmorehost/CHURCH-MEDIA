@@ -104,15 +104,15 @@ require __DIR__ . '/partials/layout-open.php';
     <?php if (!$recentPosts): ?>
       <div class="empty">No posts yet — <a href="/admin/media" style="color:var(--gold-soft);">create your first one</a>.</div>
     <?php else: ?>
-      <table>
+      <table class="resp-table">
         <tr><th>Caption</th><th>Type</th><th>Likes</th><th>Views</th><th>Posted</th></tr>
         <?php foreach ($recentPosts as $p): ?>
         <tr>
-          <td><?= e(mb_strimwidth((string) $p['caption'], 0, 40, '…')) ?></td>
-          <td><span class="badge info"><?= e(str_replace('_', ' ', $p['post_type'])) ?></span></td>
-          <td><?= $p['likes_count'] ?></td>
-          <td><?= $p['views_count'] ?></td>
-          <td><?= e(timeAgo($p['created_at'])) ?></td>
+          <td data-label="Caption"><?= e(mb_strimwidth((string) $p['caption'], 0, 40, '…')) ?></td>
+          <td data-label="Type"><span class="badge info"><?= e(str_replace('_', ' ', $p['post_type'])) ?></span></td>
+          <td data-label="Likes"><?= $p['likes_count'] ?></td>
+          <td data-label="Views"><?= $p['views_count'] ?></td>
+          <td data-label="Posted"><?= e(timeAgo($p['created_at'])) ?></td>
         </tr>
         <?php endforeach; ?>
       </table>
@@ -125,18 +125,18 @@ require __DIR__ . '/partials/layout-open.php';
     <?php if (!$recentSecurity): ?>
       <div class="empty">No activity logged yet.</div>
     <?php else: ?>
-      <table>
+      <table class="resp-table">
         <tr><th>Event</th><th>User</th><th>IP</th><th>When</th></tr>
         <?php foreach ($recentSecurity as $log): ?>
         <tr>
-          <td>
+          <td data-label="Event">
             <?php if ($log['event_type'] === 'successful_login'): ?><span class="badge ok">success</span>
             <?php elseif ($log['event_type'] === 'failed_login'): ?><span class="badge fail">failed</span>
             <?php else: ?><span class="badge warn">blocked</span><?php endif; ?>
           </td>
-          <td><?= e($log['username_attempted'] ?? '—') ?></td>
-          <td><?= e($log['ip_address']) ?></td>
-          <td><?= e(timeAgo($log['created_at'])) ?></td>
+          <td data-label="User"><?= e($log['username_attempted'] ?? '—') ?></td>
+          <td data-label="IP"><?= e($log['ip_address']) ?></td>
+          <td data-label="When"><?= e(timeAgo($log['created_at'])) ?></td>
         </tr>
         <?php endforeach; ?>
       </table>
@@ -153,17 +153,17 @@ require __DIR__ . '/partials/layout-open.php';
   <?php if (!$recentNewcomers): ?>
     <div class="empty">No newcomers yet — <a href="/admin/newcomers?action=create" style="color:var(--gold-soft);">add one</a>.</div>
   <?php else: ?>
-    <table>
+    <table class="resp-table">
       <tr><th>Name</th><th>WhatsApp</th><th>Age Group</th><th>Status</th><th>Added</th></tr>
       <?php foreach ($recentNewcomers as $nc): ?>
       <tr>
-        <td><strong><?= e($nc['name']) ?></strong></td>
-        <td>
+        <td data-label="Name"><strong><?= e($nc['name']) ?></strong></td>
+        <td data-label="WhatsApp">
           <?php if ($nc['whatsapp_phone']): ?>
             <a href="https://wa.me/<?= e(preg_replace('/[^0-9]/', '', (string) $nc['whatsapp_phone'])) ?>" target="_blank" rel="noopener" style="color:var(--gold);"><?= e($nc['whatsapp_phone']) ?> ↗</a>
           <?php else: ?>—<?php endif; ?>
         </td>
-        <td>
+        <td data-label="Age Group">
           <?php
             $ageBadge = match ($nc['age_group'] ?? 'adult') {
               'children' => ['Children', 'info'],
@@ -173,7 +173,7 @@ require __DIR__ . '/partials/layout-open.php';
           ?>
           <span class="badge <?= $ageBadge[1] ?>"><?= $ageBadge[0] ?></span>
         </td>
-        <td>
+        <td data-label="Status">
           <?php
             $statusBadge = match ($nc['follow_up_status'] ?? 'new') {
               'contacted' => ['Contacted', 'info'],
@@ -185,7 +185,7 @@ require __DIR__ . '/partials/layout-open.php';
           ?>
           <span class="badge <?= $statusBadge[1] ?>"><?= $statusBadge[0] ?></span>
         </td>
-        <td><?= e(timeAgo($nc['created_at'])) ?></td>
+        <td data-label="Added"><?= e(timeAgo($nc['created_at'])) ?></td>
       </tr>
       <?php endforeach; ?>
     </table>
