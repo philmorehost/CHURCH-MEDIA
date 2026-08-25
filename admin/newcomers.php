@@ -25,7 +25,9 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
     $whatsapp = trim($_POST['whatsapp_phone'] ?? '');
     $address = trim($_POST['address'] ?? '');
     $gender = in_array($_POST['gender'] ?? '', ['male', 'female'], true) ? $_POST['gender'] : null;
-    $ageGroup = in_array($_POST['age_group'] ?? '', ['adult', 'children', 'youth'], true) ? $_POST['age_group'] : 'adult';
+    // Target is the Youth church, so age group is no longer collected on the
+    // form; store 'youth' so existing queries/reports keep working.
+    $ageGroup = 'youth';
     $attendanceId = (int) ($_POST['attendance_id'] ?? 0);
     $visitDate = trim($_POST['visit_date'] ?? '') ?: null;
     $status = in_array($_POST['follow_up_status'] ?? '', ['new', 'contacted', 'followed_up', 'returned', 'inactive'], true) ? $_POST['follow_up_status'] : 'new';
@@ -92,14 +94,13 @@ if ($action === 'export_csv') {
         $statusWhere = ' AND n.follow_up_status = ?';
         $statusParams[] = $statusFilter;
     }
-    $stmt = $pdo->prepare('SELECT n.name, n.whatsapp_phone, n.address, n.gender, n.age_group, n.visit_date, n.follow_up_status, n.notes, n.created_at, a.service_date AS attended_on, a.service_name AS attended_service FROM newcomers n LEFT JOIN attendance_records a ON a.id = n.attendance_id WHERE 1=1' . $scopeNSql . $statusWhere . ' ORDER BY n.created_at DESC, n.id DESC');
+    $stmt = $pdo->prepare('SELECT n.name, n.whatsapp_phone, n.address, n.gender, n.visit_date, n.follow_up_status, n.notes, n.created_at, a.service_date AS attended_on, a.service_name AS attended_service FROM newcomers n LEFT JOIN attendance_records a ON a.id = n.attendance_id WHERE 1=1' . $scopeNSql . $statusWhere . ' ORDER BY n.created_at DESC, n.id DESC');
     $stmt->execute($statusParams);
     $csv = array_map(fn (array $r): array => [
         $r['name'],
         $r['whatsapp_phone'] ?? '',
         $r['address'] ?? '',
         $r['gender'] ?? '',
-        $r['age_group'] ?? '',
         $r['visit_date'] ?? '',
         $r['attended_on'] ?? '',
         $r['attended_service'] ?? '',
@@ -107,7 +108,7 @@ if ($action === 'export_csv') {
         $r['notes'] ?? '',
         $r['created_at'] ?? '',
     ], $stmt->fetchAll());
-    csvDownload('newcomers-' . date('Y-m-d') . ($statusFilter !== '' ? '-' . $statusFilter : '') . '.csv', ['Name', 'WhatsApp Phone', 'Address', 'Gender', 'Age Group', 'Visit Date', 'Attended Date', 'Attended Service', 'Follow-up Status', 'Notes', 'Added'], $csv);
+    csvDownload('newcomers-' . date('Y-m-d') . ($statusFilter !== '' ? '-' . $statusFilter : '') . '.csv', ['Name', 'WhatsApp Phone', 'Address', 'Gender', 'Visit Date', 'Attended Date', 'Attended Service', 'Follow-up Status', 'Notes', 'Added'], $csv);
 }
 
 $editing = null;
@@ -184,20 +185,8 @@ require __DIR__ . '/partials/layout-open.php';
           </select>
         </div>
       </div>
-      <div class="row two">
-        <div>
-          <label for="age_group">Age Group</label>
-          <select id="age_group" name="age_group">
-            <option value="adult" <?= ($editing['age_group'] ?? 'adult') === 'adult' ? 'selected' : '' ?>>Adult</option>
-            <option value="children" <?= ($editing['age_group'] ?? '') === 'children' ? 'selected' : '' ?>>Children</option>
-            <option value="youth" <?= ($editing['age_group'] ?? '') === 'youth' ? 'selected' : '' ?>>Youth</option>
-          </select>
-        </div>
-        <div>
-          <label for="visit_date">Visit Date</label>
-          <input type="date" id="visit_date" name="visit_date" value="<?= e($editing['visit_date'] ?? ($prefillVisitDate ?? date('Y-m-d'))) ?>">
-        </div>
-      </div>
+      <label for="visit_date">Visit Date</label>
+      <input type="date" id="visit_date" name="visit_date" value="<?= e($editing['visit_date'] ?? ($prefillVisitDate ?? date('Y-m-d'))) ?>">
       <label for="address">Address</label>
       <input type="text" id="address" name="address" value="<?= e($editing['address'] ?? '') ?>" placeholder="Street, City">
       <label for="attendance_id">Attended Service</label>
@@ -252,7 +241,6 @@ require __DIR__ . '/partials/layout-open.php';
       <th>WhatsApp</th>
       <th>Address</th>
       <th>Gender</th>
-      <th>Age Group</th>
       <th>Visited</th>
       <th>Status</th>
       <th></th>
@@ -267,16 +255,6 @@ require __DIR__ . '/partials/layout-open.php';
         </td>
         <td><?= e((string) $n['address']) ?></td>
         <td><?= $n['gender'] ? e(ucfirst((string) $n['gender'])) : '—' ?></td>
-        <td>
-          <?php
-            $ageBadge = match ($n['age_group'] ?? 'adult') {
-              'children' => ['Children', 'info'],
-              'youth' => ['Youth', 'warn'],
-              default => ['Adult', 'ok'],
-            };
-          ?>
-          <span class="badge <?= $ageBadge[1] ?>"><?= $ageBadge[0] ?></span>
-        </td>
         <td>
           <?php if ($n['visit_date']): ?><?= e(date('M j, Y', strtotime((string) $n['visit_date']))) ?><?php else: ?>—<?php endif; ?>
           <?php if ($n['attended_on']): ?><br><small style="color:var(--ink-faint);"><?= e(date('M j', strtotime((string) $n['attended_on']))) ?> · <?= e((string) $n['attended_service']) ?></small><?php endif; ?>

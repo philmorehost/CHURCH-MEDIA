@@ -158,7 +158,7 @@ require __DIR__ . '/partials/layout-open.php';
 
   <div class="card" style="margin-bottom:18px;">
     <h2 id="newcomers">Newcomers (<code>/admin/newcomers</code>) <span class="pill role">ADMIN/EDITOR</span></h2>
-    <p>Capture first-time guests so you can follow them up. Enter their <strong>name</strong>, <strong>WhatsApp phone number</strong>, <strong>address</strong>, <strong>gender</strong> (Male/Female), and <strong>age group</strong> (Adult / Children / Youth), optionally link them to the <strong>attended service</strong>, and set their <strong>follow-up status</strong>.</p>
+    <p>Capture first-time guests so you can follow them up. Enter their <strong>name</strong>, <strong>WhatsApp phone number</strong>, <strong>address</strong>, and <strong>gender</strong> (Male/Female — the church tracks the Youth church by gender), optionally link them to the <strong>attended service</strong>, and set their <strong>follow-up status</strong>.</p>
     <ul>
       <li><strong>Status workflow:</strong> New → Contacted → Followed Up → Returned → Inactive. Change it <strong>instantly from the list</strong> with the inline colour-coded dropdown — no need to open Edit.</li>
       <li><strong>WhatsApp tap-to-chat</strong> — every phone number is a <code>wa.me</code> link, so one tap opens the chat to follow up.</li>

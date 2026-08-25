@@ -33,7 +33,7 @@ if ($user && empty($user['is_super_admin'])) {
 }
 $stats['newcomers_week'] = (int) $pdo->query('SELECT COUNT(*) FROM newcomers n WHERE 1=1' . $newcomerScope . ' AND n.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)')->fetchColumn();
 $recentNewcomers = $pdo->query('
-    SELECT n.name, n.whatsapp_phone, n.age_group, n.follow_up_status, n.visit_date, n.created_at
+    SELECT n.name, n.whatsapp_phone, n.follow_up_status, n.visit_date, n.created_at
     FROM newcomers n
     WHERE 1=1' . $newcomerScope . '
     ORDER BY n.created_at DESC LIMIT 6
@@ -154,7 +154,7 @@ require __DIR__ . '/partials/layout-open.php';
     <div class="empty">No newcomers yet — <a href="/admin/newcomers?action=create" style="color:var(--gold-soft);">add one</a>.</div>
   <?php else: ?>
     <table class="resp-table">
-      <tr><th>Name</th><th>WhatsApp</th><th>Age Group</th><th>Status</th><th>Added</th></tr>
+      <tr><th>Name</th><th>WhatsApp</th><th>Status</th><th>Added</th></tr>
       <?php foreach ($recentNewcomers as $nc): ?>
       <tr>
         <td data-label="Name"><strong><?= e($nc['name']) ?></strong></td>
@@ -162,16 +162,6 @@ require __DIR__ . '/partials/layout-open.php';
           <?php if ($nc['whatsapp_phone']): ?>
             <a href="https://wa.me/<?= e(preg_replace('/[^0-9]/', '', (string) $nc['whatsapp_phone'])) ?>" target="_blank" rel="noopener" style="color:var(--gold);"><?= e($nc['whatsapp_phone']) ?> ↗</a>
           <?php else: ?>—<?php endif; ?>
-        </td>
-        <td data-label="Age Group">
-          <?php
-            $ageBadge = match ($nc['age_group'] ?? 'adult') {
-              'children' => ['Children', 'info'],
-              'youth' => ['Youth', 'warn'],
-              default => ['Adult', 'ok'],
-            };
-          ?>
-          <span class="badge <?= $ageBadge[1] ?>"><?= $ageBadge[0] ?></span>
         </td>
         <td data-label="Status">
           <?php
