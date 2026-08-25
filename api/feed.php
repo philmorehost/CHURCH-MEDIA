@@ -115,6 +115,11 @@ foreach ($posts as &$post) {
     $post['views_count'] = (int) $post['views_count'];
     $post['saves_count'] = (int) $post['saves_count'];
     $post['comments_count'] = (int) $post['comments_count'];
+    if ($pinnedCols) {
+        // Emulated prepares return TINYINT as a string ('1'); the app's strict
+        // parser needs a real bool or it throws and the whole feed fails.
+        $post['is_pinned'] = (bool) $post['is_pinned'];
+    }
 }
 unset($post);
 

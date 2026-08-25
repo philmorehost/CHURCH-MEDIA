@@ -344,6 +344,9 @@ class _FeedSlideState extends State<_FeedSlide> {
     controller.setLooping(true);
     controller.setVolume(_muted ? 0 : 1);
     controller.initialize().then((_) {
+      // Reinforce sound after init in case a device resets the volume to 0
+      // (some ExoPlayer builds start silent). Respects the mute toggle.
+      if (mounted) _videoController?.setVolume(_muted ? 0 : 1);
       if (mounted) setState(() {});
     });
   }

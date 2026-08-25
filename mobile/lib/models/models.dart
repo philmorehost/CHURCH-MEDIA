@@ -119,7 +119,10 @@ class Post {
             .map((e) => UnitInfo.fromJson(e as Map<String, dynamic>))
             .toList(),
         unitLabel: json['unit_label'] as String? ?? '',
-        isPinned: json['is_pinned'] as bool? ?? false,
+        // is_pinned may arrive as a real bool, an int, or a string ('1'/'0')
+        // depending on how the server serialises TINYINT — accept all three
+        // so a type mismatch can never blank the feed.
+        isPinned: json['is_pinned'] == true || json['is_pinned'] == 1 || json['is_pinned'] == '1',
         likedByViewer: json['liked_by_viewer'] as bool? ?? false,
         savedByViewer: json['saved_by_viewer'] as bool? ?? false,
       );

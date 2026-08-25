@@ -74,6 +74,10 @@ foreach ($posts as &$post) {
     $post['categories'] = $catStmt->fetchAll();
     $post['id'] = (int) $post['id'];
     $post['comments_count'] = (int) $post['comments_count'];
+    if ($pinnedCols) {
+        // Emulated prepares return TINYINT as a string; the app needs a bool.
+        $post['is_pinned'] = (bool) $post['is_pinned'];
+    }
 }
 unset($post);
 

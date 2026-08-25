@@ -80,6 +80,10 @@ foreach ($posts as &$post) {
     }
     unset($post['org_unit_id']);
     $post['id'] = (int) $post['id'];
+    if ($pinnedCols) {
+        // Emulated prepares return TINYINT as a string; the app needs a bool.
+        $post['is_pinned'] = (bool) $post['is_pinned'];
+    }
 }
 unset($post);
 
