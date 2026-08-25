@@ -44,12 +44,17 @@ if ($unitSlug !== '') {
     }
 }
 
+// Pinned ordering only kicks in once the pinned columns exist (migration).
+$pinnedCols = mediaPinnedColumnsExist($pdo);
+$pinnedSelect = $pinnedCols ? ', p.is_pinned, p.pinned_at, p.pinned_expires_at' : '';
+$pinnedOrder = $pinnedCols ? '(p.is_pinned = 1 AND p.pinned_expires_at > NOW()) DESC, p.pinned_at ASC, ' : '';
+
 $stmt = $pdo->prepare("
-    SELECT p.id, p.slug, p.caption, p.post_type, p.likes_count, p.views_count, p.saves_count, p.created_at, p.org_unit_id, p.is_pinned, p.pinned_at, p.pinned_expires_at, u.name AS author_name, u.username AS author_username,
+    SELECT p.id, p.slug, p.caption, p.post_type, p.likes_count, p.views_count, p.saves_count, p.created_at, p.org_unit_id$pinnedSelect, u.name AS author_name, u.username AS author_username,
       (SELECT COUNT(*) FROM post_comments pc WHERE pc.media_post_id = p.id AND pc.is_published = 1) AS comments_count
     FROM media_posts p JOIN users u ON u.id = p.user_id
     WHERE $where
-    ORDER BY (p.is_pinned = 1 AND p.pinned_expires_at > NOW()) DESC, p.pinned_at ASC, p.created_at DESC
+    ORDER BY ${pinnedOrder}p.created_at DESC
     LIMIT :limit OFFSET :offset
 ");
 foreach ($params as $k => $v) {

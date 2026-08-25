@@ -30,6 +30,28 @@ function asset(string $path): string
     return '/assets/' . ltrim($path, '/') . '?v=' . ASSET_VERSION;
 }
 
+/**
+ * True when the pinned-reels columns exist on media_posts. The pinned feature
+ * was added by a migration, so a server that hasn't run it yet (or where the
+ * migration failed) must still serve the feed — the APIs fall back to plain
+ * ordering instead of erroring on unknown columns. Result is cached per request.
+ */
+function mediaPinnedColumnsExist(PDO $pdo): bool
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'media_posts' AND COLUMN_NAME IN ('is_pinned','pinned_at','pinned_expires_at')");
+        $stmt->execute();
+        $cached = (int) $stmt->fetchColumn() === 3;
+    } catch (Throwable) {
+        $cached = false;
+    }
+    return $cached;
+}
+
 function uploadUrl(?string $path): ?string
 {
     if (!$path) {
