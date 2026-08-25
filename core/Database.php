@@ -417,9 +417,8 @@ class Database
                     `service_name` VARCHAR(120) NOT NULL,
                     `topic` VARCHAR(255) NULL,
                     `bible_text` VARCHAR(255) NULL,
-                    `adult_count` INT NOT NULL DEFAULT 0,
-                    `children_count` INT NOT NULL DEFAULT 0,
-                    `youth_count` INT NOT NULL DEFAULT 0,
+                    `male_count` INT NOT NULL DEFAULT 0,
+                    `female_count` INT NOT NULL DEFAULT 0,
                     `notes` TEXT NULL,
                     `created_by` INT NULL,
                     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -480,6 +479,14 @@ class Database
                 // Google Play button + a "Continue to website" escape (remembered
                 // per browser); 'force' redirects straight to the Play link.
                 self::addColumnIfMissing($pdo, 'settings', 'app_redirect_mode', "VARCHAR(12) NOT NULL DEFAULT 'off'", 'app_download_pages');
+            },
+            '2026_08_attendance_gender' => function (PDO $pdo): void {
+                // Attendance now tracks the Youth church by gender (male/female)
+                // instead of the whole-church adult/children/youth split. The old
+                // columns are left in place (harmless, unused) so the migration
+                // never destroys existing data.
+                self::addColumnIfMissing($pdo, 'attendance_records', 'male_count', 'INT NOT NULL DEFAULT 0', 'bible_text');
+                self::addColumnIfMissing($pdo, 'attendance_records', 'female_count', 'INT NOT NULL DEFAULT 0', 'male_count');
             },
         ];
     }

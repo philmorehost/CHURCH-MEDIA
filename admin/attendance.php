@@ -20,21 +20,20 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
     $serviceName = trim($_POST['service_name'] ?? '');
     $topic = trim($_POST['topic'] ?? '');
     $bibleText = trim($_POST['bible_text'] ?? '');
-    $adult = max(0, (int) ($_POST['adult_count'] ?? 0));
-    $children = max(0, (int) ($_POST['children_count'] ?? 0));
-    $youth = max(0, (int) ($_POST['youth_count'] ?? 0));
+    $male = max(0, (int) ($_POST['male_count'] ?? 0));
+    $female = max(0, (int) ($_POST['female_count'] ?? 0));
     $notes = trim($_POST['notes'] ?? '');
 
     if ($serviceDate === '' || $serviceName === '') {
         $errors[] = 'Date and service name are required.';
     } else {
         if ($action === 'create') {
-            $pdo->prepare('INSERT INTO attendance_records (org_unit_id, service_date, service_name, topic, bible_text, adult_count, children_count, youth_count, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                ->execute([$user['org_unit_id'] ?? null, $serviceDate, $serviceName, $topic, $bibleText, $adult, $children, $youth, $notes, $user['id'] ?? null]);
+            $pdo->prepare('INSERT INTO attendance_records (org_unit_id, service_date, service_name, topic, bible_text, male_count, female_count, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                ->execute([$user['org_unit_id'] ?? null, $serviceDate, $serviceName, $topic, $bibleText, $male, $female, $notes, $user['id'] ?? null]);
             flash('success', 'Attendance added.');
         } else {
-            $pdo->prepare('UPDATE attendance_records SET service_date=?, service_name=?, topic=?, bible_text=?, adult_count=?, children_count=?, youth_count=?, notes=? WHERE id=?')
-                ->execute([$serviceDate, $serviceName, $topic, $bibleText, $adult, $children, $youth, $notes, $id]);
+            $pdo->prepare('UPDATE attendance_records SET service_date=?, service_name=?, topic=?, bible_text=?, male_count=?, female_count=?, notes=? WHERE id=?')
+                ->execute([$serviceDate, $serviceName, $topic, $bibleText, $male, $female, $notes, $id]);
             flash('success', 'Attendance updated.');
         }
         redirect('/admin/attendance');
@@ -55,19 +54,18 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // CSV export of all attendance records (scoped to the current church).
 if ($action === 'export_csv') {
-    $rows = $pdo->query('SELECT service_date, service_name, topic, bible_text, adult_count, children_count, youth_count, notes FROM attendance_records WHERE 1=1' . $scopeSql . ' ORDER BY service_date DESC, id DESC')->fetchAll();
+    $rows = $pdo->query('SELECT service_date, service_name, topic, bible_text, male_count, female_count, notes FROM attendance_records WHERE 1=1' . $scopeSql . ' ORDER BY service_date DESC, id DESC')->fetchAll();
     $csv = array_map(fn (array $r): array => [
         $r['service_date'],
         $r['service_name'],
         $r['topic'] ?? '',
         $r['bible_text'] ?? '',
-        (int) $r['adult_count'],
-        (int) $r['children_count'],
-        (int) $r['youth_count'],
-        (int) $r['adult_count'] + (int) $r['children_count'] + (int) $r['youth_count'],
+        (int) $r['male_count'],
+        (int) $r['female_count'],
+        (int) $r['male_count'] + (int) $r['female_count'],
         $r['notes'] ?? '',
     ], $rows);
-    csvDownload('attendance-' . date('Y-m-d') . '.csv', ['Date', 'Service', 'Topic', 'Bible Text', 'Adults', 'Children', 'Youth', 'Total', 'Notes'], $csv);
+    csvDownload('attendance-' . date('Y-m-d') . '.csv', ['Date', 'Service', 'Topic', 'Bible Text', 'Males', 'Females', 'Total', 'Notes'], $csv);
 }
 
 $editing = null;
@@ -81,7 +79,7 @@ if ($action === 'edit') {
 }
 
 $records = [];
-$summary = ['services' => 0, 'adult' => 0, 'children' => 0, 'youth' => 0, 'total' => 0];
+$summary = ['services' => 0, 'male' => 0, 'female' => 0, 'total' => 0];
 $trend = [];
 $compare = [];
 $trendMode = $_GET['trend'] ?? 'weekly';
@@ -90,14 +88,14 @@ if (!in_array($trendMode, ['weekly', 'monthly'], true)) {
 }
 if ($action === 'list') {
     $records = $pdo->query('SELECT a.*, u.name AS recorded_by FROM attendance_records a LEFT JOIN users u ON u.id = a.created_by WHERE 1=1' . $scopeSql . ' ORDER BY a.service_date DESC, a.id DESC LIMIT 200')->fetchAll();
-    $agg = $pdo->query('SELECT COUNT(*) AS services, COALESCE(SUM(adult_count),0) AS adult, COALESCE(SUM(children_count),0) AS children, COALESCE(SUM(youth_count),0) AS youth, COALESCE(SUM(adult_count + children_count + youth_count),0) AS total FROM attendance_records WHERE 1=1' . $scopeSql)->fetch();
+    $agg = $pdo->query('SELECT COUNT(*) AS services, COALESCE(SUM(male_count),0) AS male, COALESCE(SUM(female_count),0) AS female, COALESCE(SUM(male_count + female_count),0) AS total FROM attendance_records WHERE 1=1' . $scopeSql)->fetch();
     $summary = $agg ?: $summary;
 
     if ($trendMode === 'monthly') {
         // Monthly aggregate for the last 12 months (oldest → newest).
         $trendStmt = $pdo->query('
             SELECT MIN(service_date) AS period_start,
-                   SUM(adult_count + children_count + youth_count) AS total
+                   SUM(male_count + female_count) AS total
             FROM attendance_records
             WHERE 1=1' . $scopeSql . '
               AND service_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
@@ -120,7 +118,7 @@ if ($action === 'list') {
         // the window, so the bars read left-to-right oldest → newest).
         $trendStmt = $pdo->query('
             SELECT MIN(service_date) AS week_start,
-                   SUM(adult_count + children_count + youth_count) AS total
+                   SUM(male_count + female_count) AS total
             FROM attendance_records
             WHERE 1=1' . $scopeSql . '
               AND service_date >= DATE_SUB(CURDATE(), INTERVAL 12 WEEK)
@@ -148,7 +146,7 @@ if ($action === 'list') {
     // total attendance with the number of newcomers added each month so growth
     // in the service and follow-up funnel can be read side by side.
     $attByMonth = [];
-    $stmt = $pdo->query('SELECT DATE_FORMAT(service_date, "%Y-%m") AS ym, SUM(adult_count + children_count + youth_count) AS total FROM attendance_records WHERE 1=1' . $scopeSql . ' AND service_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) GROUP BY ym');
+    $stmt = $pdo->query('SELECT DATE_FORMAT(service_date, "%Y-%m") AS ym, SUM(male_count + female_count) AS total FROM attendance_records WHERE 1=1' . $scopeSql . ' AND service_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) GROUP BY ym');
     foreach ($stmt->fetchAll() as $row) {
         $attByMonth[$row['ym']] = (int) $row['total'];
     }
@@ -207,16 +205,15 @@ require __DIR__ . '/partials/layout-open.php';
       <input type="text" id="bible_text" name="bible_text" value="<?= e($editing['bible_text'] ?? '') ?>" placeholder="James 2:14-26">
       <div class="row three">
         <div>
-          <label for="adult_count">Adults</label>
-          <input type="number" id="adult_count" name="adult_count" value="<?= (int) ($editing['adult_count'] ?? 0) ?>" min="0" required>
+          <label for="male_count">Males</label>
+          <input type="number" id="male_count" name="male_count" value="<?= (int) ($editing['male_count'] ?? 0) ?>" min="0" required>
         </div>
         <div>
-          <label for="children_count">Children</label>
-          <input type="number" id="children_count" name="children_count" value="<?= (int) ($editing['children_count'] ?? 0) ?>" min="0" required>
+          <label for="female_count">Females</label>
+          <input type="number" id="female_count" name="female_count" value="<?= (int) ($editing['female_count'] ?? 0) ?>" min="0" required>
         </div>
-        <div>
-          <label for="youth_count">Youth</label>
-          <input type="number" id="youth_count" name="youth_count" value="<?= (int) ($editing['youth_count'] ?? 0) ?>" min="0" required>
+        <div style="display:flex;align-items:flex-end;">
+          <p class="sub" style="margin:0 0 6px;">Youth church attendance by gender.</p>
         </div>
       </div>
       <label for="notes">Notes</label>
@@ -241,16 +238,12 @@ require __DIR__ . '/partials/layout-open.php';
       <div style="font-size:26px;font-weight:700;color:var(--ink);margin-top:4px;"><?= (int) $summary['total'] ?></div>
     </div>
     <div class="card" style="padding:16px;">
-      <div style="color:var(--ink-faint);font-size:12px;text-transform:uppercase;letter-spacing:.5px;">Adults</div>
-      <div style="font-size:26px;font-weight:700;color:var(--gold);margin-top:4px;"><?= (int) $summary['adult'] ?></div>
+      <div style="color:var(--ink-faint);font-size:12px;text-transform:uppercase;letter-spacing:.5px;">Males</div>
+      <div style="font-size:26px;font-weight:700;color:var(--gold);margin-top:4px;"><?= (int) $summary['male'] ?></div>
     </div>
     <div class="card" style="padding:16px;">
-      <div style="color:var(--ink-faint);font-size:12px;text-transform:uppercase;letter-spacing:.5px;">Children</div>
-      <div style="font-size:26px;font-weight:700;color:var(--ink-dim);margin-top:4px;"><?= (int) $summary['children'] ?></div>
-    </div>
-    <div class="card" style="padding:16px;">
-      <div style="color:var(--ink-faint);font-size:12px;text-transform:uppercase;letter-spacing:.5px;">Youth</div>
-      <div style="font-size:26px;font-weight:700;color:var(--ink-dim);margin-top:4px;"><?= (int) $summary['youth'] ?></div>
+      <div style="color:var(--ink-faint);font-size:12px;text-transform:uppercase;letter-spacing:.5px;">Females</div>
+      <div style="font-size:26px;font-weight:700;color:var(--ink-dim);margin-top:4px;"><?= (int) $summary['female'] ?></div>
     </div>
   </div>
 
@@ -263,7 +256,7 @@ require __DIR__ . '/partials/layout-open.php';
         <a class="btn sm <?= $trendMode === 'monthly' ? '' : 'secondary' ?>" href="/admin/attendance?trend=monthly">Monthly</a>
       </div>
     </div>
-    <p class="sub" style="margin-bottom:18px;">Total attendance (adults + children + youth) per <?= $trendMode === 'monthly' ? 'month' : 'week' ?>. Periods with no record are shown as zero.</p>
+    <p class="sub" style="margin-bottom:18px;">Total youth attendance (males + females) per <?= $trendMode === 'monthly' ? 'month' : 'week' ?>. Periods with no record are shown as zero.</p>
     <div class="trend-chart">
       <?php $trendMax = max(array_column($trend, 'total')); $trendMax = $trendMax > 0 ? $trendMax : 1; ?>
       <?php foreach ($trend as $t): ?>
@@ -314,9 +307,8 @@ require __DIR__ . '/partials/layout-open.php';
       <th>Service</th>
       <th>Topic</th>
       <th>Bible Text</th>
-      <th>Adults</th>
-      <th>Children</th>
-      <th>Youth</th>
+      <th>Males</th>
+      <th>Females</th>
       <th>Total</th>
       <th>Recorded By</th>
       <th></th>
@@ -327,10 +319,9 @@ require __DIR__ . '/partials/layout-open.php';
         <td><?= e($r['service_name']) ?></td>
         <td><?= e((string) $r['topic']) ?></td>
         <td><?= e((string) $r['bible_text']) ?></td>
-        <td><?= (int) $r['adult_count'] ?></td>
-        <td><?= (int) $r['children_count'] ?></td>
-        <td><?= (int) $r['youth_count'] ?></td>
-        <td><strong><?= (int) $r['adult_count'] + (int) $r['children_count'] + (int) $r['youth_count'] ?></strong></td>
+        <td><?= (int) $r['male_count'] ?></td>
+        <td><?= (int) $r['female_count'] ?></td>
+        <td><strong><?= (int) $r['male_count'] + (int) $r['female_count'] ?></strong></td>
         <td><?= e((string) ($r['recorded_by'] ?? '')) ?></td>
         <td class="actions">
           <a class="btn sm secondary" href="/admin/newcomers?action=create&attendance_id=<?= (int) $r['id'] ?>" title="Quick-add a newcomer who attended this service">+ Newcomer</a>

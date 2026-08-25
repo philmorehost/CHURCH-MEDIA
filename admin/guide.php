@@ -145,9 +145,9 @@ require __DIR__ . '/partials/layout-open.php';
 
   <div class="card" style="margin-bottom:18px;">
     <h2 id="attendance">Attendance (<code>/admin/attendance</code>) <span class="pill role">ADMIN/EDITOR</span></h2>
-    <p>Track your church's growth service by service. Record the <strong>date</strong>, <strong>service</strong> (Sunday Worship, Midweek, Youth, etc.), <strong>topic</strong>, <strong>bible text</strong>, and the number of <strong>adults / children / youth</strong> who attended, plus optional notes.</p>
+    <p>Track your youth church's growth service by service. Record the <strong>date</strong>, <strong>service</strong> (Sunday Worship, Youth Service, etc.), <strong>topic</strong>, <strong>bible text</strong>, and attendance split by <strong>gender — Males and Females</strong>, plus optional notes.</p>
     <ul>
-      <li><strong>Growth cards</strong> at the top summarise services logged, total attendance, and the adult/child/youth split.</li>
+      <li><strong>Growth cards</strong> at the top summarise services logged, total attendance, and the male/female split.</li>
       <li><strong>Growth Trend chart</strong> shows total attendance per period — toggle <strong>Weekly</strong> (last 12 weeks) or <strong>Monthly</strong> (last 12 months).</li>
       <li><strong>Attendance vs. Newcomers</strong> chart pairs monthly attendance with newcomers added, so you can see whether growth in the service is translating into the follow-up funnel.</li>
       <li><strong>⬇ Export CSV</strong> downloads every record in your scope.</li>
