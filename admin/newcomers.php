@@ -6,6 +6,10 @@ $pdo = Database::getInstance()->getConnection();
 $user = Auth::user();
 $scope = Unit::scopeClause($user, 'org_unit_id');
 $scopeSql = $scope !== '' ? ' AND ' . $scope : '';
+// Qualified variant for JOIN queries: attendance_records and users also carry
+// org_unit_id, so an unqualified column in the WHERE clause would be ambiguous.
+$scopeNSql = Unit::scopeClause($user, 'n.org_unit_id');
+$scopeNSql = $scopeNSql !== '' ? ' AND ' . $scopeNSql : '';
 $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
@@ -88,7 +92,7 @@ if ($action === 'export_csv') {
         $statusWhere = ' AND n.follow_up_status = ?';
         $statusParams[] = $statusFilter;
     }
-    $stmt = $pdo->prepare('SELECT n.name, n.whatsapp_phone, n.address, n.gender, n.age_group, n.visit_date, n.follow_up_status, n.notes, n.created_at, a.service_date AS attended_on, a.service_name AS attended_service FROM newcomers n LEFT JOIN attendance_records a ON a.id = n.attendance_id WHERE 1=1' . $scopeSql . $statusWhere . ' ORDER BY n.created_at DESC, n.id DESC');
+    $stmt = $pdo->prepare('SELECT n.name, n.whatsapp_phone, n.address, n.gender, n.age_group, n.visit_date, n.follow_up_status, n.notes, n.created_at, a.service_date AS attended_on, a.service_name AS attended_service FROM newcomers n LEFT JOIN attendance_records a ON a.id = n.attendance_id WHERE 1=1' . $scopeNSql . $statusWhere . ' ORDER BY n.created_at DESC, n.id DESC');
     $stmt->execute($statusParams);
     $csv = array_map(fn (array $r): array => [
         $r['name'],
@@ -141,7 +145,7 @@ if ($action === 'list') {
         $statusWhere = ' AND n.follow_up_status = ?';
         $statusParams[] = $statusFilter;
     }
-    $stmt = $pdo->prepare('SELECT n.*, a.service_date AS attended_on, a.service_name AS attended_service, u.name AS recorded_by FROM newcomers n LEFT JOIN attendance_records a ON a.id = n.attendance_id LEFT JOIN users u ON u.id = n.created_by WHERE 1=1' . $scopeSql . $statusWhere . ' ORDER BY n.created_at DESC, n.id DESC LIMIT 300');
+    $stmt = $pdo->prepare('SELECT n.*, a.service_date AS attended_on, a.service_name AS attended_service, u.name AS recorded_by FROM newcomers n LEFT JOIN attendance_records a ON a.id = n.attendance_id LEFT JOIN users u ON u.id = n.created_by WHERE 1=1' . $scopeNSql . $statusWhere . ' ORDER BY n.created_at DESC, n.id DESC LIMIT 300');
     $stmt->execute($statusParams);
     $newcomers = $stmt->fetchAll();
     $agg = $pdo->query('SELECT follow_up_status, COUNT(*) AS c FROM newcomers WHERE 1=1' . $scopeSql . ' GROUP BY follow_up_status')->fetchAll();

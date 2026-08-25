@@ -6,6 +6,10 @@ $pdo = Database::getInstance()->getConnection();
 $user = Auth::user();
 $scope = Unit::scopeClause($user, 'org_unit_id');
 $scopeSql = $scope !== '' ? ' AND ' . $scope : '';
+// Qualified variant for JOIN queries: users also carries org_unit_id, so an
+// unqualified column in the WHERE clause would be ambiguous.
+$scopeASql = Unit::scopeClause($user, 'a.org_unit_id');
+$scopeASql = $scopeASql !== '' ? ' AND ' . $scopeASql : '';
 $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
@@ -87,7 +91,7 @@ if (!in_array($trendMode, ['weekly', 'monthly'], true)) {
     $trendMode = 'weekly';
 }
 if ($action === 'list') {
-    $records = $pdo->query('SELECT a.*, u.name AS recorded_by FROM attendance_records a LEFT JOIN users u ON u.id = a.created_by WHERE 1=1' . $scopeSql . ' ORDER BY a.service_date DESC, a.id DESC LIMIT 200')->fetchAll();
+    $records = $pdo->query('SELECT a.*, u.name AS recorded_by FROM attendance_records a LEFT JOIN users u ON u.id = a.created_by WHERE 1=1' . $scopeASql . ' ORDER BY a.service_date DESC, a.id DESC LIMIT 200')->fetchAll();
     $agg = $pdo->query('SELECT COUNT(*) AS services, COALESCE(SUM(male_count),0) AS male, COALESCE(SUM(female_count),0) AS female, COALESCE(SUM(male_count + female_count),0) AS total FROM attendance_records WHERE 1=1' . $scopeSql)->fetch();
     $summary = $agg ?: $summary;
 
