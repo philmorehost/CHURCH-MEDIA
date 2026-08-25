@@ -54,7 +54,7 @@ $stmt = $pdo->prepare("
       (SELECT COUNT(*) FROM post_comments pc WHERE pc.media_post_id = p.id AND pc.is_published = 1) AS comments_count
     FROM media_posts p JOIN users u ON u.id = p.user_id
     WHERE $where
-    ORDER BY ${pinnedOrder}p.created_at DESC
+    ORDER BY {$pinnedOrder}p.created_at DESC
     LIMIT :limit OFFSET :offset
 ");
 foreach ($params as $k => $v) {
