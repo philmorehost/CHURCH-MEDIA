@@ -56,6 +56,11 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
     $rsvpUrl = trim($_POST['rsvp_url'] ?? '');
     $isPublished = isset($_POST['is_published']) ? 1 : 0;
 
+    // Auto-assign events to the creator's church (block creation if they have none).
+    if ($action === 'create' && empty($user['is_super_admin']) && empty($user['org_unit_id'])) {
+        $errors[] = 'Your account has no Home Church assigned — ask the super admin to set it (Users → Edit → Home Unit) before creating events.';
+    }
+
     if ($title === '' || $startAt === '') {
         $errors[] = 'Title and start date/time are required.';
     } else {

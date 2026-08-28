@@ -145,6 +145,12 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
     $newPassword = trim((string) ($_POST['access_password'] ?? ''));
     $fieldsJson = trim((string) ($_POST['fields_json'] ?? ''));
 
+    // Every church account must belong to a church so the form is auto-assigned
+    // to them on creation (never silently unassigned).
+    if ($action === 'create' && empty($user['is_super_admin']) && empty($user['org_unit_id'])) {
+        $errors[] = 'Your account has no Home Church assigned — ask the super admin to set it (Users → Edit → Home Unit) before creating forms.';
+    }
+
     if ($title === '') {
         $errors[] = 'Form title is required.';
     }
@@ -190,7 +196,7 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
             $stmt = $pdo->prepare('INSERT INTO forms (title, slug, description, submit_label, end_at, is_active, org_unit_id, visibility, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
             $stmt->execute([$title, $slug, $description, $submitLabelValue, $endAtValue, $isActive, $user['org_unit_id'] ?? null, $visibility, $passHash]);
             $formId = (int) $pdo->lastInsertId();
-            flash('success', 'Form created. Share its link to start collecting responses.');
+            flash('success', 'Form created — copy the link shown above to share it.');
         } else {
             $pdo->prepare('UPDATE forms SET title = ?, slug = ?, description = ?, submit_label = ?, end_at = ?, is_active = ?, visibility = ?, password_hash = ? WHERE id = ?')
                 ->execute([$title, $slug, $description, $submitLabelValue, $endAtValue, $isActive, $visibility, $passHash, $id]);
@@ -203,7 +209,7 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
         foreach ($fields as $f) {
             $insert->execute([$formId, $f['label'], $f['field_type'], $f['placeholder'] ?: null, $f['options'] ?: null, $f['required'], $f['sort_order']]);
         }
-        redirect('/admin/forms?action=edit&id=' . $formId);
+        redirect('/admin/forms?action=edit&id=' . $formId . ($action === 'create' ? '&created=1' : ''));
     }
 }
 
@@ -372,6 +378,22 @@ require __DIR__ . '/partials/layout-open.php';
     .copy-link{display:flex; gap:8px; align-items:center; margin-top:6px;}
     .copy-link input{flex:1;}
   </style>
+  <?php if ($action === 'edit' && ($_GET['created'] ?? '') === '1' && $editing): ?>
+  <div class="card" style="margin-bottom:18px;border-color:#5fe0a455;background:linear-gradient(135deg,#5fe0a40f,#5fe0a403);">
+    <h2 style="margin:0 0 4px;">✅ Form created — share this link!</h2>
+    <p class="sub" style="margin:0;">Copy your form link and share it. You can still edit the form below before sharing.</p>
+    <div class="copy-link" style="margin-top:12px;">
+      <span style="color:var(--ink-faint);font-weight:700;font-size:12px;flex-shrink:0;">FORM LINK</span>
+      <input type="text" readonly value="<?= e(baseUrl('forms/' . $editing['slug'])) ?>">
+      <button type="button" class="btn" data-copy="<?= e(baseUrl('forms/' . $editing['slug'])) ?>">Copy</button>
+    </div>
+    <?php if (($editing['visibility'] ?? 'public') === 'private'): ?>
+      <p class="sub" style="margin:10px 0 0;color:var(--gold-soft);">🔒 This form is <strong>private</strong> — share the link <u>and</u> the password separately.</p>
+    <?php else: ?>
+      <p class="sub" style="margin:10px 0 0;">🌍 This form is <strong>public</strong> — anyone with the link can open it.</p>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
   <div class="btn-row" style="margin-bottom:16px;">
     <a class="btn secondary sm" href="/admin/forms">← Back to forms</a>
     <?php if ($action === 'edit'): ?>

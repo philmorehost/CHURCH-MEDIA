@@ -259,6 +259,12 @@ if ($action === 'unpin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 /** Shared by both the classic form POST and the instant XHR upload. */
 function handleCreatePost(PDO $pdo, array $user): array
 {
+    // Every church account must belong to a church so the post is auto-assigned
+    // to them on creation (never silently unassigned).
+    if (empty($user['is_super_admin']) && empty($user['org_unit_id'])) {
+        return ['errors' => ['Your account has no Home Church assigned — ask the super admin to set it (Users → Edit → Home Unit) before posting media.']];
+    }
+
     $caption = trim($_POST['caption'] ?? '');
     $categoryIds = array_map('intval', $_POST['categories'] ?? []);
     $isPublished = isset($_POST['is_published']) ? 1 : 0;

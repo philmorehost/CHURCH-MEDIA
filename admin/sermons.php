@@ -57,6 +57,11 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
     $publishedAt = $_POST['published_at'] ?? date('Y-m-d\TH:i');
     $isPublished = isset($_POST['is_published']) ? 1 : 0;
 
+    // Auto-assign sermons to the creator's church (block creation if they have none).
+    if ($action === 'create' && empty($user['is_super_admin']) && empty($user['org_unit_id'])) {
+        $errors[] = 'Your account has no Home Church assigned — ask the super admin to set it (Users → Edit → Home Unit) before adding sermons.';
+    }
+
     if ($title === '') {
         $errors[] = 'Title is required.';
     } else {

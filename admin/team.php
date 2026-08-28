@@ -38,6 +38,11 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
     $sortOrder = (int) ($_POST['sort_order'] ?? 0);
     $isPublished = isset($_POST['is_published']) ? 1 : 0;
 
+    // Auto-assign team members to the creator's church (block creation if they have none).
+    if ($action === 'create' && empty($user['is_super_admin']) && empty($user['org_unit_id'])) {
+        $errors[] = 'Your account has no Home Church assigned — ask the super admin to set it (Users → Edit → Home Unit) before adding team members.';
+    }
+
     if ($name === '') {
         $errors[] = 'Name is required.';
     } else {
