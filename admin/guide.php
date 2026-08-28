@@ -135,7 +135,7 @@ require __DIR__ . '/partials/layout-open.php';
 
   <div class="card" style="margin-bottom:18px;">
     <h2 id="forms">Forms (<code>/admin/forms</code>)</h2>
-    <p>Build custom public forms with a drag-and-drop field builder (text, email, phone, number, date, URL, select, radio, checkbox, image upload). Share the generated link, view responses in the panel, export to CSV, and close/delete forms. Each form belongs to your church.</p>
+    <p>Build custom public forms with a drag-and-drop field builder (text, email, phone, number, <strong>date</strong>, <strong>time</strong>, <strong>date &amp; time</strong>, URL, select, radio, checkbox, image upload). Date/time fields open a native calendar/clock picker so respondents select instead of typing. Share the generated link, view responses in the panel, export to CSV, and close/delete forms. Each form belongs to your church.</p>
     <p><strong>Right after creating a form</strong> you land on a green “Form created — share this link!” banner with a one-click <strong>Copy</strong> button, so you can share it immediately (no need to go back to the list). Everything you create — forms, media/reels, sermons, events, and team members — is <strong>automatically assigned to your church</strong> the moment you create it. If your account has no Home Church set, creation is blocked with clear instructions instead of silently making unassigned content.</p>
     <ul>
       <li><strong>Cascading dropdown</strong> field type — build a <em>dropdown inside dropdowns</em> where each choice filters the next (e.g. <code>Province &gt; Zone &gt; Area &gt; Parish</code>). Type one full path per line with levels separated by <code>&gt;</code>, e.g. <code>Lagos &gt; Lagos Mainland &gt; Somolu &gt; LP63 YAYA</code>.</li>

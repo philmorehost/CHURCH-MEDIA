@@ -242,6 +242,21 @@ $router->post('/forms/{slug}', function (array $params) {
                     $errors[] = '"' . $field['label'] . '" needs a valid phone number.';
                 }
                 break;
+            case 'date':
+                if ($value !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $value)) {
+                    $errors[] = '"' . $field['label'] . '" needs a valid date.';
+                }
+                break;
+            case 'time':
+                if ($value !== '' && !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', (string) $value)) {
+                    $errors[] = '"' . $field['label'] . '" needs a valid time.';
+                }
+                break;
+            case 'datetime':
+                if ($value !== '' && strtotime((string) $value) === false) {
+                    $errors[] = '"' . $field['label'] . '" needs a valid date and time.';
+                }
+                break;
             case 'cascade':
                 // Value is the chosen full path ("A > B > C"); must be one of
                 // the paths the admin defined for this cascading dropdown.

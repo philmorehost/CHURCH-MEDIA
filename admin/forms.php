@@ -26,7 +26,7 @@ if ($action === 'reassign' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/admin/forms');
 }
 
-const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'number', 'date', 'url', 'select', 'radio', 'checkbox', 'image', 'cascade', 'church'];
+const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'number', 'date', 'url', 'select', 'radio', 'checkbox', 'image', 'cascade', 'church', 'time', 'datetime'];
 
 function formSlug(PDO $pdo, string $title, int $ignoreId = 0): string
 {

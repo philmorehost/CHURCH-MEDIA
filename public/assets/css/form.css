@@ -86,13 +86,31 @@ form{padding:8px 34px 36px;}
 .form-field input[type="email"],
 .form-field input[type="number"],
 .form-field input[type="date"],
+.form-field input[type="time"],
+.form-field input[type="datetime-local"],
 .form-field input[type="url"],
 .form-field select,
 .form-field textarea{
   width:100%; background:#0f0d1fcc; border:1px solid var(--border);
   color:var(--ink); border-radius:14px; padding:14px 16px; font-size:15px;
   font-family:var(--sans); transition:border-color .2s, box-shadow .2s, background .2s;
+}
+/* Text-like inputs keep appearance:none (clean look). */
+.form-field input[type="text"],
+.form-field input[type="email"],
+.form-field input[type="number"],
+.form-field input[type="url"],
+.form-field textarea{
   -webkit-appearance:none; appearance:none;
+}
+/* Date/time pickers keep their native calendar & clock so users can select
+   instead of typing (do NOT set appearance:none here — it would strip the
+   picker icon). color-scheme:dark makes the picker icon light on dark. */
+.form-field input[type="date"],
+.form-field input[type="time"],
+.form-field input[type="datetime-local"]{
+  color-scheme:dark;
+  cursor:pointer;
 }
 .form-field input::placeholder,
 .form-field textarea::placeholder{color:var(--ink-faint);}

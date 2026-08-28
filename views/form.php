@@ -175,7 +175,12 @@ $metaRobots = 'noindex, nofollow';
             </div>
 
           <?php else:
-              $typeAttr = in_array($field['field_type'], ['email', 'number', 'date', 'url'], true) ? $field['field_type'] : 'text';
+              $typeAttr = match ($field['field_type']) {
+                  'email', 'number', 'date', 'url' => $field['field_type'],
+                  'time' => 'time',
+                  'datetime' => 'datetime-local',
+                  default => 'text',
+              };
           ?>
             <input type="<?= e($typeAttr) ?>"
                    id="<?= e($key) ?>"

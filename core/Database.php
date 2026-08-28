@@ -521,6 +521,10 @@ class Database
                 self::addColumnIfMissing($pdo, 'forms', 'visibility', "ENUM('public','private') NOT NULL DEFAULT 'public'", 'is_active');
                 self::addColumnIfMissing($pdo, 'forms', 'password_hash', 'VARCHAR(255) NULL', 'visibility');
             },
+            '2026_08_form_datetime_fields' => function (PDO $pdo): void {
+                // New form field types: 'time' and 'datetime' (date and time).
+                $pdo->exec("ALTER TABLE `form_fields` MODIFY COLUMN `field_type` ENUM('text','textarea','email','phone','number','date','url','select','radio','checkbox','image','cascade','church','time','datetime') NOT NULL DEFAULT 'text'");
+            },
         ];
     }
 

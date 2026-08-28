@@ -37,6 +37,8 @@
     ['phone', 'Phone number'],
     ['number', 'Number'],
     ['date', 'Date'],
+    ['time', 'Time'],
+    ['datetime', 'Date & time'],
     ['url', 'URL'],
     ['select', 'Dropdown'],
     ['radio', 'Multiple choice'],

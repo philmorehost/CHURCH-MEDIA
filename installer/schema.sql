@@ -301,7 +301,7 @@ CREATE TABLE IF NOT EXISTS `form_fields` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `form_id` INT NOT NULL,
   `label` VARCHAR(255) NOT NULL,
-  `field_type` ENUM('text','textarea','email','phone','number','date','url','select','radio','checkbox','image','cascade','church') NOT NULL DEFAULT 'text',
+  `field_type` ENUM('text','textarea','email','phone','number','date','url','select','radio','checkbox','image','cascade','church','time','datetime') NOT NULL DEFAULT 'text',
   `placeholder` VARCHAR(255) NULL,
   `options` TEXT NULL COMMENT 'One option per line (select/radio/checkbox)',
   `required` TINYINT(1) NOT NULL DEFAULT 0,
