@@ -111,6 +111,26 @@ if ($action === 'export_csv') {
     csvDownload('newcomers-' . date('Y-m-d') . ($statusFilter !== '' ? '-' . $statusFilter : '') . '.csv', ['Name', 'WhatsApp Phone', 'Address', 'Gender', 'Visit Date', 'Attended Date', 'Attended Service', 'Follow-up Status', 'Notes', 'Added'], $csv);
 }
 
+// Saves the same CSV on the server and flashes a shareable link (Google-Forms style).
+if ($action === 'save_export_csv') {
+    $statusWhere = '';
+    $statusParams = [];
+    if ($statusFilter !== '') {
+        $statusWhere = ' AND n.follow_up_status = ?';
+        $statusParams[] = $statusFilter;
+    }
+    $stmt = $pdo->prepare('SELECT n.name, n.whatsapp_phone, n.address, n.gender, n.visit_date, n.follow_up_status, n.notes, n.created_at, a.service_date AS attended_on, a.service_name AS attended_service FROM newcomers n LEFT JOIN attendance_records a ON a.id = n.attendance_id WHERE 1=1' . $scopeNSql . $statusWhere . ' ORDER BY n.created_at DESC, n.id DESC');
+    $stmt->execute($statusParams);
+    $csv = array_map(fn (array $r): array => [
+        $r['name'], $r['whatsapp_phone'] ?? '', $r['address'] ?? '', $r['gender'] ?? '',
+        $r['visit_date'] ?? '', $r['attended_on'] ?? '', $r['attended_service'] ?? '',
+        $r['follow_up_status'] ?? '', $r['notes'] ?? '', $r['created_at'] ?? '',
+    ], $stmt->fetchAll());
+    $saved = saveExportFile($pdo, 'newcomers', 'Newcomers' . ($statusFilter !== '' ? ' - ' . ucfirst($statusFilter) : ''), ['Name', 'WhatsApp Phone', 'Address', 'Gender', 'Visit Date', 'Attended Date', 'Attended Service', 'Follow-up Status', 'Notes', 'Added'], $csv, null, (int) ($user['id'] ?? 0));
+    flash('success', 'Shareable CSV created: ' . $saved['url']);
+    redirect('/admin/newcomers' . ($statusFilter !== '' ? '?status=' . rawurlencode($statusFilter) : ''));
+}
+
 $editing = null;
 if ($action === 'edit') {
     $stmt = $pdo->prepare('SELECT * FROM newcomers WHERE id = ?');
@@ -223,6 +243,7 @@ require __DIR__ . '/partials/layout-open.php';
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a href="/admin/newcomers?action=create" class="btn">+ Add Newcomer</a>
       <a href="/admin/newcomers?action=export_csv<?= $statusFilter !== '' ? '&status=' . e($statusFilter) : '' ?>" class="btn secondary">⬇ Export CSV</a>
+      <a href="/admin/newcomers?action=save_export_csv<?= $statusFilter !== '' ? '&status=' . e($statusFilter) : '' ?>" class="btn secondary">🔗 Save &amp; Share Link</a>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <a class="btn sm <?= $statusFilter === '' ? '' : 'secondary' ?>" href="/admin/newcomers">All (<?= (int) $statusCounts['total'] ?>)</a>

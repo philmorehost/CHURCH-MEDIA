@@ -135,6 +135,23 @@ $metaRobots = 'noindex, nofollow';
               <?php endforeach; ?>
             </div>
 
+          <?php elseif ($field['field_type'] === 'cascade' || $field['field_type'] === 'church'):
+              // Cascading dropdowns (Province > Zone > Area > Parish). The
+              // 'church' type builds the same chained selects live from the
+              // org_units hierarchy so it always matches the current church list.
+              $cascadePaths = $field['field_type'] === 'church'
+                  ? array_map(fn (string $p): array => array_map('trim', explode(' > ', $p)), churchCascadePaths())
+                  : formCascadeOptions($field);
+              $oldPath = (string) formOld($key);
+          ?>
+            <div class="form-cascade"
+                 data-cascade='<?= e(json_encode(array_values($cascadePaths), JSON_UNESCAPED_SLASHES | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>'
+                 data-old="<?= e($oldPath) ?>">
+              <div class="cascade-selects"></div>
+              <div class="cascade-note"><?= $field['field_type'] === 'church' ? 'Auto-filled from the church list — select your parish (Province → Zone → Area → Parish).' : 'Choose from the dropdowns — each one is filtered by the one before it.' ?></div>
+              <input type="hidden" name="<?= e($key) ?>" value="<?= e($oldPath) ?>">
+            </div>
+
           <?php else:
               $typeAttr = in_array($field['field_type'], ['email', 'number', 'date', 'url'], true) ? $field['field_type'] : 'text';
           ?>

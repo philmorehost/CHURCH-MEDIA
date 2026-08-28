@@ -72,6 +72,18 @@ if ($action === 'export_csv') {
     csvDownload('attendance-' . date('Y-m-d') . '.csv', ['Date', 'Service', 'Topic', 'Bible Text', 'Males', 'Females', 'Total', 'Notes'], $csv);
 }
 
+// Saves the same CSV on the server and flashes a shareable link (Google-Forms style).
+if ($action === 'save_export_csv') {
+    $rows = $pdo->query('SELECT service_date, service_name, topic, bible_text, male_count, female_count, notes FROM attendance_records WHERE 1=1' . $scopeSql . ' ORDER BY service_date DESC, id DESC')->fetchAll();
+    $csv = array_map(fn (array $r): array => [
+        $r['service_date'], $r['service_name'], $r['topic'] ?? '', $r['bible_text'] ?? '',
+        (int) $r['male_count'], (int) $r['female_count'], (int) $r['male_count'] + (int) $r['female_count'], $r['notes'] ?? '',
+    ], $rows);
+    $saved = saveExportFile($pdo, 'attendance', 'Attendance', ['Date', 'Service', 'Topic', 'Bible Text', 'Males', 'Females', 'Total', 'Notes'], $csv, null, (int) ($user['id'] ?? 0));
+    flash('success', 'Shareable CSV created: ' . $saved['url']);
+    redirect('/admin/attendance');
+}
+
 $editing = null;
 if ($action === 'edit') {
     $stmt = $pdo->prepare('SELECT * FROM attendance_records WHERE id = ?');
@@ -230,6 +242,7 @@ require __DIR__ . '/partials/layout-open.php';
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
     <a href="/admin/attendance?action=create" class="btn">+ Add Attendance</a>
     <a href="/admin/attendance?action=export_csv" class="btn secondary">⬇ Export CSV</a>
+    <a href="/admin/attendance?action=save_export_csv" class="btn secondary">🔗 Save &amp; Share Link</a>
   </div>
 
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px;">

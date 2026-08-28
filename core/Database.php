@@ -488,6 +488,33 @@ class Database
                 self::addColumnIfMissing($pdo, 'attendance_records', 'male_count', 'INT NOT NULL DEFAULT 0', 'bible_text');
                 self::addColumnIfMissing($pdo, 'attendance_records', 'female_count', 'INT NOT NULL DEFAULT 0', 'male_count');
             },
+            '2026_08_form_cascade_church' => function (PDO $pdo): void {
+                // Form fields now support cascading dropdowns (Province > Zone >
+                // Area > Parish) and an auto church-list field that builds the
+                // same chained selects live from the org_units hierarchy.
+                $pdo->exec("ALTER TABLE `form_fields` MODIFY COLUMN `field_type` ENUM('text','textarea','email','phone','number','date','url','select','radio','checkbox','image','cascade','church') NOT NULL DEFAULT 'text'");
+            },
+            '2026_08_export_files' => function (PDO $pdo): void {
+                // Server-hosted shareable CSV exports (Google-Forms style): each
+                // export is saved to storage/exports and exposed via an
+                // unguessable /export/{token} link that anyone with the link can
+                // view or download. Admins generate/remove these from the panel.
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `export_files` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `kind` VARCHAR(40) NOT NULL DEFAULT 'csv',
+                    `title` VARCHAR(255) NULL,
+                    `filename` VARCHAR(255) NOT NULL,
+                    `token` VARCHAR(64) NOT NULL UNIQUE,
+                    `path` VARCHAR(255) NOT NULL,
+                    `form_id` INT NULL,
+                    `created_by` INT NULL,
+                    `downloads` INT NOT NULL DEFAULT 0,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (`form_id`) REFERENCES `forms`(`id`) ON DELETE CASCADE,
+                    FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+                    INDEX `idx_export_form` (`form_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            },
         ];
     }
 

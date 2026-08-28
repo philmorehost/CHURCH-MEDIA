@@ -299,7 +299,7 @@ CREATE TABLE IF NOT EXISTS `form_fields` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `form_id` INT NOT NULL,
   `label` VARCHAR(255) NOT NULL,
-  `field_type` ENUM('text','textarea','email','phone','number','date','url','select','radio','checkbox','image') NOT NULL DEFAULT 'text',
+  `field_type` ENUM('text','textarea','email','phone','number','date','url','select','radio','checkbox','image','cascade','church') NOT NULL DEFAULT 'text',
   `placeholder` VARCHAR(255) NULL,
   `options` TEXT NULL COMMENT 'One option per line (select/radio/checkbox)',
   `required` TINYINT(1) NOT NULL DEFAULT 0,
@@ -317,6 +317,24 @@ CREATE TABLE IF NOT EXISTS `form_submissions` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`form_id`) REFERENCES `forms`(`id`) ON DELETE CASCADE,
   INDEX `idx_submission_form_time` (`form_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Server-hosted shareable CSV exports (Google-Forms style). Files live in
+-- storage/exports; the token is unguessable and anyone with the link can view it.
+CREATE TABLE IF NOT EXISTS `export_files` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `kind` VARCHAR(40) NOT NULL DEFAULT 'csv',
+  `title` VARCHAR(255) NULL,
+  `filename` VARCHAR(255) NOT NULL,
+  `token` VARCHAR(64) NOT NULL UNIQUE,
+  `path` VARCHAR(255) NOT NULL,
+  `form_id` INT NULL,
+  `created_by` INT NULL,
+  `downloads` INT NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`form_id`) REFERENCES `forms`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+  INDEX `idx_export_form` (`form_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- CMS pages — editable site pages (About, new pages), content is a JSON array

@@ -206,6 +206,20 @@ $router->post('/forms/{slug}', function (array $params) {
                     $errors[] = '"' . $field['label'] . '" needs a valid phone number.';
                 }
                 break;
+            case 'cascade':
+                // Value is the chosen full path ("A > B > C"); must be one of
+                // the paths the admin defined for this cascading dropdown.
+                if ($value !== '' && !in_array((string) $value, formCascadePaths($field), true)) {
+                    $errors[] = '"' . $field['label'] . '" contains an invalid option.';
+                }
+                break;
+            case 'church':
+                // Auto church-list field: value must be a real parish path in
+                // the current org_units hierarchy.
+                if ($value !== '' && !in_array((string) $value, churchCascadePaths(), true)) {
+                    $errors[] = '"' . $field['label'] . '" contains an invalid selection.';
+                }
+                break;
             case 'select':
             case 'radio':
             case 'checkbox':
@@ -238,6 +252,33 @@ $router->post('/forms/{slug}', function (array $params) {
     clearFormOld();
     flash('form_sent', '1');
     redirect('/forms/' . $slug . '?sent=1');
+});
+
+// Server-hosted shareable CSV exports (Google-Forms style). Anyone with the
+// unguessable token link can view/download the file; admins generate these
+// from the panel (forms, newcomers, attendance).
+$router->get('/export/{token}', function (array $params) {
+    $pdo = Database::getInstance()->getConnection();
+    $stmt = $pdo->prepare('SELECT * FROM export_files WHERE token = ? LIMIT 1');
+    $stmt->execute([$params['token']]);
+    $ef = $stmt->fetch();
+    if (!$ef) {
+        http_response_code(404);
+        render('404', [], true);
+        return;
+    }
+    $file = STORAGE_PATH . '/exports/' . basename((string) $ef['path']);
+    if (!is_file($file)) {
+        http_response_code(404);
+        render('404', [], true);
+        return;
+    }
+    $pdo->prepare('UPDATE export_files SET downloads = downloads + 1 WHERE id = ?')->execute([(int) $ef['id']]);
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: inline; filename="' . $ef['filename'] . '"');
+    header('X-Content-Type-Options: nosniff');
+    readfile($file);
+    exit;
 });
 
 $router->get('/search', function () {

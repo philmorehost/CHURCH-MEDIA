@@ -96,6 +96,52 @@ function csvDownload(string $filename, array $headers, array $rows): never
     exit;
 }
 
+/** Directory where server-hosted CSV exports live (created on demand). */
+function exportsDir(): string
+{
+    $dir = STORAGE_PATH . '/exports';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    return $dir;
+}
+
+/** Renders headers+rows into an Excel-friendly CSV string (UTF-8 BOM). */
+function buildCsvFile(array $headers, array $rows): string
+{
+    $out = fopen('php://temp', 'w');
+    fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads accents correctly
+    fputcsv($out, $headers);
+    foreach ($rows as $row) {
+        fputcsv($out, array_values($row));
+    }
+    rewind($out);
+    $content = (string) stream_get_contents($out);
+    fclose($out);
+    return $content;
+}
+
+/** Public, shareable URL for an export token. */
+function exportUrl(string $token): string
+{
+    return baseUrl('export/' . rawurlencode($token));
+}
+
+/**
+ * Saves a CSV on the server and records it in export_files. Returns
+ * ['token'=>.., 'url'=>.., 'filename'=>..] so callers can flash the link.
+ */
+function saveExportFile(PDO $pdo, string $kind, string $title, array $headers, array $rows, ?int $formId, ?int $userId): array
+{
+    $token = bin2hex(random_bytes(24));
+    $base = mb_substr(preg_replace('/[^A-Za-z0-9._-]+/', '-', $title) ?: 'export', 0, 80);
+    $filename = $base . '-' . date('Y-m-d') . '-' . substr($token, 0, 8) . '.csv';
+    file_put_contents(exportsDir() . '/' . $filename, buildCsvFile($headers, $rows));
+    $stmt = $pdo->prepare('INSERT INTO export_files (kind, title, filename, token, path, form_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$kind, $title, $filename, $token, $filename, $formId, $userId]);
+    return ['token' => $token, 'url' => exportUrl($token), 'filename' => $filename];
+}
+
 function slugify(string $text): string
 {
     $text = trim($text);
@@ -252,6 +298,49 @@ function formFieldOptions(array $field): array
 {
     $options = array_filter(array_map('trim', explode("\n", (string) ($field['options'] ?? ''))));
     return array_values($options);
+}
+
+/**
+ * Splits "Province > Zone > Area > Parish" path lines into nested path arrays.
+ * Used by the cascading-dropdown field type ('cascade').
+ */
+function formCascadeOptions(array $field): array
+{
+    $paths = [];
+    foreach (array_filter(array_map('trim', explode("\n", (string) ($field['options'] ?? '')))) as $line) {
+        $parts = array_values(array_filter(array_map('trim', preg_split('/\s*>\s*/', $line) ?: [$line]), fn ($p) => $p !== ''));
+        if ($parts) {
+            $paths[] = $parts;
+        }
+    }
+    return $paths;
+}
+
+/** Same cascade paths joined as "A > B > C" strings — used to validate submissions. */
+function formCascadePaths(array $field): array
+{
+    return array_map(fn (array $p): string => implode(' > ', $p), formCascadeOptions($field));
+}
+
+/**
+ * Full "Province > Zone > Area > Parish" paths for every church in the org
+ * hierarchy (leaves only). Powers the auto church-list field ('church').
+ */
+function churchCascadePaths(): array
+{
+    $paths = [];
+    $walk = function (array $nodes, array $prefix) use (&$walk, &$paths): void {
+        foreach ($nodes as $node) {
+            $cur = array_merge($prefix, [(string) $node['name']]);
+            if (!empty($node['children'])) {
+                $walk($node['children'], $cur);
+            } else {
+                $paths[] = implode(' > ', $cur);
+            }
+        }
+    };
+    $walk(Unit::tree(), []);
+    return $paths;
 }
 
 /** True when a form has an end date that has already passed (validity window closed). */

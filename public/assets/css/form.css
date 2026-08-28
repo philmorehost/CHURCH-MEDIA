@@ -108,6 +108,10 @@ form{padding:8px 34px 36px;}
   padding-right:40px; cursor:pointer;
 }
 
+/* Cascading dropdowns (dropdown in dropdown lists: Province > Zone > Area > Parish) */
+.cascade-selects{display:flex; flex-direction:column; gap:10px;}
+.cascade-note{font-size:12.5px; color:var(--ink-faint); margin-top:8px; line-height:1.5;}
+
 /* Radio / checkbox */
 .form-options{display:flex; flex-direction:column; gap:10px;}
 .form-option{

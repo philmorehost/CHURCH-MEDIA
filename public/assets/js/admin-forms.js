@@ -41,15 +41,19 @@
     ['select', 'Dropdown'],
     ['radio', 'Multiple choice'],
     ['checkbox', 'Checkboxes'],
+    ['cascade', 'Cascading dropdown'],
+    ['church', 'Church (auto)'],
     ['image', 'Image upload'],
   ];
   var OPTION_TYPES = ['select', 'radio', 'checkbox'];
+  var CASCADE_TYPES = ['cascade'];
+  var CHURCH_TYPES = ['church'];
   var IMAGE_TYPES = ['image'];
+  var TYPE_VALUES = TYPES.map(function (t) { return t[0]; });
 
   function makeRow(field) {
     field = field || {};
-    var type = OPTION_TYPES.indexOf(field.field_type) !== -1 ? field.field_type : 'text';
-    if (['textarea', 'email', 'phone', 'number', 'date', 'url'].indexOf(field.field_type) !== -1) { type = field.field_type; }
+    var type = TYPE_VALUES.indexOf(field.field_type) !== -1 ? field.field_type : 'text';
 
     var row = document.createElement('div');
     row.className = 'form-field-row';
@@ -124,6 +128,13 @@
     optionsWrap.appendChild(optTextarea);
     row.appendChild(optionsWrap);
 
+    var churchNote = document.createElement('div');
+    churchNote.className = 'ff-church-note';
+    churchNote.style.display = 'none';
+    churchNote.style.cssText = 'font-size:12.5px;color:var(--ink-dim);background:#ffffff08;border:1px dashed var(--border);border-radius:10px;padding:10px 12px;margin-top:6px;line-height:1.5;';
+    churchNote.textContent = 'Auto-filled from your church list (Province > Zone > Area > Parish) — no options needed. Pick a label like "Where do you worship?".';
+    row.appendChild(churchNote);
+
     var actions = document.createElement('div');
     actions.className = 'row-actions';
 
@@ -169,9 +180,21 @@
   function updateVisibility(row) {
     var type = row.querySelector('.ff-type').value;
     var isOptionType = OPTION_TYPES.indexOf(type) !== -1;
+    var isCascade = CASCADE_TYPES.indexOf(type) !== -1;
+    var isChurch = CHURCH_TYPES.indexOf(type) !== -1;
     var isImage = IMAGE_TYPES.indexOf(type) !== -1;
-    row.querySelector('.ff-options-wrap').style.display = isOptionType ? '' : 'none';
-    row.querySelector('.ff-placeholder-wrap').style.display = (isOptionType || isImage) ? 'none' : '';
+    var optionsWrap = row.querySelector('.ff-options-wrap');
+    var phWrap = row.querySelector('.ff-placeholder-wrap');
+    var churchNote = row.querySelector('.ff-church-note');
+    var optMini = optionsWrap.querySelector('.mini');
+    var optTa = row.querySelector('.ff-options');
+    optionsWrap.style.display = (isOptionType || isCascade) ? '' : 'none';
+    phWrap.style.display = (isOptionType || isImage || isCascade || isChurch) ? 'none' : '';
+    churchNote.style.display = isChurch ? '' : 'none';
+    optMini.textContent = isCascade ? 'Paths (one full path per line, levels by >)' : 'Options (one per line)';
+    optTa.placeholder = isCascade
+      ? 'Lagos > Lagos Mainland > Somolu > LP63 YAYA\nOgun > Abeokuta > Idi-Aba > ABC Parish'
+      : 'Option 1\nOption 2\nOption 3';
   }
 
   function enableDrag() {

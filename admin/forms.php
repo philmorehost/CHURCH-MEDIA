@@ -26,7 +26,7 @@ if ($action === 'reassign' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/admin/forms');
 }
 
-const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'number', 'date', 'url', 'select', 'radio', 'checkbox', 'image'];
+const FORM_FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'number', 'date', 'url', 'select', 'radio', 'checkbox', 'image', 'cascade', 'church'];
 
 function formSlug(PDO $pdo, string $title, int $ignoreId = 0): string
 {
@@ -48,6 +48,33 @@ function formFieldsFor(PDO $pdo, int $formId): array
     $stmt = $pdo->prepare('SELECT * FROM form_fields WHERE form_id = ? ORDER BY sort_order ASC, id ASC');
     $stmt->execute([$formId]);
     return $stmt->fetchAll();
+}
+
+/** Builds [headers, rows] for a form's submissions — shared by download + shareable export. */
+function formExportData(array $form, array $subFields, array $rows): array
+{
+    $headers = ['Submitted At', 'IP Address'];
+    foreach ($subFields as $f) {
+        $headers[] = $f['label'];
+    }
+    $out = [];
+    foreach ($rows as $row) {
+        $data = json_decode((string) $row['data'], true) ?: [];
+        $line = [$row['created_at'], $row['ip_address'] ?? ''];
+        foreach ($subFields as $f) {
+            $value = $data[(string) $f['id']] ?? '';
+            if (is_array($value)) {
+                $value = $f['field_type'] === 'image'
+                    ? implode('; ', array_map(fn ($v) => uploadUrl($v), $value))
+                    : implode('; ', $value);
+            } elseif ($f['field_type'] === 'image' && $value !== '') {
+                $value = uploadUrl($value);
+            }
+            $line[] = (string) $value;
+        }
+        $out[] = $line;
+    }
+    return [$headers, $out];
 }
 
 function decodeFieldsPayload(string $raw): ?array
@@ -85,6 +112,10 @@ function validateFieldPayload(array $fields): array
                 $errors[] = '"' . $label . '" needs at least one option (one per line).';
                 continue;
             }
+        }
+        if ($type === 'cascade' && !formCascadeOptions(['options' => $options])) {
+            $errors[] = '"' . $label . '" needs at least one path — one full path per line, levels separated by > (e.g. Lagos > Somolu > LP63 YAYA).';
+            continue;
         }
         $clean[] = [
             'label' => mb_substr($label, 0, 255),
@@ -195,6 +226,49 @@ if ($action === 'clear_submissions' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('/admin/forms?action=submissions&id=' . $formId);
 }
 
+// Generate a server-hosted shareable CSV (Google-Forms style) for a form.
+if ($action === 'generate_export' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $formId = (int) ($_POST['id'] ?? 0);
+    if (!Unit::recordInScope($pdo, 'forms', $formId, $user)) {
+        http_response_code(403);
+        exit('This form belongs to another church.');
+    }
+    $stmt = $pdo->prepare('SELECT * FROM forms WHERE id = ?');
+    $stmt->execute([$formId]);
+    $form = $stmt->fetch();
+    if (!$form) {
+        redirect('/admin/forms');
+    }
+    $subFields = formFieldsFor($pdo, $formId);
+    $stmt = $pdo->prepare('SELECT * FROM form_submissions WHERE form_id = ? ORDER BY created_at ASC');
+    $stmt->execute([$formId]);
+    [$headers, $rows] = formExportData($form, $subFields, $stmt->fetchAll());
+    $saved = saveExportFile($pdo, 'form', 'Form - ' . $form['title'], $headers, $rows, $formId, (int) ($user['id'] ?? 0));
+    flash('success', 'Shareable CSV created: ' . $saved['url']);
+    redirect('/admin/forms?action=submissions&id=' . $formId . '#exports');
+}
+
+// Remove a shareable export (file + record).
+if ($action === 'delete_export' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $formId = (int) ($_POST['form_id'] ?? 0);
+    $exportId = (int) ($_POST['export_id'] ?? 0);
+    if (!Unit::recordInScope($pdo, 'forms', $formId, $user)) {
+        http_response_code(403);
+        exit('This form belongs to another church.');
+    }
+    $stmt = $pdo->prepare('SELECT * FROM export_files WHERE id = ? AND form_id = ?');
+    $stmt->execute([$exportId, $formId]);
+    $ef = $stmt->fetch();
+    if ($ef) {
+        @unlink(STORAGE_PATH . '/exports/' . basename((string) $ef['path']));
+        $pdo->prepare('DELETE FROM export_files WHERE id = ?')->execute([$exportId]);
+    }
+    flash('success', 'Export link removed.');
+    redirect('/admin/forms?action=submissions&id=' . $formId);
+}
+
 $editing = null;
 $editFields = [];
 $submissionCount = 0;
@@ -214,6 +288,7 @@ if ($action === 'edit') {
 
 $activeForm = null;
 $submissions = [];
+$exports = [];
 if ($action === 'submissions') {
     $stmt = $pdo->prepare('SELECT * FROM forms WHERE id = ?');
     $stmt->execute([$id]);
@@ -228,6 +303,9 @@ if ($action === 'submissions') {
     $stmt->execute([$id]);
     $submissions = $stmt->fetchAll();
     $subFields = formFieldsFor($pdo, $id);
+    $stmt = $pdo->prepare('SELECT * FROM export_files WHERE form_id = ? ORDER BY created_at DESC LIMIT 20');
+    $stmt->execute([$id]);
+    $exports = $stmt->fetchAll();
 }
 
 if ($action === 'export' && $id) {
@@ -243,35 +321,8 @@ if ($action === 'export' && $id) {
     $subFields = formFieldsFor($pdo, $id);
     $stmt = $pdo->prepare('SELECT * FROM form_submissions WHERE form_id = ? ORDER BY created_at ASC');
     $stmt->execute([$id]);
-    $rows = $stmt->fetchAll();
-
-    $headers = ['Submitted At', 'IP Address'];
-    foreach ($subFields as $f) {
-        $headers[] = $f['label'];
-    }
-
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="form-' . $form['slug'] . '-' . date('Y-m-d') . '.csv"');
-    $out = fopen('php://output', 'w');
-    fputcsv($out, $headers);
-    foreach ($rows as $row) {
-        $data = json_decode((string) $row['data'], true) ?: [];
-        $line = [$row['created_at'], $row['ip_address'] ?? ''];
-        foreach ($subFields as $f) {
-            $value = $data[(string) $f['id']] ?? '';
-            if (is_array($value)) {
-                $value = $f['field_type'] === 'image'
-                    ? implode('; ', array_map(fn ($v) => uploadUrl($v), $value))
-                    : implode('; ', $value);
-            } elseif ($f['field_type'] === 'image' && $value !== '') {
-                $value = uploadUrl($value);
-            }
-            $line[] = (string) $value;
-        }
-        fputcsv($out, $line);
-    }
-    fclose($out);
-    exit;
+    [$headers, $rows] = formExportData($form, $subFields, $stmt->fetchAll());
+    csvDownload('form-' . $form['slug'] . '-' . date('Y-m-d') . '.csv', $headers, $rows);
 }
 
 $forms = $action === 'list'
@@ -415,6 +466,42 @@ require __DIR__ . '/partials/layout-open.php';
     <?php endif; ?>
   </div>
 
+  <div class="card" id="exports" style="margin-top:18px;">
+    <h2>Shareable CSV</h2>
+    <p class="sub">The responses CSV is saved on the server and exposed as a link. Anyone with the link can view or download it — share it the way you'd share a Google Forms response sheet.</p>
+    <form method="post" action="/admin/forms?action=generate_export" style="margin-bottom:16px;">
+      <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $activeForm['id'] ?>">
+      <button type="submit" class="btn">+ Generate shareable CSV</button>
+    </form>
+    <?php if (!$exports): ?>
+      <div class="empty">No shareable exports yet — click the button above to create one.</div>
+    <?php else: ?>
+      <table>
+        <tr><th>Created</th><th>Link</th><th>Downloads</th><th></th></tr>
+        <?php foreach ($exports as $ef): ?>
+        <tr>
+          <td><?= e(date('M j, Y g:i A', strtotime((string) $ef['created_at']))) ?></td>
+          <td>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              <a href="<?= e(exportUrl((string) $ef['token'])) ?>" target="_blank" rel="noopener" style="color:var(--gold-soft);font-size:12.5px;word-break:break-all;"><?= e(exportUrl((string) $ef['token'])) ?></a>
+              <button type="button" class="btn secondary sm" data-copy="<?= e(exportUrl((string) $ef['token'])) ?>">Copy</button>
+            </div>
+          </td>
+          <td><?= (int) $ef['downloads'] ?></td>
+          <td>
+            <form method="post" action="/admin/forms?action=delete_export" onsubmit="return confirm('Remove this export link and its file?');" style="display:inline;">
+              <?= Csrf::field() ?><input type="hidden" name="form_id" value="<?= (int) $activeForm['id'] ?>"><input type="hidden" name="export_id" value="<?= (int) $ef['id'] ?>">
+              <button type="submit" class="btn danger sm">Remove</button>
+            </form>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </table>
+    <?php endif; ?>
+  </div>
+
+  <script src="<?= asset('js/admin-forms.js') ?>"></script>
+
 <?php else: ?>
   <div class="btn-row" style="margin-bottom:20px;">
     <a class="btn" href="/admin/forms?action=create">+ New Form</a>
@@ -457,6 +544,7 @@ require __DIR__ . '/partials/layout-open.php';
           </td>
           <td style="white-space:nowrap;">
             <a class="btn secondary sm" href="/admin/forms?action=submissions&id=<?= (int) $f['id'] ?>">Responses</a>
+            <a class="btn secondary sm" href="/admin/forms?action=submissions&id=<?= (int) $f['id'] ?>#exports">CSV link</a>
             <a class="btn secondary sm" href="/admin/forms?action=edit&id=<?= (int) $f['id'] ?>">Edit</a>
             <form method="post" action="/admin/forms?action=delete" onsubmit="return confirm('Delete this form and ALL its submissions?');" style="display:inline;">
               <?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int) $f['id'] ?>">

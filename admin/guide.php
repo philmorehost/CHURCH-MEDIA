@@ -136,6 +136,11 @@ require __DIR__ . '/partials/layout-open.php';
   <div class="card" style="margin-bottom:18px;">
     <h2 id="forms">Forms (<code>/admin/forms</code>)</h2>
     <p>Build custom public forms with a drag-and-drop field builder (text, email, phone, number, date, URL, select, radio, checkbox, image upload). Share the generated link, view responses in the panel, export to CSV, and close/delete forms. Each form belongs to your church.</p>
+    <ul>
+      <li><strong>Cascading dropdown</strong> field type — build a <em>dropdown inside dropdowns</em> where each choice filters the next (e.g. <code>Province &gt; Zone &gt; Area &gt; Parish</code>). Type one full path per line with levels separated by <code>&gt;</code>, e.g. <code>Lagos &gt; Lagos Mainland &gt; Somolu &gt; LP63 YAYA</code>.</li>
+      <li><strong>Church (auto)</strong> field type — automatically builds the same cascading dropdown from every church you've added in Units (Province → Zone → Area → Parish). No typing needed: respondents pick their parish and it always stays in sync with your church list.</li>
+      <li><strong>Shareable CSV</strong> — on a form's Responses page, <em>Generate shareable CSV</em> saves the responses on the server and gives you a link (Google-Forms style). Anyone with the link can view/download it; you can copy, remove, or regenerate links at any time. The same <strong>🔗 Save &amp; Share Link</strong> is available on Newcomers and Attendance.</li>
+    </ul>
   </div>
 
   <div class="card" style="margin-bottom:18px;">
@@ -150,7 +155,7 @@ require __DIR__ . '/partials/layout-open.php';
       <li><strong>Growth cards</strong> at the top summarise services logged, total attendance, and the male/female split.</li>
       <li><strong>Growth Trend chart</strong> shows total attendance per period — toggle <strong>Weekly</strong> (last 12 weeks) or <strong>Monthly</strong> (last 12 months).</li>
       <li><strong>Attendance vs. Newcomers</strong> chart pairs monthly attendance with newcomers added, so you can see whether growth in the service is translating into the follow-up funnel.</li>
-      <li><strong>⬇ Export CSV</strong> downloads every record in your scope.</li>
+      <li><strong>⬇ Export CSV</strong> downloads every record in your scope, or <strong>🔗 Save &amp; Share Link</strong> saves it on the server and gives you a shareable link.</li>
       <li>Each row has a <strong>+ Newcomer</strong> shortcut that jumps to the Newcomers form with that service pre-selected.</li>
     </ul>
     <p>Attendance is private — only logged-in admins/editors of your church can see it; it is never shown on the public site.</p>
@@ -163,7 +168,7 @@ require __DIR__ . '/partials/layout-open.php';
       <li><strong>Status workflow:</strong> New → Contacted → Followed Up → Returned → Inactive. Change it <strong>instantly from the list</strong> with the inline colour-coded dropdown — no need to open Edit.</li>
       <li><strong>WhatsApp tap-to-chat</strong> — every phone number is a <code>wa.me</code> link, so one tap opens the chat to follow up.</li>
       <li><strong>Status filter buttons</strong> at the top show live counts and let you focus on, say, everyone still “New”.</li>
-      <li><strong>⬇ Export CSV</strong> exports the current filtered list (or everyone).</li>
+      <li><strong>⬇ Export CSV</strong> exports the current filtered list (or everyone), or <strong>🔗 Save &amp; Share Link</strong> saves it on the server and gives you a shareable link.</li>
       <li>Add newcomers straight from an attendance row via the <strong>+ Newcomer</strong> shortcut.</li>
     </ul>
     <p>Newcomers are private too — only your church's admins/editors can see them.</p>
