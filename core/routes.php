@@ -98,6 +98,39 @@ $router->get('/forms/{slug}', function (array $params) {
     render('form', ['slug' => $params['slug']]);
 });
 
+// Unlock a private form with its password (link + password both required).
+$router->post('/forms/{slug}/unlock', function (array $params) {
+    $pdo = Database::getInstance()->getConnection();
+    $slug = $params['slug'];
+
+    $stmt = $pdo->prepare('SELECT * FROM forms WHERE slug = ? LIMIT 1');
+    $stmt->execute([$slug]);
+    $form = $stmt->fetch();
+
+    if (!$form) {
+        http_response_code(404);
+        render('404', [], true);
+        return;
+    }
+    if (($form['visibility'] ?? 'public') !== 'private' || formUnlocked($form)) {
+        redirect('/forms/' . $slug);
+    }
+
+    if (!RateLimiter::attempt('form_unlock', $slug, 10, 300)) {
+        flash('form_error', 'Too many attempts — please wait a few minutes and try again.');
+        redirect('/forms/' . $slug);
+    }
+
+    $password = (string) ($_POST['password'] ?? '');
+    if (!empty($form['password_hash']) && password_verify($password, (string) $form['password_hash'])) {
+        $_SESSION['form_unlocked'][(int) $form['id']] = true;
+        redirect('/forms/' . $slug);
+    }
+
+    flash('form_error', 'Incorrect password for this private form.');
+    redirect('/forms/' . $slug);
+});
+
 $router->post('/forms/{slug}', function (array $params) {
     $pdo = Database::getInstance()->getConnection();
     $slug = $params['slug'];
@@ -110,6 +143,9 @@ $router->post('/forms/{slug}', function (array $params) {
         http_response_code(404);
         render('404', [], true);
         return;
+    }
+    if (!formUnlocked($form)) {
+        redirect('/forms/' . $slug);
     }
     if (!formsAccepting($form)) {
         redirect('/forms/' . urlencode($slug));

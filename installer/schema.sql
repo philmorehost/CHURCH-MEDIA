@@ -288,6 +288,8 @@ CREATE TABLE IF NOT EXISTS `forms` (
   `submit_label` VARCHAR(100) NOT NULL DEFAULT 'Submit',
     `end_at` DATETIME NULL COMMENT 'Optional validity end date (NULL = open-ended)',
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `visibility` ENUM('public','private') NOT NULL DEFAULT 'public',
+  `password_hash` VARCHAR(255) NULL COMMENT 'Required when visibility = private',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `org_unit_id` INT NULL,

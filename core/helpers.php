@@ -358,6 +358,23 @@ function formsAccepting(array $form): bool
     return !empty($form['is_active']) && !formsExpired($form);
 }
 
+/**
+ * Whether the current visitor may see a form's contents: public forms are
+ * always open, private forms need a session unlock (link + password), and
+ * admins who manage the form (or any super admin) skip the gate.
+ */
+function formUnlocked(array $form): bool
+{
+    if (($form['visibility'] ?? 'public') !== 'private') {
+        return true;
+    }
+    if (!empty($_SESSION['form_unlocked'][(int) $form['id']])) {
+        return true;
+    }
+    $user = Auth::user();
+    return $user !== null && Unit::inScope($user, (int) ($form['org_unit_id'] ?? 0));
+}
+
 /** Stashes the raw POST payload so the public form can repopulate inputs after a validation error. */
 function keepFormOld(array $input): void
 {

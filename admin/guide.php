@@ -140,6 +140,7 @@ require __DIR__ . '/partials/layout-open.php';
       <li><strong>Cascading dropdown</strong> field type — build a <em>dropdown inside dropdowns</em> where each choice filters the next (e.g. <code>Province &gt; Zone &gt; Area &gt; Parish</code>). Type one full path per line with levels separated by <code>&gt;</code>, e.g. <code>Lagos &gt; Lagos Mainland &gt; Somolu &gt; LP63 YAYA</code>.</li>
       <li><strong>Church (auto)</strong> field type — automatically builds the same cascading dropdown from every church you've added in Units (Province → Zone → Area → Parish). No typing needed: respondents pick their parish and it always stays in sync with your church list.</li>
       <li><strong>Shareable CSV</strong> — on a form's Responses page, <em>Generate shareable CSV</em> saves the responses on the server and gives you a link (Google-Forms style). Anyone with the link can view/download it; you can copy, remove, or regenerate links at any time. The same <strong>🔗 Save &amp; Share Link</strong> is available on Newcomers and Attendance.</li>
+      <li><strong>Public / Private</strong> — under <em>Access control</em> you choose who can open a form. <strong>Public</strong> = anyone with the link can open &amp; fill it. <strong>Private</strong> = a password is also required, so only people with the link <u>and</u> the password can open it — share the link and password <strong>separately</strong>. The <strong>Expiry</strong> field stops responses automatically on the given date/time; leave it blank to <em>never expire</em>.</li>
     </ul>
   </div>
 

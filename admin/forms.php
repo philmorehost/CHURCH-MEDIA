@@ -141,10 +141,27 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
     $submitLabel = trim($_POST['submit_label'] ?? '');
     $endAt = trim($_POST['end_at'] ?? '');
     $isActive = isset($_POST['is_active']) ? 1 : 0;
+    $visibility = ($_POST['visibility'] ?? 'public') === 'private' ? 'private' : 'public';
+    $newPassword = trim((string) ($_POST['access_password'] ?? ''));
     $fieldsJson = trim((string) ($_POST['fields_json'] ?? ''));
 
     if ($title === '') {
         $errors[] = 'Form title is required.';
+    }
+
+    // Private forms need a password: a new one, or keep the existing one when editing.
+    $existingHash = null;
+    if ($action === 'edit') {
+        $stmt = $pdo->prepare('SELECT password_hash FROM forms WHERE id = ?');
+        $stmt->execute([$id]);
+        $existingHash = $stmt->fetchColumn() ?: null;
+    }
+    $passHash = null;
+    if ($visibility === 'private') {
+        $passHash = $newPassword !== '' ? password_hash($newPassword, PASSWORD_DEFAULT) : $existingHash;
+        if ($passHash === null) {
+            $errors[] = 'Private forms need an access password — set one below.';
+        }
     }
 
     [$fields, $fieldErrors] = decodeFieldsPayload($fieldsJson) !== null
@@ -170,13 +187,13 @@ if (in_array($action, ['create', 'edit'], true) && $_SERVER['REQUEST_METHOD'] ==
         $submitLabelValue = $submitLabel === '' ? 'Submit' : $submitLabel;
 
         if ($action === 'create') {
-            $stmt = $pdo->prepare('INSERT INTO forms (title, slug, description, submit_label, end_at, is_active, org_unit_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
-            $stmt->execute([$title, $slug, $description, $submitLabelValue, $endAtValue, $isActive, $user['org_unit_id'] ?? null]);
+            $stmt = $pdo->prepare('INSERT INTO forms (title, slug, description, submit_label, end_at, is_active, org_unit_id, visibility, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$title, $slug, $description, $submitLabelValue, $endAtValue, $isActive, $user['org_unit_id'] ?? null, $visibility, $passHash]);
             $formId = (int) $pdo->lastInsertId();
             flash('success', 'Form created. Share its link to start collecting responses.');
         } else {
-            $pdo->prepare('UPDATE forms SET title = ?, slug = ?, description = ?, submit_label = ?, end_at = ?, is_active = ? WHERE id = ?')
-                ->execute([$title, $slug, $description, $submitLabelValue, $endAtValue, $isActive, $id]);
+            $pdo->prepare('UPDATE forms SET title = ?, slug = ?, description = ?, submit_label = ?, end_at = ?, is_active = ?, visibility = ?, password_hash = ? WHERE id = ?')
+                ->execute([$title, $slug, $description, $submitLabelValue, $endAtValue, $isActive, $visibility, $passHash, $id]);
             $formId = $id;
             $pdo->prepare('DELETE FROM form_fields WHERE form_id = ?')->execute([$formId]);
             flash('success', 'Form updated.');
@@ -388,7 +405,7 @@ require __DIR__ . '/partials/layout-open.php';
           <input type="text" id="submit_label" name="submit_label" value="<?= e($editing['submit_label'] ?? 'Submit') ?>">
         </div>
         <div>
-          <label for="end_at">Stop accepting responses on (optional)</label>
+          <label for="end_at">Expiry date &amp; time <span style="color:var(--ink-faint);font-weight:400;">(blank = never expires)</span></label>
           <input type="datetime-local" id="end_at" name="end_at" value="<?= e($editing && $editing['end_at'] ? str_replace(' ', 'T', substr((string) $editing['end_at'], 0, 16)) : '') ?>">
         </div>
       </div>
@@ -396,6 +413,35 @@ require __DIR__ . '/partials/layout-open.php';
       <div class="checkbox-row">
         <input type="checkbox" id="is_active" name="is_active" <?= $editing === null || !empty($editing['is_active']) ? 'checked' : '' ?>>
         <label for="is_active" style="margin:0;">Accepting responses</label>
+      </div>
+
+      <h2 style="margin-top:34px;">Access control</h2>
+      <p class="sub">Public forms open for anyone with the link. Private forms also need a password, so only people with the link <strong>and</strong> the password can open them.</p>
+
+      <div class="row two">
+        <div>
+          <label for="visibility">Who can access this form?</label>
+          <select id="visibility" name="visibility">
+            <option value="public" <?= ($editing['visibility'] ?? 'public') === 'public' ? 'selected' : '' ?>>Public — anyone with the link</option>
+            <option value="private" <?= ($editing['visibility'] ?? '') === 'private' ? 'selected' : '' ?>>Private — link + password</option>
+          </select>
+        </div>
+        <div id="passwordWrap" style="<?= ($editing['visibility'] ?? 'public') === 'private' ? '' : 'display:none;' ?>">
+          <label for="access_password">Access password</label>
+          <input type="text" id="access_password" name="access_password" value="" autocomplete="off" placeholder="<?= !empty($editing['password_hash']) ? 'Leave blank to keep the current password' : 'Set the access password' ?>">
+          <div style="font-size:12px;color:var(--ink-faint);margin-top:-8px;"><?= !empty($editing['password_hash']) ? '✔ A password is currently set.' : 'No password set yet — required for private forms.' ?></div>
+        </div>
+      </div>
+
+      <div id="accessNote" style="display:none;background:#e8b95f14;border:1px solid #e8b95f44;border-radius:12px;padding:12px 14px;font-size:13px;color:var(--gold-soft);margin-bottom:14px;line-height:1.5;">
+        🔒 <strong>Private form.</strong> Share the link and the password <strong>separately</strong> (e.g. link in the group, password in a private message). Only people with both can open it.
+      </div>
+
+      <div style="background:#ffffff06;border:1px dashed var(--border);border-radius:12px;padding:12px 14px;font-size:12.5px;color:var(--ink-dim);line-height:1.7;margin-bottom:6px;">
+        <strong style="color:var(--ink);">Quick guide — don't mix these up:</strong><br>
+        • <strong>Public</strong> = anyone with the link can open &amp; fill it (registrations, contact forms, open polls).<br>
+        • <strong>Private</strong> = link <u>+</u> password required — only people with both can open it. Share the two separately.<br>
+        • <strong>Expiry</strong> = set a date &amp; time above to stop responses automatically; leave it blank to <em>never expire</em>.
       </div>
 
       <h2 style="margin-top:34px;">Form fields</h2>
@@ -512,11 +558,12 @@ require __DIR__ . '/partials/layout-open.php';
       <div class="empty">No forms yet — create one to get a shareable public link.</div>
     <?php else: ?>
       <table>
-        <tr><th>Form</th><th>Church</th><th>Public Link</th><th>Responses</th><th>Valid Until</th><th>Status</th><th></th></tr>
+        <tr><th>Form</th><th>Church</th><th>Public Link</th><th>Responses</th><th>Expires</th><th>Status</th><th></th></tr>
         <?php foreach ($forms as $f): $expired = formsExpired($f); $fieldCount = count(formFieldsFor($pdo, (int) $f['id'])); ?>
         <tr>
           <td>
             <strong><?= e($f['title']) ?></strong>
+            <?php if (($f['visibility'] ?? 'public') === 'private'): ?><span class="badge" title="Private — password required">🔒 Private</span><?php else: ?><span class="badge ok">Public</span><?php endif; ?>
             <div style="color:var(--ink-faint);font-size:12px;"><?= $fieldCount ?> field<?= $fieldCount === 1 ? '' : 's' ?> · created <?= e(date('M j, Y', strtotime($f['created_at']))) ?></div>
           </td>
           <td>
@@ -536,7 +583,7 @@ require __DIR__ . '/partials/layout-open.php';
             </div>
           </td>
           <td><?= (int) $f['submission_count'] ?></td>
-          <td><?= $f['end_at'] ? e(date('M j, Y', strtotime((string) $f['end_at']))) : '<span style="color:var(--ink-faint);">No limit</span>' ?></td>
+          <td><?= $f['end_at'] ? e(date('M j, Y', strtotime((string) $f['end_at']))) : '<span style="color:var(--ink-faint);">Never</span>' ?></td>
           <td>
             <?php if (!$f['is_active']): ?><span class="badge">closed</span>
             <?php elseif ($expired): ?><span class="badge fail">expired</span>

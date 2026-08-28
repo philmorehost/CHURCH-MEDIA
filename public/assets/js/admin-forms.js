@@ -245,6 +245,20 @@
     container.appendChild(makeRow({ label: '', field_type: 'text' }));
   }
 
+  /* ---------- public / private access control ---------- */
+  var visSelect = document.getElementById('visibility');
+  var passwordWrap = document.getElementById('passwordWrap');
+  var accessNote = document.getElementById('accessNote');
+  if (visSelect && passwordWrap && accessNote) {
+    function updateAccessUI() {
+      var isPrivate = visSelect.value === 'private';
+      passwordWrap.style.display = isPrivate ? '' : 'none';
+      accessNote.style.display = isPrivate ? '' : 'none';
+    }
+    visSelect.addEventListener('change', updateAccessUI);
+    updateAccessUI();
+  }
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     fieldsJson.value = JSON.stringify(serialize());

@@ -112,6 +112,15 @@ form{padding:8px 34px 36px;}
 .cascade-selects{display:flex; flex-direction:column; gap:10px;}
 .cascade-note{font-size:12.5px; color:var(--ink-faint); margin-top:8px; line-height:1.5;}
 
+/* Private form password gate */
+.form-lock{padding:34px 34px 40px; text-align:center;}
+.form-lock-icon{
+  width:64px; height:64px; margin:0 auto 18px; border-radius:20px;
+  background:var(--gold-dim); border:1px solid #e8b95f44; color:var(--gold-soft);
+  display:flex; align-items:center; justify-content:center;
+}
+.form-lock-form{max-width:420px; margin:22px auto 0; text-align:left;}
+
 /* Radio / checkbox */
 .form-options{display:flex; flex-direction:column; gap:10px;}
 .form-option{

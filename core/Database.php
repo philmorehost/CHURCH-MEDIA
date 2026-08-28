@@ -515,6 +515,12 @@ class Database
                     INDEX `idx_export_form` (`form_id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             },
+            '2026_08_form_visibility' => function (PDO $pdo): void {
+                // Forms can now be public (anyone with the link) or private
+                // (link + password). password_hash is only used when private.
+                self::addColumnIfMissing($pdo, 'forms', 'visibility', "ENUM('public','private') NOT NULL DEFAULT 'public'", 'is_active');
+                self::addColumnIfMissing($pdo, 'forms', 'password_hash', 'VARCHAR(255) NULL', 'visibility');
+            },
         ];
     }
 

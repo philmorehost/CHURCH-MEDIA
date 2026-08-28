@@ -18,6 +18,7 @@ $fields = $stmt->fetchAll();
 $sent = flash('form_sent') !== null || ($_GET['sent'] ?? '') === '1';
 $error = flash('form_error');
 $accepting = formsAccepting($form);
+$unlocked = formUnlocked($form);
 $initial = mb_substr((string) ($form['title']), 0, 1);
 $fieldIndex = 0;
 
@@ -59,6 +60,27 @@ $metaRobots = 'noindex, nofollow';
           <a class="form-submit" href="/contact">Contact Us</a>
           <a class="form-submit ghost" href="/">Back to Homepage</a>
         </div>
+      </div>
+    <?php elseif (!$unlocked): ?>
+      <div class="form-banner">
+        <div class="form-mark"><?= e($initial) ?></div>
+        <div>
+          <div class="form-eyebrow"><?= e(setting('site_title')) ?></div>
+          <h1 class="form-title"><?= e($form['title']) ?></h1>
+        </div>
+      </div>
+      <div class="form-lock">
+        <div class="form-lock-icon">
+          <svg viewBox="0 0 24 24" width="30" height="30"><path fill="currentColor" d="M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Zm1-2a5 5 0 0 1 10 0v2h-2V6a3 3 0 0 0-6 0v2H7V6Zm4 6v3h2v-3h-2Z"/></svg>
+        </div>
+        <h1 class="form-title center">This form is private</h1>
+        <p class="form-desc center">Only people with the link <strong>and</strong> the password can open it. Ask the church admin for the password.</p>
+        <?php if ($error): ?><div class="form-error"><?= e($error) ?></div><?php endif; ?>
+        <form method="post" action="<?= e('/forms/' . rawurlencode((string) $form['slug']) . '/unlock') ?>" class="form-lock-form">
+          <label class="form-label" for="form_password">Enter the form password</label>
+          <input type="password" id="form_password" name="password" autocomplete="off" required placeholder="Form password">
+          <button type="submit" class="form-submit"><span>Unlock form</span></button>
+        </form>
       </div>
     <?php else: ?>
       <div class="form-banner">
