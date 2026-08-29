@@ -3,6 +3,22 @@ declare(strict_types=1);
 
 /** Stage 3 — create the super admin account and set initial branding/settings. */
 
+// Safety net for update/recovery: if this database already has a super admin,
+// never create a second one — jump straight to the finish step.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    try {
+        $pdo = Database::getInstance()->getConnection();
+        $hasAdmin = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE is_super_admin = 1')->fetchColumn();
+        if ($hasAdmin > 0) {
+            $_SESSION['install']['existing_install'] = true;
+            $_SESSION['install']['max_step'] = max($_SESSION['install']['max_step'], 4);
+            redirect('/install?step=4');
+        }
+    } catch (Throwable) {
+        // ignore — show the form normally
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
 

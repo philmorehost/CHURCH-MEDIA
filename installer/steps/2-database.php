@@ -5,6 +5,15 @@ declare(strict_types=1);
 
 $current = require CONFIG_PATH . '/database.php';
 
+// If the currently configured DB already has the app schema, this is an
+// existing site that just lost its lock (e.g. an update overwrote storage/).
+$currentHasSchema = false;
+try {
+    $currentHasSchema = Database::databaseHasSchema(Database::testConnection($current['host'], (int) $current['port'], $current['database'], $current['username'], $current['password'] ?? ''));
+} catch (Throwable) {
+    $currentHasSchema = false;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
 
@@ -20,7 +29,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         try {
             $pdo = Database::testConnection($host, $port, $name, $user, $pass);
-            Database::importSqlFile($pdo, INSTALLER_PATH . '/schema.sql');
+
+            // Existing installation? Reconnect instead of re-importing so the
+            // database is never touched — updates must never lose data.
+            $isExisting = Database::databaseHasSchema($pdo);
+            if ($isExisting) {
+                $_SESSION['install']['existing_install'] = true;
+            } else {
+                Database::importSqlFile($pdo, INSTALLER_PATH . '/schema.sql');
+            }
 
             $configContents = "<?php\n" .
                 "declare(strict_types=1);\n\n" .
@@ -38,8 +55,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             file_put_contents(CONFIG_PATH . '/database.php', $configContents);
 
             clearOld();
-            $_SESSION['install']['max_step'] = max($_SESSION['install']['max_step'], 3);
-            redirect('/install?step=3');
+            // Existing installs jump straight to Finish (step 4): no new admin,
+            // no re-branding, just reconnect + restore the lock.
+            $_SESSION['install']['max_step'] = max($_SESSION['install']['max_step'], $isExisting ? 4 : 3);
+            redirect('/install?step=' . ($isExisting ? 4 : 3));
         } catch (Throwable $e) {
             $errors[] = 'Could not connect or import the schema: ' . $e->getMessage();
         }
@@ -48,6 +67,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 <h2>Connect your database</h2>
 <p class="sub">We'll test the connection and install all required tables.</p>
+
+<?php if ($currentHasSchema): ?>
+  <div class="alert success">
+    ✅ <strong>Existing installation detected</strong> in this database. Reconnecting will <strong>NOT</strong> delete your data —
+    the app will skip the schema import, restore the connection, and take you straight back online.
+  </div>
+<?php endif; ?>
 
 <?php foreach ($errors as $error): ?>
   <div class="alert error"><?= e($error) ?></div>

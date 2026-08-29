@@ -75,6 +75,40 @@ class Database
         }
     }
 
+    /**
+     * True when an arbitrary PDO points at a database that already contains the
+     * app's signature tables (i.e. a completed install). Used to tell "fresh
+     * install" from "reconnect to an existing site" so updates never lose data.
+     */
+    public static function databaseHasSchema(PDO $pdo): bool
+    {
+        try {
+            foreach (['settings', 'users', 'media_posts', 'org_units', 'forms'] as $table) {
+                $stmt = $pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
+                $stmt->execute([$table]);
+                if ((int) $stmt->fetchColumn() === 0) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    /** True when the configured database is reachable AND already has the app schema. */
+    public static function hasAppSchema(): bool
+    {
+        if (!self::isReachable()) {
+            return false;
+        }
+        try {
+            return self::databaseHasSchema(self::getInstance()->getConnection());
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
     public function getConnection(): PDO
     {
         return $this->connection;

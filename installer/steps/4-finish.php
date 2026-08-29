@@ -21,7 +21,11 @@ if (!APP_IS_INSTALLED && empty($_SESSION['install']['finished'])) {
 <h2>You're all set 🎉</h2>
 <p class="sub">Church Media Management System has been installed successfully.</p>
 
-<div class="alert success">Database connected, schema installed, and your admin account is ready.</div>
+<?php if (!empty($_SESSION['install']['existing_install'])): ?>
+  <div class="alert success">Reconnected to your existing database — nothing was deleted and your data is intact. The site is live again.</div>
+<?php else: ?>
+  <div class="alert success">Database connected, schema installed, and your admin account is ready.</div>
+<?php endif; ?>
 
 <ul class="check-list">
   <li><span>Delete/rename the <code>installer/</code> folder or block it at the web server</span><span class="badge fail">TO DO</span></li>

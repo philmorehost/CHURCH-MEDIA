@@ -57,6 +57,32 @@ mobile app.
 > migrations (e.g. the `media_post_items.source` column, `saves_count`, and the
 > `post_saves` / `post_comments` tables) idempotently.
 
+## Updating an existing installation (no data loss)
+
+Updates never touch your data **as long as you don't overwrite the
+machine-specific files** with the fresh copy:
+
+- **Keep** `config/database.php` (your live DB credentials)
+- **Keep** `storage/` — it holds `installed.lock` and `migrations.json`; if a
+  botched upload wipes the lock, the app detects the existing database schema
+  and restores the site automatically (no reinstall prompt)
+- **Keep** `public/uploads/` (your media files)
+
+Recommended flow (cPanel / FTP):
+
+1. Take a backup first (database + `public/uploads`).
+2. Upload only the files you changed (e.g. `core/`, `admin/`, `views/`, `api/`,
+   `public/assets/`, `installer/schema.sql`), **or** extract the full zip but
+   skip `config/database.php`, `storage/`, and `public/uploads/`.
+3. Open the site — migrations run automatically and you stay logged in.
+
+If you *did* overwrite the wrong files and the installer shows up:
+
+1. Open `/install` and on step 2 enter your **existing** database details.
+2. The installer detects the existing database, **skips the schema import** (no
+   data is touched), reconnects, and takes you straight to the finish screen.
+3. Done — you're back online with all your data, no reinstall needed.
+
 ### PHP built-in server (dev)
 
 ```

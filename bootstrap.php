@@ -53,19 +53,30 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
 }
 
 define('APP_IS_LOCAL', $isLocal);
-// A valid install requires BOTH the lock file AND a reachable database using
-// the persisted config. A lock file alone is not proof: config/database.php may
-// have been copied from another environment (or credentials rotated), in which
-// case a bare lock would let the app boot and then crash with a raw PDOException
-// on the first page load. When the database can't be reached we treat this as a
-// new environment — drop the stale lock so the installer runs fresh — and only
-// fall back to the existing lock once the DB is genuinely reachable.
+// The database is the real source of truth for "installed". A lock file alone
+// is not proof (config/database.php may be copied or credentials rotated), and
+// a missing lock is not proof of a fresh install either: an update upload that
+// replaces storage/ wipes storage/installed.lock, which used to force a full
+// reinstall. So if the DB already contains the app schema we treat the site as
+// installed and heal the missing lock automatically; we only drop the lock (and
+// show the installer) when the DB is genuinely unreachable or empty.
 $lockExists = is_file(INSTALL_LOCK_FILE);
-if ($lockExists && !Database::isReachable()) {
-    @unlink(INSTALL_LOCK_FILE);
-    $lockExists = false;
+$hasSchema = false;
+if (!$lockExists) {
+    $hasSchema = Database::hasAppSchema();
 }
-define('APP_IS_INSTALLED', $lockExists);
+$installed = $lockExists || $hasSchema;
+
+if ($lockExists && !Database::isReachable() && !$hasSchema) {
+    @unlink(INSTALL_LOCK_FILE);
+    $installed = false;
+}
+if ($installed && !$lockExists) {
+    // Heal a lock wiped by an update upload (contents are informational only).
+    @file_put_contents(INSTALL_LOCK_FILE, json_encode(['installed_at' => date('c')]));
+    $lockExists = true;
+}
+define('APP_IS_INSTALLED', $installed);
 
 // Bring already-installed databases up to date with the latest schema
 // (feature columns/tables added after first install). Stamped, idempotent.
