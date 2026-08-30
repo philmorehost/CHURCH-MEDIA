@@ -12,7 +12,11 @@ $admin = Auth::user();
 $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
-$statusFilter = in_array($_GET['status'] ?? 'pending', ['pending', 'approved', 'rejected'], true) ? $_GET['status'] : 'pending';
+// Capture first, then validate — reading $_GET['status'] inside the ternary's
+// true-branch when the key is absent (no ?status= in the URL) triggered an
+// "Undefined array key" warning.
+$statusParam = $_GET['status'] ?? 'pending';
+$statusFilter = in_array($statusParam, ['pending', 'approved', 'rejected'], true) ? $statusParam : 'pending';
 
 function regChurchLabel(array $reg): string
 {
