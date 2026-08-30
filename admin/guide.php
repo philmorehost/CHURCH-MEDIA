@@ -185,7 +185,7 @@ require __DIR__ . '/partials/layout-open.php';
     <h2 id="units">Units (<code>/admin/units</code>) <span class="pill super">SUPER</span></h2>
     <p>Manage the <strong>Province → Zone → Area → Parish</strong> hierarchy. Create parishes/zones/areas/provinces, and each one gets its own public directory page and media roll-up. Super-admin only.</p>
     <ul>
-      <li><strong>⬆ Import Churches (CSV)</strong> — bulk-add the whole hierarchy from a CSV with columns <code>Province, Zone, Area, Parish</code> (one church per row; Parish optional). Names are stored in <strong>CAPS</strong> and existing units are matched automatically, so there are no duplicates.</li>
+      <li><strong>⬆ Import Churches (CSV)</strong> — bulk-add the whole hierarchy from a CSV with columns <code>Province, Zone, Area, Parish</code> (one church per row; Parish optional). Use the <strong>⬇ Download sample CSV</strong> template so you get the exact format, then fill it in. Names are stored in <strong>CAPS</strong> and existing units are matched automatically, so there are no duplicates.</li>
       <li><strong>🏷 Name Corrections</strong> — review church name corrections flagged from the registration page. <em>Approve</em> automatically renames the church to the suggested spelling; <em>Reject</em> makes no changes.</li>
     </ul>
   </div>

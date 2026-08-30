@@ -80,6 +80,16 @@ if ($action === 'import_csv' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Download a ready-to-fill CSV sample so admins get the column format exactly right.
+if ($action === 'sample_csv') {
+    csvDownload('church-import-sample.csv', ['Province', 'Zone', 'Area', 'Parish'], [
+        ['LAGOS PROVINCE', 'LAGOS ZONE', 'SOMOLU AREA', ''],
+        ['LAGOS PROVINCE', 'LAGOS ZONE', 'YABA AREA', 'ST JAMES PARISH'],
+        ['OGUN PROVINCE', 'ABEOKUTA ZONE', 'IDI-ABA AREA', ''],
+        ['OGUN PROVINCE', 'ABEOKUTA ZONE', 'IJAYE AREA', 'GRACE PARISH'],
+    ]);
+}
+
 // Approve a church-name correction: rename the unit to the suggested spelling.
 if ($action === 'flag_approve' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
@@ -230,10 +240,12 @@ require __DIR__ . '/partials/layout-open.php';
   <div class="btn-row" style="margin-bottom:16px;">
     <a class="btn secondary sm" href="/admin/units">← Back to units</a>
     <a class="btn secondary sm" href="/admin/units?action=flags">🏷 Name Corrections</a>
+    <a class="btn sm" href="/admin/units?action=sample_csv">⬇ Download sample CSV</a>
   </div>
   <div class="card" style="max-width:760px;">
     <h2>Import Churches from CSV</h2>
     <p class="sub">Columns: <code>Province, Zone, Area, Parish</code> — one church per row. Province is required; <strong>Parish is optional</strong> (leave blank if not known yet — it can be added later by the church's own admin). All names are stored in <strong>CAPS</strong>, and existing units are matched automatically, so there are no duplicates.</p>
+    <p class="sub" style="margin-bottom:6px;">👉 <strong>Tip:</strong> click <strong>⬇ Download sample CSV</strong> above to get a ready-to-fill template — just replace the example rows with your own churches and upload it back.</p>
     <p class="sub" style="margin-bottom:18px;">Example:<br><code>Province,Zone,Area,Parish<br>LAGOS PROVINCE,LAGOS ZONE,SOMOLU AREA,<br>LAGOS PROVINCE,LAGOS ZONE,YABA AREA,ST JAMES PARISH</code></p>
     <form method="post" action="/admin/units?action=import_csv" enctype="multipart/form-data">
       <?= Csrf::field() ?>
