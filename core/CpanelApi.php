@@ -121,7 +121,7 @@ class CpanelApi
             $excerpt = mb_substr($excerpt, 0, 220);
             $hint = '';
             if ($status === 401 || $status === 403) {
-                $hint = ' Authentication was rejected. Checklist: 1) Username must be the MAIN cPanel username (not the domain, not an email). 2) The API token must have the Email feature enabled when created (cPanel → Security → Manage API Tokens → check “Email”). 3) No stray spaces/newlines around the token. 4) If the token has IP restrictions, your server IP must be allowed. 5) Recreate the token if unsure — old/expired tokens fail with 401.';
+                $hint = ' Authentication rejected. On shared hosting the #1 cause is putting your WEBSITE domain in the cPanel Host field — it resolves to a shared IP and hits another account’s cPanel, which 401s. Use the EXACT hostname from your cPanel login URL (e.g. rccglp63yaya.pmhserver.name.ng or cpanel.<provider>.com), keep the Email Domain as the real domain for @ addresses, and confirm the API token has the Email feature (cPanel → Security → Manage API Tokens).';
             } elseif ($status === 404) {
                 $hint = ' Not found — this is probably not the cPanel server. Use the cPanel hostname (e.g. cpanel.yourhost.com), not the website domain.';
             } elseif (stripos($excerpt, '<html') !== false || stripos($excerpt, '<!doctype') !== false || stripos($excerpt, 'login') !== false) {
