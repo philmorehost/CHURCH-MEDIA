@@ -20,10 +20,19 @@ class CpanelApi
     /** @param array{host?:string,user?:string,token?:string,port?:int} $cfg */
     public function __construct(array $cfg)
     {
-        $this->host = rtrim((string) ($cfg['host'] ?? ''), '/');
+        // Tolerate common input mistakes: "https://host", "host:2083", "host/".
+        $raw = trim((string) ($cfg['host'] ?? ''));
+        $raw = preg_replace('#^https?://#i', '', $raw) ?? '';
+        $raw = rtrim($raw, '/');
+        if (preg_match('#^(.*):(\d+)$#', $raw, $m)) {
+            $this->host = $m[1];
+            $this->port = (int) $m[2];
+        } else {
+            $this->host = $raw;
+            $this->port = max(1, (int) ($cfg['port'] ?? 2083));
+        }
         $this->user = (string) ($cfg['user'] ?? '');
         $this->token = (string) ($cfg['token'] ?? '');
-        $this->port = max(1, (int) ($cfg['port'] ?? 2083));
     }
 
     public function configured(): bool
@@ -75,7 +84,8 @@ class CpanelApi
         $ctx = stream_context_create([
             'http' => [
                 'method' => 'GET',
-                'header' => 'Authorization: Basic ' . base64_encode($this->user . ':' . $this->token) . "\r\n",
+                'header' => 'Authorization: Basic ' . base64_encode($this->user . ':' . $this->token) . "\r\n" .
+                            "Accept: application/json\r\n",
                 'timeout' => 30,
                 'ignore_errors' => true,
             ],
@@ -88,12 +98,36 @@ class CpanelApi
             ],
         ]);
         $body = @file_get_contents($url, false, $ctx);
+
+        // Capture the HTTP status from the wrapper's response headers so we can
+        // give a real diagnosis (401 = bad credentials, 404 = wrong host, etc.).
+        $status = 0;
+        $statusText = '';
+        if (!empty($http_response_header)) {
+            foreach ($http_response_header as $line) {
+                if (preg_match('#^HTTP/\S+\s+(\d+)\s*(.*)$#', (string) $line, $m)) {
+                    $status = (int) $m[1];
+                    $statusText = trim((string) $m[2]);
+                }
+            }
+        }
+
         if ($body === false) {
-            return ['ok' => false, 'error' => 'Could not reach the cPanel API (' . $this->host . ':' . $this->port . ').'];
+            return ['ok' => false, 'error' => 'Could not reach the cPanel API (' . $this->host . ':' . $this->port . ').' . ($statusText ? ' HTTP ' . $status . ' ' . $statusText . '.' : ' No response.')];
         }
         $data = json_decode($body, true);
         if (!is_array($data)) {
-            return ['ok' => false, 'error' => 'Unexpected cPanel API response.'];
+            $excerpt = trim((string) preg_replace('/\s+/', ' ', (string) $body));
+            $excerpt = mb_substr($excerpt, 0, 220);
+            $hint = '';
+            if ($status === 401 || $status === 403) {
+                $hint = ' Authentication was rejected — double-check the cPanel username and API token.';
+            } elseif ($status === 404) {
+                $hint = ' Not found — this is probably not the cPanel server. Use the cPanel hostname (e.g. cpanel.yourhost.com), not the website domain.';
+            } elseif (stripos($excerpt, '<html') !== false || stripos($excerpt, '<!doctype') !== false || stripos($excerpt, 'login') !== false) {
+                $hint = ' The server returned a web page instead of the API — confirm the cPanel host/port (2083 for cPanel) and that API access is allowed.';
+            }
+            return ['ok' => false, 'error' => 'Unexpected cPanel API response (HTTP ' . $status . ($statusText ? ' ' . $statusText : '') . ').' . $hint . ' Body: ' . ($excerpt !== '' ? $excerpt : '(empty)')];
         }
         $errors = $data['errors'] ?? [];
         if (!empty($errors)) {

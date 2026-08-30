@@ -324,7 +324,7 @@ require __DIR__ . '/partials/layout-open.php';
 
   <div class="card">
     <h2>Corporate Email (cPanel)</h2>
-    <p class="sub">When you approve a church registration, the app can automatically create a corporate email for that admin — e.g. <code>sopadmin@<?= e((string) ($row['email_domain'] ?? 'yourdomain.com')) ?></code> — using the password they registered with. Requires a cPanel <strong>API token</strong> (cPanel → Security → Manage API Tokens). Leave <em>Enable</em> off if you don't want auto-created emails.</p>
+    <p class="sub">When you approve a church registration, the app can automatically create a corporate email for that admin — e.g. <code>sopadmin@<?= e((string) ($row['email_domain'] ?? 'yourdomain.com')) ?></code> — using the password they registered with. Requires a cPanel <strong>API token</strong> (cPanel → Security → Manage API Tokens). The <strong>host is usually the cPanel hostname</strong> (e.g. <code>cpanel.yourhost.com</code> or <code>server.yourhost.com</code>) on port <code>2083</code> — <strong>not</strong> your website domain. Use <strong>🔌 Test cPanel connection</strong> to verify; if it fails it now explains exactly why. Leave <em>Enable</em> off if you don't want auto-created emails.</p>
     <div class="checkbox-row">
       <input type="checkbox" id="email_cpanel_enabled" name="email_cpanel_enabled" <?= !empty($row['email_cpanel_enabled']) ? 'checked' : '' ?>>
       <label for="email_cpanel_enabled" style="margin:0;">Enable automatic cPanel email creation on approval</label>
