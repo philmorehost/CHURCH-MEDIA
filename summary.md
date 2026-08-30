@@ -3,7 +3,7 @@
 - Make the feed auto-play the newest post on access, play the exact post clicked from the home page, show date/time + feed info, and — new — make uploaded videos play IMMEDIATELY (no "converting when visitors access"), keep uploads fast, and hide the feed scrollbar.
 
 ## Important Details
-- Production/mobile API base URL: `https://rccgsopyaya.pmhserver.name.ng` (no trailing slash; `mobile/lib/services/api_client.dart`)
+- Production/mobile API base URL: `https://rccglp63yaya.org.ng` (no trailing slash; `mobile/lib/services/api_client.dart`)
 - **Production serves STALE assets** — confirmed: `assets/js/feed.js` is 7.3KB OLD (queries `.feed-slide`/`.feed-media` that no longer exist in the new `views/feed.php`; crashes → blank feed) vs 17.7KB local; `admin-media.js` still **404**. User must deploy new assets.
 - No FFmpeg anywhere (config `ffmpeg_path` null, no `bin/ffmpeg/ffmpeg.exe`) — uploaded videos previously stored as `pending` originals that NEVER converted → feed showed "Converting…" forever. This round makes them `ready` + playable immediately.
 - Flutter SDK 3.44.8 at `C:\Users\User\flutter\flutter`; AGP 9.0.1/Gradle 9.1.0/Kotlin 2.3.20; app on built-in Kotlin — removing share_plus fixed the KGP warning (`a43bdb4`)

@@ -12,7 +12,7 @@ import '../models/models.dart';
 /// development (e.g. Android emulator uses http://10.0.2.2:8080).
 class ApiClient {
   static const String _configuredBase = String.fromEnvironment('API_BASE_URL', defaultValue: '');
-  static String get baseUrl => _configuredBase.isNotEmpty ? _configuredBase : 'https://rccglp63yaya.pmhserver.name.ng';
+  static String get baseUrl => _configuredBase.isNotEmpty ? _configuredBase : 'https://rccglp63yaya.org.ng';
 
   Uri _uri(String path, [Map<String, dynamic>? query]) {
     final clean = query?.map((k, v) => MapEntry(k, v?.toString())) ?? {};
