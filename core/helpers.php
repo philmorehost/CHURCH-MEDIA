@@ -151,6 +151,39 @@ function slugify(string $text): string
     return trim($text, '-') ?: bin2hex(random_bytes(4));
 }
 
+/** AES-256 key derived from the install's fingerprint salt (stable per install). */
+function emailSecretKey(): string
+{
+    static $key = null;
+    if ($key === null) {
+        $sec = require CONFIG_PATH . '/security.php';
+        $key = hash('sha256', (string) ($sec['fingerprint_salt'] ?? 'church-media-email-key'));
+    }
+    return $key;
+}
+
+/** Encrypts a secret (e.g. the registrant's password) for storage at rest. */
+function encryptSecret(string $plain): string
+{
+    $iv = random_bytes(16);
+    $cipher = openssl_encrypt($plain, 'aes-256-cbc', emailSecretKey(), 0, $iv);
+    return $cipher === false ? '' : base64_encode($iv . $cipher);
+}
+
+/** Decrypts a value produced by encryptSecret(); null when invalid. */
+function decryptSecret(string $payload): ?string
+{
+    if ($payload === '') {
+        return null;
+    }
+    $raw = base64_decode($payload);
+    if ($raw === false || strlen($raw) <= 16) {
+        return null;
+    }
+    $out = openssl_decrypt(substr($raw, 16), 'aes-256-cbc', emailSecretKey(), 0, substr($raw, 0, 16));
+    return $out === false ? null : $out;
+}
+
 /** Lazily loads the single settings row and caches it for the request. */
 function settings(): array
 {

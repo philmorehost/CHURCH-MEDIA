@@ -91,6 +91,8 @@ $router->post('/register', function () {
     $username = trim($_POST['username'] ?? '');
     $password = (string) ($_POST['password'] ?? '');
     $confirm = (string) ($_POST['password_confirm'] ?? '');
+    $role = in_array($_POST['role'] ?? '', ['admin', 'editor', 'media_team'], true) ? $_POST['role'] : 'admin';
+    $altEmail = trim($_POST['alt_email'] ?? '');
     $provinceId = (int) ($_POST['province_id'] ?? 0);
     $zoneId = (int) ($_POST['zone_id'] ?? 0);
     $areaId = (int) ($_POST['area_id'] ?? 0);
@@ -108,6 +110,9 @@ $router->post('/register', function () {
         $errors[] = 'Password must be at least 10 characters.';
     } elseif ($password !== $confirm) {
         $errors[] = 'Passwords do not match.';
+    }
+    if ($altEmail !== '' && !filter_var($altEmail, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'The alternative email address is not valid.';
     }
     $area = $areaId > 0 ? Unit::find($areaId) : null;
     if (!$area || $area['type'] !== 'area') {
@@ -146,13 +151,16 @@ $router->post('/register', function () {
         $parish = Unit::findByName('parish', $parishName, $areaId);
     }
 
-    $stmt = $pdo->prepare('INSERT INTO pending_registrations (name, email, phone, username, password_hash, province_id, zone_id, area_id, parish_name, parish_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "pending")');
+    $stmt = $pdo->prepare('INSERT INTO pending_registrations (name, email, phone, username, password_hash, password_enc, role, alt_email, province_id, zone_id, area_id, parish_name, parish_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "pending")');
     $stmt->execute([
         mb_substr($name, 0, 150),
         mb_substr($email, 0, 150),
         mb_substr($phone, 0, 45) ?: null,
         mb_substr($username, 0, 100),
         password_hash($password, PASSWORD_ARGON2ID),
+        encryptSecret($password),
+        $role,
+        $altEmail !== '' ? mb_substr($altEmail, 0, 190) : null,
         $provinceId > 0 ? $provinceId : null,
         $zoneId > 0 ? $zoneId : null,
         $areaId,

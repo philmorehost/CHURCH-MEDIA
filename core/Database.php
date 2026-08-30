@@ -604,6 +604,23 @@ class Database
                 // All church names are stored in CAPS.
                 $pdo->exec('UPDATE org_units SET name = UPPER(name)');
             },
+            '2026_08_cpanel_email' => function (PDO $pdo): void {
+                // Automatic corporate email creation for approved church admins.
+                self::addColumnIfMissing($pdo, 'settings', 'email_cpanel_enabled', 'TINYINT(1) NOT NULL DEFAULT 0', 'smtp_from');
+                self::addColumnIfMissing($pdo, 'settings', 'email_cpanel_host', 'VARCHAR(255) NULL', 'email_cpanel_enabled');
+                self::addColumnIfMissing($pdo, 'settings', 'email_cpanel_user', 'VARCHAR(100) NULL', 'email_cpanel_host');
+                self::addColumnIfMissing($pdo, 'settings', 'email_cpanel_token', 'VARCHAR(255) NULL', 'email_cpanel_user');
+                self::addColumnIfMissing($pdo, 'settings', 'email_domain', 'VARCHAR(190) NULL', 'email_cpanel_token');
+                self::addColumnIfMissing($pdo, 'settings', 'email_default_quota', 'INT NOT NULL DEFAULT 500', 'email_domain');
+
+                // Registrants pick a role; their chosen password is stored encrypted
+                // (recoverable only at approval time, for the cPanel email account).
+                self::addColumnIfMissing($pdo, 'pending_registrations', 'role', "VARCHAR(20) NOT NULL DEFAULT 'admin'", 'status');
+                self::addColumnIfMissing($pdo, 'pending_registrations', 'alt_email', 'VARCHAR(190) NULL', 'email');
+                self::addColumnIfMissing($pdo, 'pending_registrations', 'password_enc', 'TEXT NULL', 'password_hash');
+                self::addColumnIfMissing($pdo, 'pending_registrations', 'email_created', 'TINYINT(1) NOT NULL DEFAULT 0', 'status');
+                self::addColumnIfMissing($pdo, 'pending_registrations', 'created_email', 'VARCHAR(190) NULL', 'email_created');
+            },
         ];
     }
 

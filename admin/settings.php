@@ -49,6 +49,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'smtp_username' => trim($_POST['smtp_username'] ?? ''),
         'smtp_password' => (string) ($_POST['smtp_password'] ?? ''),
         'smtp_from' => trim($_POST['smtp_from'] ?? ''),
+        'email_cpanel_enabled' => isset($_POST['email_cpanel_enabled']) ? 1 : 0,
+        'email_cpanel_host' => trim($_POST['email_cpanel_host'] ?? ''),
+        'email_cpanel_user' => trim($_POST['email_cpanel_user'] ?? ''),
+        'email_cpanel_token' => (string) ($_POST['email_cpanel_token'] ?? ''),
+        'email_domain' => trim($_POST['email_domain'] ?? ''),
+        'email_default_quota' => (int) ($_POST['email_default_quota'] ?? 500),
     ];
 
     $labels = $_POST['service_label'] ?? [];
@@ -297,6 +303,24 @@ require __DIR__ . '/partials/layout-open.php';
       <div><label for="smtp_username">Username</label><input type="text" id="smtp_username" name="smtp_username" value="<?= e((string) ($row['smtp_username'] ?? '')) ?>" autocomplete="off"></div>
       <div><label for="smtp_password">Password</label><input type="password" id="smtp_password" name="smtp_password" value="<?= e((string) ($row['smtp_password'] ?? '')) ?>" autocomplete="new-password"></div>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>Corporate Email (cPanel)</h2>
+    <p class="sub">When you approve a church registration, the app can automatically create a corporate email for that admin — e.g. <code>sopadmin@<?= e((string) ($row['email_domain'] ?? 'yourdomain.com')) ?></code> — using the password they registered with. Requires a cPanel <strong>API token</strong> (cPanel → Security → Manage API Tokens). Leave <em>Enable</em> off if you don't want auto-created emails.</p>
+    <div class="checkbox-row">
+      <input type="checkbox" id="email_cpanel_enabled" name="email_cpanel_enabled" <?= !empty($row['email_cpanel_enabled']) ? 'checked' : '' ?>>
+      <label for="email_cpanel_enabled" style="margin:0;">Enable automatic cPanel email creation on approval</label>
+    </div>
+    <div class="row two">
+      <div><label for="email_cpanel_host">cPanel Host</label><input type="text" id="email_cpanel_host" name="email_cpanel_host" value="<?= e((string) ($row['email_cpanel_host'] ?? '')) ?>" placeholder="cpanel.example.com or your domain"></div>
+      <div><label for="email_cpanel_user">cPanel Username</label><input type="text" id="email_cpanel_user" name="email_cpanel_user" value="<?= e((string) ($row['email_cpanel_user'] ?? '')) ?>" autocomplete="off"></div>
+    </div>
+    <div class="row two">
+      <div><label for="email_cpanel_token">cPanel API Token</label><input type="password" id="email_cpanel_token" name="email_cpanel_token" value="<?= e((string) ($row['email_cpanel_token'] ?? '')) ?>" autocomplete="new-password" placeholder="Paste the API token"></div>
+      <div><label for="email_domain">Email Domain</label><input type="text" id="email_domain" name="email_domain" value="<?= e((string) ($row['email_domain'] ?? '')) ?>" placeholder="yourchurch.org"></div>
+    </div>
+    <div style="max-width:280px;"><label for="email_default_quota">Default Mailbox Quota (MB)</label><input type="number" id="email_default_quota" name="email_default_quota" value="<?= e((string) ($row['email_default_quota'] ?? 500)) ?>" min="0"></div>
   </div>
 
   <button class="btn" type="submit">Save Settings</button>

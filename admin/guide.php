@@ -194,6 +194,7 @@ require __DIR__ . '/partials/layout-open.php';
     <h2 id="registrations">Registrations (<code>/admin/registrations</code>) <span class="pill super">SUPER</span></h2>
     <p>Churches register their admin at the public <strong>/register</strong> page. They pick their <strong>Province → Zone → Area</strong> from the church list, then <strong>type their Parish church name</strong> (auto-CAPS; existing parishes appear as suggestions as they type).</p>
     <p>Here you simply <strong>review → edit if needed → approve</strong>. Approving creates the admin account (a brand-new parish name is created under the chosen Area automatically) and emails the applicant. Rejecting records an optional reason and emails them. Every step is safe — no data is ever deleted.</p>
+    <p><strong>Roles &amp; corporate email:</strong> each registrant picks their role (<em>Church Admin / Editor / Media Team</em>). As soon as a Zone/Area is picked or a Parish is typed, the form <strong>suggests two usernames</strong> from the church name + role (e.g. <code>SANCTUARY OF PRAISE</code> + admin → <code>sopadmin</code> / <code>sop.admin</code>). The chosen username doubles as the <strong>corporate email local-part</strong>. If <strong>Settings → Corporate Email (cPanel)</strong> is enabled, Approve automatically creates that mailbox (e.g. <code>sopadmin@domain</code>) using the password the registrant entered, and if they gave an <strong>alternative email</strong>, it is added as a forwarder.</p>
   </div>
 
   <div class="card" style="margin-bottom:18px;">

@@ -61,22 +61,17 @@ $oldJson = json_encode([
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="username"><span class="field-num">4</span><span>Username (login) *</span></label>
-          <input type="text" id="username" name="username" value="<?= e((string) ($old['username'] ?? '')) ?>" required placeholder="e.g. john.ade">
-        </div>
-
-        <div class="form-field">
-          <label class="form-label" for="password"><span class="field-num">5</span><span>Password (min 10 characters) *</span></label>
+          <label class="form-label" for="password"><span class="field-num">4</span><span>Password (min 10 characters) *</span></label>
           <input type="password" id="password" name="password" minlength="10" required placeholder="At least 10 characters">
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="password_confirm"><span class="field-num">6</span><span>Confirm Password *</span></label>
+          <label class="form-label" for="password_confirm"><span class="field-num">5</span><span>Confirm Password *</span></label>
           <input type="password" id="password_confirm" name="password_confirm" minlength="10" required placeholder="Repeat your password">
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="province"><span class="field-num">7</span><span>Your Church Location *</span></label>
+          <label class="form-label" for="province"><span class="field-num">6</span><span>Your Church Location *</span></label>
           <div class="cascade-selects">
             <select id="province" data-province required><option value="">Select Province…</option></select>
             <select id="zone" data-zone required><option value="">Select Zone…</option></select>
@@ -90,6 +85,33 @@ $oldJson = json_encode([
             <input type="hidden" name="parish_name" data-parish-name>
           </div>
           <div class="cascade-note">Select your Province, Zone, and Area, then type the Parish church name — it is automatically converted to CAPS. If the parish was added before, it appears as a suggestion as you type.</div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="role"><span class="field-num">7</span><span>Your Role *</span></label>
+          <select id="role" name="role" data-role>
+            <option value="admin" <?= ($old['role'] ?? 'admin') === 'admin' ? 'selected' : '' ?>>Church Admin</option>
+            <option value="editor" <?= ($old['role'] ?? '') === 'editor' ? 'selected' : '' ?>>Editor</option>
+            <option value="media_team" <?= ($old['role'] ?? '') === 'media_team' ? 'selected' : '' ?>>Media Team</option>
+          </select>
+          <div class="cascade-note">Used to suggest your username/email (e.g. sopadmin, sopeditor, sopmedia).</div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="username"><span class="field-num">8</span><span>Username &amp; Email Address *</span></label>
+          <input type="text" id="username" name="username" value="<?= e((string) ($old['username'] ?? '')) ?>" required placeholder="e.g. sopadmin" data-username>
+          <div class="cascade-note" id="usernameHint"><?= setting('email_domain') ? 'This becomes your login AND your corporate email: <strong>@' . e((string) setting('email_domain')) . '</strong>.' : 'This becomes your login username and your corporate email address.' ?></div>
+          <div id="usernameSuggestions" data-suggestions style="display:none;margin-top:10px;">
+            <span style="font-size:12px;color:var(--ink-faint);font-weight:700;">Suggested:</span>
+            <button type="button" class="btn secondary sm" data-suggestion style="margin-left:6px;"></button>
+            <button type="button" class="btn secondary sm" data-suggestion style="margin-left:6px;"></button>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="alt_email"><span class="field-num">9</span><span>Alternative Email <span style="color:var(--ink-faint);font-weight:400;">(optional)</span></span></label>
+          <input type="email" id="alt_email" name="alt_email" value="<?= e((string) ($old['alt_email'] ?? '')) ?>" placeholder="backup@personal.com">
+          <div class="cascade-note">If provided, emails sent to your new church address<?= setting('email_domain') ? ' (e.g. sopadmin@' . e((string) setting('email_domain')) . ')' : '' ?> will also be <strong>forwarded</strong> to this backup inbox — so you never miss a message.</div>
         </div>
 
         <button type="submit" class="form-submit"><span>Submit for Approval</span></button>

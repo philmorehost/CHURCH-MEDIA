@@ -46,6 +46,7 @@ if ($action === 'approve' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? $reg['email']);
     $phone = trim($_POST['phone'] ?? '');
     $username = trim($_POST['username'] ?? $reg['username']);
+    $role = in_array($_POST['role'] ?? '', ['admin', 'editor', 'media_team'], true) ? $_POST['role'] : ($reg['role'] ?? 'admin');
     $areaId = (int) ($_POST['area_id'] ?? $reg['area_id'] ?? 0);
     $parishId = (int) ($_POST['parish_id'] ?? $reg['parish_id'] ?? 0);
     $parishName = Unit::nameFor((string) ($_POST['parish_name'] ?? $reg['parish_name'] ?? ''));
@@ -83,16 +84,52 @@ if ($action === 'approve' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($check->fetch()) {
                 $errors[] = 'That username or email is already in use — edit it before approving.';
             } else {
-                $pdo->prepare('INSERT INTO users (name, username, email, password, role, org_unit_id, notify_on_login) VALUES (?, ?, ?, ?, "admin", ?, 1)')
-                    ->execute([mb_substr($name, 0, 150), mb_substr($username, 0, 100), mb_substr($email, 0, 150), $reg['password_hash'], (int) $parish['id']]);
-                $pdo->prepare('UPDATE pending_registrations SET status = "approved", reviewed_by = ?, reviewed_at = NOW(), parish_id = ?, parish_name = ? WHERE id = ?')
-                    ->execute([$admin['id'] ?? null, (int) $parish['id'], (string) $parish['name'], $id]);
+                $pdo->prepare('INSERT INTO users (name, username, email, password, role, org_unit_id, notify_on_login) VALUES (?, ?, ?, ?, ?, ?, 1)')
+                    ->execute([mb_substr($name, 0, 150), mb_substr($username, 0, 100), mb_substr($email, 0, 150), $reg['password_hash'], $role, (int) $parish['id']]);
+
+                // Auto-create the corporate email (+ optional forwarder) via cPanel.
+                $emailCreated = 0;
+                $createdEmail = null;
+                $emailNote = 'no corporate email requested';
+                if ((int) setting('email_cpanel_enabled') && (string) setting('email_domain') !== '') {
+                    $api = new CpanelApi([
+                        'host' => (string) setting('email_cpanel_host'),
+                        'user' => (string) setting('email_cpanel_user'),
+                        'token' => (string) setting('email_cpanel_token'),
+                    ]);
+                    if ($api->configured()) {
+                        $plain = decryptSecret((string) ($reg['password_enc'] ?? ''));
+                        $domain = (string) setting('email_domain');
+                        if ($plain !== null && $plain !== '') {
+                            $res = $api->createEmail($domain, $username, $plain, (int) (setting('email_default_quota') ?: 500));
+                            if ($res['ok']) {
+                                $emailCreated = 1;
+                                $createdEmail = $username . '@' . $domain;
+                                $emailNote = 'email ' . $createdEmail . ' created';
+                                $alt = trim((string) ($reg['alt_email'] ?? ''));
+                                if ($alt !== '' && filter_var($alt, FILTER_VALIDATE_EMAIL)) {
+                                    $fr = $api->createForwarder($domain, $username, $alt);
+                                    $emailNote .= $fr['ok'] ? ' + forwarder → ' . $alt : ' (forwarder failed: ' . ($fr['error'] ?? 'unknown') . ')';
+                                }
+                            } else {
+                                $emailNote = 'email creation failed: ' . ($res['error'] ?? 'unknown');
+                            }
+                        } else {
+                            $emailNote = 'email skipped: registrant password unavailable';
+                        }
+                    } else {
+                        $emailNote = 'email skipped: cPanel not configured';
+                    }
+                }
+                $pdo->prepare('UPDATE pending_registrations SET status = "approved", reviewed_by = ?, reviewed_at = NOW(), parish_id = ?, parish_name = ?, role = ?, email_created = ?, created_email = ? WHERE id = ?')
+                    ->execute([$admin['id'] ?? null, (int) $parish['id'], (string) $parish['name'], $role, $emailCreated, $createdEmail, $id]);
                 try {
-                    Mailer::send($email, 'Your ' . setting('site_title') . ' admin account is approved', "Hi {$name},\n\nYour church admin account has been approved and activated.\n\nLogin: " . baseUrl('admin/login') . "\nUsername: {$username}\n\nBlessings.");
+                    $mailExtra = $createdEmail ? "\n\nCorporate email: {$createdEmail}" : '';
+                    Mailer::send($email, 'Your ' . setting('site_title') . ' admin account is approved', "Hi {$name},\n\nYour church admin account has been approved and activated.\n\nLogin: " . baseUrl('admin/login') . "\nUsername: {$username}{$mailExtra}\n\nBlessings.");
                 } catch (Throwable) {
                     // SMTP may be unconfigured — the account is still created.
                 }
-                flash('success', 'Registration approved — admin account created for ' . $name . ' (' . (string) $parish['name'] . ').');
+                flash('success', 'Registration approved — admin account created for ' . $name . ' (' . (string) $parish['name'] . '); ' . $emailNote . '.');
                 redirect('/admin/registrations');
             }
         }
@@ -179,18 +216,38 @@ require __DIR__ . '/partials/layout-open.php';
           <input type="text" id="name" name="name" value="<?= e($reviewing['name']) ?>" required>
         </div>
         <div>
-          <label for="username">Username</label>
-          <input type="text" id="username" name="username" value="<?= e($reviewing['username']) ?>" required>
+          <label for="role">Role</label>
+          <select id="role" name="role" data-role>
+            <option value="admin" <?= ($reviewing['role'] ?? 'admin') === 'admin' ? 'selected' : '' ?>>Church Admin</option>
+            <option value="editor" <?= ($reviewing['role'] ?? '') === 'editor' ? 'selected' : '' ?>>Editor</option>
+            <option value="media_team" <?= ($reviewing['role'] ?? '') === 'media_team' ? 'selected' : '' ?>>Media Team</option>
+          </select>
         </div>
       </div>
       <div class="row two">
         <div>
+          <label for="username">Username / Email</label>
+          <input type="text" id="username" name="username" value="<?= e($reviewing['username']) ?>" required data-username>
+          <div data-suggestions style="display:none;margin-top:8px;">
+            <span style="font-size:11px;color:var(--ink-faint);font-weight:700;">Suggested:</span>
+            <button type="button" class="btn secondary sm" data-suggestion style="margin-left:4px;"></button>
+            <button type="button" class="btn secondary sm" data-suggestion style="margin-left:4px;"></button>
+          </div>
+          <div style="font-size:12px;color:var(--ink-faint);margin-top:6px;"><?= setting('email_domain') ? 'Corporate email will be <strong>@' . e((string) setting('email_domain')) . '</strong>.' : '' ?></div>
+        </div>
+        <div>
           <label for="email">Email</label>
           <input type="email" id="email" name="email" value="<?= e($reviewing['email']) ?>" required>
         </div>
+      </div>
+      <div class="row two">
         <div>
           <label for="phone">WhatsApp Phone</label>
           <input type="tel" id="phone" name="phone" value="<?= e($reviewing['phone'] ?? '') ?>">
+        </div>
+        <div>
+          <label>Alternative Email (forwarder)</label>
+          <input type="text" value="<?= e((string) ($reviewing['alt_email'] ?? '')) ?>" readonly style="opacity:.7;">
         </div>
       </div>
 

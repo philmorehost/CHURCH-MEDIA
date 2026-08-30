@@ -134,4 +134,76 @@
       parishInput.addEventListener('change', syncParish);
     }
   });
+
+  /* ---------- smart username/email suggestions (church name + role) ----------
+     As soon as a Zone/Area is picked or a Parish name is typed, suggest two
+     usernames derived from the church name, e.g. "SANCTUARY OF PRAISE" + admin
+     -> "sopadmin" and "sop.admin". Clicking one fills the username field. */
+  document.querySelectorAll('[data-units]').forEach(function (root) {
+    var usernameInput = root.querySelector('[data-username]');
+    var suggestBox = root.querySelector('[data-suggestions]');
+    var roleSelect = root.querySelector('[data-role]');
+    var selProvince = root.querySelector('[data-province]');
+    var selZone = root.querySelector('[data-zone]');
+    var selArea = root.querySelector('[data-area]');
+    var parishInput = root.querySelector('[data-parish]');
+    if (!usernameInput || !suggestBox) { return; }
+
+    var nodes = [];
+    try { nodes = JSON.parse(root.getAttribute('data-units') || '[]'); } catch (e) { nodes = []; }
+
+    function findNodeById(list, id) {
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].id === id) { return list[i]; }
+        var r = findNodeById(list[i].children || [], id);
+        if (r) { return r; }
+      }
+      return null;
+    }
+    function selectedName(sel) {
+      var id = parseInt(sel ? sel.value : '0', 10) || 0;
+      if (!id) { return ''; }
+      var n = findNodeById(nodes, id);
+      return n ? n.name : '';
+    }
+    function currentChurchName() {
+      if (parishInput && parishInput.value.trim()) { return parishInput.value.trim(); }
+      return selectedName(selArea) || selectedName(selZone) || selectedName(selProvince);
+    }
+    function suggestPrefix(name) {
+      name = (name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      if (!name) { return 'church'; }
+      var words = name.split(/\s+/);
+      if (words.length > 1) {
+        return words.map(function (w) { return w.charAt(0); }).join('');
+      }
+      return name.slice(0, 3);
+    }
+    function updateSuggestions() {
+      var church = currentChurchName();
+      var prefix = suggestPrefix(church);
+      var role = roleSelect ? roleSelect.value : 'admin';
+      var suffix = { admin: 'admin', editor: 'editor', media_team: 'media' }[role] || 'admin';
+      var names = [prefix + suffix, prefix + '.' + suffix];
+      var btns = suggestBox.querySelectorAll('[data-suggestion]');
+      btns.forEach(function (btn, i) {
+        var name = names[i] || '';
+        btn.textContent = name;
+        btn.onclick = function () { if (usernameInput) { usernameInput.value = name; } };
+      });
+      suggestBox.style.display = church ? '' : 'none';
+    }
+    function wire() {
+      if (selProvince) { selProvince.addEventListener('change', updateSuggestions); }
+      if (selZone) { selZone.addEventListener('change', updateSuggestions); }
+      if (selArea) { selArea.addEventListener('change', updateSuggestions); }
+      if (parishInput) {
+        parishInput.addEventListener('input', updateSuggestions);
+        parishInput.addEventListener('change', updateSuggestions);
+      }
+      if (roleSelect) { roleSelect.addEventListener('change', updateSuggestions); }
+      updateSuggestions();
+    }
+    wire();
+  });
 })();
