@@ -139,6 +139,13 @@ class CpanelApi
         }
 
         $data = json_decode($body, true);
+
+        // Imunify360 (or similar server WAF) intercepts automated API calls with
+        // an HTTP 403 before they ever reach cPanel — credentials are fine.
+        if ($status === 403 && (stripos($body, 'imunify') !== false || stripos($body, 'bot-protection') !== false || stripos($body, 'automation') !== false)) {
+            return ['ok' => false, 'error' => 'Blocked by Imunify360 bot-protection before reaching cPanel (your username, token, and host are fine). Whitelist the IP the app connects from (on the live server that is the server’s own public IP) in Imunify360 — cPanel → Imunify360 → Settings → Whitelist — or ask your hosting provider to allow automation from that IP, then test again.'];
+        }
+
         if (!is_array($data)) {
             $excerpt = trim((string) preg_replace('/\s+/', ' ', (string) $body));
             $excerpt = mb_substr($excerpt, 0, 200);
