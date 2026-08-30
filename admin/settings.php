@@ -18,7 +18,7 @@ if (($_GET['action'] ?? '') === 'test_cpanel' && $_SERVER['REQUEST_METHOD'] === 
     $api = new CpanelApi([
         'host' => trim($_POST['email_cpanel_host'] ?? ''),
         'user' => trim($_POST['email_cpanel_user'] ?? ''),
-        'token' => (string) ($_POST['email_cpanel_token'] ?? ''),
+        'token' => trim((string) ($_POST['email_cpanel_token'] ?? '')),
     ]);
     if (!$api->configured()) {
         flash('error', 'Fill in the cPanel host, username, and API token first, then test.');
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'email_cpanel_enabled' => isset($_POST['email_cpanel_enabled']) ? 1 : 0,
         'email_cpanel_host' => trim($_POST['email_cpanel_host'] ?? ''),
         'email_cpanel_user' => trim($_POST['email_cpanel_user'] ?? ''),
-        'email_cpanel_token' => (string) ($_POST['email_cpanel_token'] ?? ''),
+        'email_cpanel_token' => trim((string) ($_POST['email_cpanel_token'] ?? '')),
         'email_domain' => trim($_POST['email_domain'] ?? ''),
         'email_default_quota' => (int) ($_POST['email_default_quota'] ?? 500),
     ];

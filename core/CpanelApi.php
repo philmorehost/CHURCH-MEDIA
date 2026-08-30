@@ -121,7 +121,7 @@ class CpanelApi
             $excerpt = mb_substr($excerpt, 0, 220);
             $hint = '';
             if ($status === 401 || $status === 403) {
-                $hint = ' Authentication was rejected — double-check the cPanel username and API token.';
+                $hint = ' Authentication was rejected. Checklist: 1) Username must be the MAIN cPanel username (not the domain, not an email). 2) The API token must have the Email feature enabled when created (cPanel → Security → Manage API Tokens → check “Email”). 3) No stray spaces/newlines around the token. 4) If the token has IP restrictions, your server IP must be allowed. 5) Recreate the token if unsure — old/expired tokens fail with 401.';
             } elseif ($status === 404) {
                 $hint = ' Not found — this is probably not the cPanel server. Use the cPanel hostname (e.g. cpanel.yourhost.com), not the website domain.';
             } elseif (stripos($excerpt, '<html') !== false || stripos($excerpt, '<!doctype') !== false || stripos($excerpt, 'login') !== false) {
