@@ -206,4 +206,93 @@
     }
     wire();
   });
+
+  /* ---------- instant password strength meter + suggestion ----------
+     Runs on every keystroke (no debounce / no lazy load). Red = weak,
+     amber = fair, green = strong. When weak, a stronger password is
+     suggested based on what they've typed so far; clicking Use fills it. */
+  var passwordInput = document.querySelector('[data-password]');
+  var confirmInput = document.querySelector('[data-confirm]');
+  var strengthFill = document.querySelector('[data-strength-fill]');
+  var strengthLabel = document.querySelector('[data-strength-label]');
+  var suggestionWrap = document.querySelector('[data-password-suggestion]');
+  var suggestionText = document.querySelector('[data-suggestion-text]');
+  var suggestionUse = document.querySelector('[data-suggestion-use]');
+  var matchWrap = document.querySelector('[data-password-match]');
+  if (passwordInput && strengthFill) {
+    var COLORS = { weak: '#ff6b6b', fair: '#e8b95f', strong: '#5fe0a4' };
+    function strengthInfo(pw) {
+      var score = 0;
+      if (pw.length >= 8) { score++; }
+      if (pw.length >= 12) { score++; }
+      if (pw.length >= 16) { score++; }
+      if (/[A-Z]/.test(pw)) { score++; }
+      if (/[a-z]/.test(pw)) { score++; }
+      if (/[0-9]/.test(pw)) { score++; }
+      if (/[^A-Za-z0-9]/.test(pw)) { score++; }
+      var pct = Math.min(100, Math.round(score / 7 * 100));
+      var level = score <= 3 ? 'weak' : (score <= 5 ? 'fair' : 'strong');
+      return { score: score, pct: pct, level: level };
+    }
+    function suggestPassword(pw) {
+      var clean = (pw || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!clean) {
+        var nmEl = document.querySelector('[name="name"]');
+        clean = ((nmEl && nmEl.value) || 'church').toLowerCase().replace(/[^a-z0-9]/g, '');
+      }
+      if (clean.length < 4) { clean = clean + 'church'; }
+      var word = clean.charAt(0).toUpperCase() + clean.slice(1);
+      var sug = word + '@' + new Date().getFullYear();
+      while (sug.length < 12) { sug += '!'; }
+      return sug;
+    }
+    function updateMeter() {
+      var pw = passwordInput.value || '';
+      var info = strengthInfo(pw);
+      var labels = {
+        weak: 'Weak password — add a number and a symbol.',
+        fair: 'Good password.',
+        strong: 'Strong password ✓',
+      };
+      strengthFill.style.width = pw ? info.pct + '%' : '0%';
+      strengthFill.style.background = COLORS[info.level];
+      if (strengthLabel) {
+        strengthLabel.textContent = pw ? labels[info.level] : 'Enter a strong password — mix uppercase, lowercase, numbers & symbols (needed for your corporate email).';
+        strengthLabel.style.color = pw ? COLORS[info.level] : '';
+      }
+      if (suggestionWrap && suggestionText) {
+        if (pw && info.level === 'weak') {
+          suggestionText.textContent = suggestPassword(pw);
+          suggestionWrap.style.display = '';
+        } else {
+          suggestionWrap.style.display = 'none';
+        }
+      }
+      if (matchWrap && confirmInput) {
+        var c = confirmInput.value || '';
+        if (!c) {
+          matchWrap.style.display = 'none';
+        } else if (c === pw) {
+          matchWrap.textContent = '✓ Passwords match';
+          matchWrap.style.color = '#5fe0a4';
+          matchWrap.style.display = '';
+        } else {
+          matchWrap.textContent = '✗ Passwords do not match yet';
+          matchWrap.style.color = '#ff6b6b';
+          matchWrap.style.display = '';
+        }
+      }
+    }
+    if (suggestionUse) {
+      suggestionUse.addEventListener('click', function () {
+        var sug = suggestionText.textContent || suggestPassword(passwordInput.value);
+        passwordInput.value = sug;
+        if (confirmInput) { confirmInput.value = sug; }
+        updateMeter();
+      });
+    }
+    passwordInput.addEventListener('input', updateMeter);
+    if (confirmInput) { confirmInput.addEventListener('input', updateMeter); }
+    updateMeter();
+  }
 })();

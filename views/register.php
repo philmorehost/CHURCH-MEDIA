@@ -24,8 +24,12 @@ $oldJson = json_encode([
         <div class="form-check">
           <svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" fill="none"/><path fill="none" d="M14 27l8 8 16-16"/></svg>
         </div>
-        <h1 class="form-title center">Registration submitted!</h1>
-        <p class="form-desc center">Thank you. Your church admin registration has been sent for review — you'll be notified once it's approved. God bless you.</p>
+        <h1 class="form-title center">Submission received!</h1>
+        <p class="form-desc center">Thank you. Your church admin registration has been <strong>received</strong> and sent for review — you'll be notified once it's approved. God bless you.</p>
+        <?php $waNumber = preg_replace('/[^0-9]/', '', (string) setting('contact_phone')); if ($waNumber !== ''): ?>
+          <p class="form-desc center" style="margin-top:4px;">For <strong>instant review &amp; approval</strong>, contact the super admin on WhatsApp:</p>
+          <a class="form-submit" href="https://wa.me/<?= e($waNumber) ?>" target="_blank" rel="noopener" style="margin-bottom:10px;">💬 Chat with the Admin on WhatsApp</a>
+        <?php endif; ?>
         <a class="form-submit ghost" href="/">Back to Homepage</a>
       </div>
     <?php else: ?>
@@ -61,13 +65,22 @@ $oldJson = json_encode([
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="password"><span class="field-num">4</span><span>Password (min 10 characters) *</span></label>
-          <input type="password" id="password" name="password" minlength="10" required placeholder="At least 10 characters">
+          <label class="form-label" for="password"><span class="field-num">4</span><span>Password (min 12 characters) *</span></label>
+          <input type="password" id="password" name="password" minlength="12" required placeholder="At least 12 characters" data-password autocomplete="new-password">
+          <div data-strength-bar style="height:6px;border-radius:6px;background:#ffffff12;margin-top:8px;overflow:hidden;">
+            <div data-strength-fill style="height:100%;width:0;background:#ff6b6b;transition:width .12s ease;"></div>
+          </div>
+          <div data-strength-label style="font-size:12px;color:var(--ink-faint);margin-top:4px;">Enter a strong password — mix uppercase, lowercase, numbers &amp; symbols (needed for your corporate email).</div>
+          <div data-password-suggestion style="display:none;margin-top:8px;font-size:13px;color:var(--gold-soft);">
+            🔒 Too weak — try <strong data-suggestion-text></strong>
+            <button type="button" class="btn secondary sm" data-suggestion-use style="margin-left:6px;">Use</button>
+          </div>
         </div>
 
         <div class="form-field">
           <label class="form-label" for="password_confirm"><span class="field-num">5</span><span>Confirm Password *</span></label>
-          <input type="password" id="password_confirm" name="password_confirm" minlength="10" required placeholder="Repeat your password">
+          <input type="password" id="password_confirm" name="password_confirm" minlength="12" required placeholder="Repeat your password" data-confirm>
+          <div data-password-match style="display:none;font-size:12px;margin-top:4px;"></div>
         </div>
 
         <div class="form-field">

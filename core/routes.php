@@ -106,10 +106,12 @@ $router->post('/register', function () {
     if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $username) || $username === '') {
         $errors[] = 'Username may only contain letters, numbers, dots, dashes, and underscores.';
     }
-    if (strlen($password) < 10) {
-        $errors[] = 'Password must be at least 10 characters.';
+    if (strlen($password) < 12) {
+        $errors[] = 'Password must be at least 12 characters (required for your corporate email).';
     } elseif ($password !== $confirm) {
         $errors[] = 'Passwords do not match.';
+    } elseif (!strongEnoughPassword($password)) {
+        $errors[] = 'Password is too weak for corporate email creation — use at least 12 characters with uppercase, lowercase, a number, and a symbol.';
     }
     if ($altEmail !== '' && !filter_var($altEmail, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'The alternative email address is not valid.';

@@ -184,6 +184,21 @@ function decryptSecret(string $payload): ?string
     return $out === false ? null : $out;
 }
 
+/**
+ * cPanel-strict password policy: at least 12 characters with at least 3 of
+ * uppercase / lowercase / digit / symbol. Mirrors the client-side meter so a
+ * weak password is rejected at registration — never at cPanel approval time.
+ */
+function strongEnoughPassword(string $pw): bool
+{
+    $checks = 0;
+    if (preg_match('/[A-Z]/', $pw)) { $checks++; }
+    if (preg_match('/[a-z]/', $pw)) { $checks++; }
+    if (preg_match('/[0-9]/', $pw)) { $checks++; }
+    if (preg_match('/[^A-Za-z0-9]/', $pw)) { $checks++; }
+    return strlen($pw) >= 12 && $checks >= 3;
+}
+
 /** Lazily loads the single settings row and caches it for the request. */
 function settings(): array
 {

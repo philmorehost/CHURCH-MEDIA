@@ -31,6 +31,12 @@ class CpanelApi
         return $this->host !== '' && $this->user !== '' && $this->token !== '';
     }
 
+    /** Lightweight call used by the Settings "Test cPanel connection" button. */
+    public function testConnection(): array
+    {
+        return $this->request('Email/list_pops', []);
+    }
+
     /** Create a POP/IMAP mailbox. Returns ['ok'=>bool,'error'=>?string,'exists'=>bool]. */
     public function createEmail(string $domain, string $localPart, string $password, int $quotaMB): array
     {

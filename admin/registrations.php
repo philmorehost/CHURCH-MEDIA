@@ -32,6 +32,40 @@ function regChurchLabel(array $reg): string
     return $parts ? implode(' > ', $parts) : '—';
 }
 
+/** Creates the corporate mailbox (+ optional forwarder) for a registration. */
+function createCorporateEmail(array $reg, ?string $localPart = null): array
+{
+    $local = $localPart !== null && $localPart !== '' ? $localPart : (string) ($reg['username'] ?? '');
+    if (!(int) setting('email_cpanel_enabled') || (string) setting('email_domain') === '') {
+        return ['email' => null, 'note' => 'corporate email disabled or no email domain configured'];
+    }
+    $api = new CpanelApi([
+        'host' => (string) setting('email_cpanel_host'),
+        'user' => (string) setting('email_cpanel_user'),
+        'token' => (string) setting('email_cpanel_token'),
+    ]);
+    if (!$api->configured()) {
+        return ['email' => null, 'note' => 'cPanel not configured'];
+    }
+    $plain = decryptSecret((string) ($reg['password_enc'] ?? ''));
+    if ($plain === null || $plain === '') {
+        return ['email' => null, 'note' => 'registrant password unavailable'];
+    }
+    $domain = (string) setting('email_domain');
+    $res = $api->createEmail($domain, $local, $plain, (int) (setting('email_default_quota') ?: 500));
+    if (!$res['ok']) {
+        return ['email' => null, 'note' => 'email creation failed: ' . ($res['error'] ?? 'unknown')];
+    }
+    $email = $local . '@' . $domain;
+    $note = 'email ' . $email . ' created';
+    $alt = trim((string) ($reg['alt_email'] ?? ''));
+    if ($alt !== '' && filter_var($alt, FILTER_VALIDATE_EMAIL)) {
+        $fr = $api->createForwarder($domain, $local, $alt);
+        $note .= $fr['ok'] ? ' + forwarder → ' . $alt : ' (forwarder failed: ' . ($fr['error'] ?? 'unknown') . ')';
+    }
+    return ['email' => $email, 'note' => $note];
+}
+
 // Approve: create the admin account (parish auto-created under the area if new).
 if ($action === 'approve' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
@@ -88,39 +122,10 @@ if ($action === 'approve' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     ->execute([mb_substr($name, 0, 150), mb_substr($username, 0, 100), mb_substr($email, 0, 150), $reg['password_hash'], $role, (int) $parish['id']]);
 
                 // Auto-create the corporate email (+ optional forwarder) via cPanel.
-                $emailCreated = 0;
-                $createdEmail = null;
-                $emailNote = 'no corporate email requested';
-                if ((int) setting('email_cpanel_enabled') && (string) setting('email_domain') !== '') {
-                    $api = new CpanelApi([
-                        'host' => (string) setting('email_cpanel_host'),
-                        'user' => (string) setting('email_cpanel_user'),
-                        'token' => (string) setting('email_cpanel_token'),
-                    ]);
-                    if ($api->configured()) {
-                        $plain = decryptSecret((string) ($reg['password_enc'] ?? ''));
-                        $domain = (string) setting('email_domain');
-                        if ($plain !== null && $plain !== '') {
-                            $res = $api->createEmail($domain, $username, $plain, (int) (setting('email_default_quota') ?: 500));
-                            if ($res['ok']) {
-                                $emailCreated = 1;
-                                $createdEmail = $username . '@' . $domain;
-                                $emailNote = 'email ' . $createdEmail . ' created';
-                                $alt = trim((string) ($reg['alt_email'] ?? ''));
-                                if ($alt !== '' && filter_var($alt, FILTER_VALIDATE_EMAIL)) {
-                                    $fr = $api->createForwarder($domain, $username, $alt);
-                                    $emailNote .= $fr['ok'] ? ' + forwarder → ' . $alt : ' (forwarder failed: ' . ($fr['error'] ?? 'unknown') . ')';
-                                }
-                            } else {
-                                $emailNote = 'email creation failed: ' . ($res['error'] ?? 'unknown');
-                            }
-                        } else {
-                            $emailNote = 'email skipped: registrant password unavailable';
-                        }
-                    } else {
-                        $emailNote = 'email skipped: cPanel not configured';
-                    }
-                }
+                $emailResult = createCorporateEmail($reg, $username);
+                $emailCreated = $emailResult['email'] ? 1 : 0;
+                $createdEmail = $emailResult['email'];
+                $emailNote = $emailResult['note'];
                 $pdo->prepare('UPDATE pending_registrations SET status = "approved", reviewed_by = ?, reviewed_at = NOW(), parish_id = ?, parish_name = ?, role = ?, email_created = ?, created_email = ? WHERE id = ?')
                     ->execute([$admin['id'] ?? null, (int) $parish['id'], (string) $parish['name'], $role, $emailCreated, $createdEmail, $id]);
                 try {
@@ -153,6 +158,22 @@ if ($action === 'reject' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     flash('success', 'Registration rejected.');
     redirect('/admin/registrations');
+}
+
+// Retry / create the corporate email for an already-approved registration.
+if ($action === 'create_email' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $stmt = $pdo->prepare('SELECT * FROM pending_registrations WHERE id = ?');
+    $stmt->execute([$id]);
+    $reg = $stmt->fetch();
+    if (!$reg || $reg['status'] !== 'approved') {
+        redirect('/admin/registrations?status=approved');
+    }
+    $result = createCorporateEmail($reg);
+    $pdo->prepare('UPDATE pending_registrations SET email_created = ?, created_email = ? WHERE id = ?')
+        ->execute([$result['email'] ? 1 : 0, $result['email'], $id]);
+    flash($result['email'] ? 'success' : 'error', $result['email'] ? 'Corporate email ' . $result['email'] . ' created for ' . $reg['name'] . '.' : 'Could not create the email: ' . $result['note']);
+    redirect('/admin/registrations?status=approved');
 }
 
 // Load the review target.
@@ -312,6 +333,7 @@ require __DIR__ . '/partials/layout-open.php';
           <td>
             <strong><?= e($reg['name']) ?></strong>
             <div style="color:var(--ink-faint);font-size:12px;"><?= e($reg['email']) ?><?= $reg['phone'] ? ' · ' . e($reg['phone']) : '' ?><br>@<?= e($reg['username']) ?></div>
+            <?php if ($reg['created_email']): ?><div style="color:var(--success);font-size:12px;margin-top:2px;">✉ <?= e($reg['created_email']) ?></div><?php endif; ?>
           </td>
           <td style="color:var(--gold-soft);font-size:13px;"><?= e(regChurchLabel($reg)) ?></td>
           <td><?= e(date('M j, Y g:i A', strtotime($reg['created_at']))) ?></td>
@@ -323,6 +345,12 @@ require __DIR__ . '/partials/layout-open.php';
           </td>
           <td style="white-space:nowrap;">
             <a class="btn secondary sm" href="/admin/registrations?action=review&id=<?= (int) $reg['id'] ?>">Review</a>
+            <?php if ($reg['status'] === 'approved' && empty($reg['email_created'])): ?>
+              <form method="post" action="/admin/registrations?action=create_email&id=<?= (int) $reg['id'] ?>" style="display:inline;">
+                <?= Csrf::field() ?>
+                <button type="submit" class="btn sm">✉ Create email</button>
+              </form>
+            <?php endif; ?>
             <?php if ($reg['status'] === 'pending'): ?>
               <form method="post" action="/admin/registrations?action=approve&id=<?= (int) $reg['id'] ?>" style="display:inline;">
                 <?= Csrf::field() ?>

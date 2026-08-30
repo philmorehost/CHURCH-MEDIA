@@ -12,6 +12,23 @@ $errors = [];
 $row = $pdo->query('SELECT * FROM settings ORDER BY id ASC LIMIT 1')->fetch();
 $serviceTimes = $row && $row['service_times'] ? (json_decode($row['service_times'], true) ?: []) : [];
 
+// Test the cPanel connection using the values currently in the form.
+if (($_GET['action'] ?? '') === 'test_cpanel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    Csrf::requireValid();
+    $api = new CpanelApi([
+        'host' => trim($_POST['email_cpanel_host'] ?? ''),
+        'user' => trim($_POST['email_cpanel_user'] ?? ''),
+        'token' => (string) ($_POST['email_cpanel_token'] ?? ''),
+    ]);
+    if (!$api->configured()) {
+        flash('error', 'Fill in the cPanel host, username, and API token first, then test.');
+    } else {
+        $res = $api->testConnection();
+        flash($res['ok'] ? 'success' : 'error', $res['ok'] ? 'cPanel connection OK — your API token works.' : 'cPanel connection failed: ' . ($res['error'] ?? 'unknown error'));
+    }
+    redirect('/admin/settings');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::requireValid();
 
@@ -321,6 +338,7 @@ require __DIR__ . '/partials/layout-open.php';
       <div><label for="email_domain">Email Domain</label><input type="text" id="email_domain" name="email_domain" value="<?= e((string) ($row['email_domain'] ?? '')) ?>" placeholder="yourchurch.org"></div>
     </div>
     <div style="max-width:280px;"><label for="email_default_quota">Default Mailbox Quota (MB)</label><input type="number" id="email_default_quota" name="email_default_quota" value="<?= e((string) ($row['email_default_quota'] ?? 500)) ?>" min="0"></div>
+    <button type="submit" class="btn secondary sm" formaction="/admin/settings?action=test_cpanel" style="margin-top:12px;">🔌 Test cPanel connection</button>
   </div>
 
   <button class="btn" type="submit">Save Settings</button>
