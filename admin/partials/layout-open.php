@@ -22,6 +22,7 @@ $navItems = [
     ['key' => 'guide', 'href' => '/admin/guide', 'label' => 'Guide'],
 ];
 $navItemsSystem = [
+    ['key' => 'registrations', 'href' => '/admin/registrations', 'label' => 'Registrations', 'super' => true],
     ['key' => 'units', 'href' => '/admin/units', 'label' => 'Units', 'super' => true],
     ['key' => 'security', 'href' => '/admin/security', 'label' => 'Security'],
     ['key' => 'settings', 'href' => '/admin/settings', 'label' => 'Settings', 'super' => true],

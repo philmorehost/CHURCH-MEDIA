@@ -43,6 +43,127 @@ $router->get('/units', function () {
     render('units');
 });
 
+// Public church-admin self-registration (super admin approves afterwards).
+$router->get('/register', function () {
+    render('register', [
+        'metaTitle' => 'Register Your Church',
+        'metaDescription' => 'Register your church on ' . e(setting('site_title')) . ' — church administrators can sign up for review and approval.',
+    ]);
+});
+
+$router->post('/register', function () {
+    $pdo = Database::getInstance()->getConnection();
+
+    // Church name correction flag (small second form on the register page).
+    if (!empty($_POST['flag_submit'])) {
+        if (!RateLimiter::attempt('register_flag', clientIp(), 5, 900)) {
+            flash('register_error', 'Too many attempts — please wait a few minutes and try again.');
+            redirect('/register');
+        }
+        $current = Unit::nameFor((string) ($_POST['flag_current'] ?? ''));
+        $suggested = Unit::nameFor((string) ($_POST['flag_suggested'] ?? ''));
+        if ($current === '' || $suggested === '' || $current === $suggested) {
+            flash('register_error', 'Please provide the current church name and the correct spelling — both are required and must be different.');
+            redirect('/register');
+        }
+        $unit = Unit::findByNameAnywhere($current);
+        $stmt = $pdo->prepare('INSERT INTO church_name_flags (org_unit_id, current_name, suggested_name, status, reported_by) VALUES (?, ?, ?, "pending", ?)');
+        $stmt->execute([$unit ? (int) $unit['id'] : null, $current, $suggested, mb_substr(trim((string) ($_POST['flag_by'] ?? '')), 0, 150) ?: null]);
+        flash('register_sent', '1');
+        redirect('/register?sent=1');
+    }
+
+    // Honeypot: bots fill hidden fields, humans never see them.
+    if (trim((string) ($_POST['company'] ?? '')) !== '') {
+        flash('register_sent', '1');
+        redirect('/register?sent=1');
+    }
+
+    if (!RateLimiter::attempt('register', clientIp(), 5, 900)) {
+        keepFormOld($_POST);
+        flash('register_error', 'Too many attempts — please wait a few minutes and try again.');
+        redirect('/register');
+    }
+
+    $name = trim($_POST['name'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
+    $username = trim($_POST['username'] ?? '');
+    $password = (string) ($_POST['password'] ?? '');
+    $confirm = (string) ($_POST['password_confirm'] ?? '');
+    $provinceId = (int) ($_POST['province_id'] ?? 0);
+    $zoneId = (int) ($_POST['zone_id'] ?? 0);
+    $areaId = (int) ($_POST['area_id'] ?? 0);
+    $parishId = (int) ($_POST['parish_id'] ?? 0);
+    $parishName = Unit::nameFor((string) ($_POST['parish_name'] ?? ''));
+
+    $errors = [];
+    if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Please provide your name and a valid email address.';
+    }
+    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $username) || $username === '') {
+        $errors[] = 'Username may only contain letters, numbers, dots, dashes, and underscores.';
+    }
+    if (strlen($password) < 10) {
+        $errors[] = 'Password must be at least 10 characters.';
+    } elseif ($password !== $confirm) {
+        $errors[] = 'Passwords do not match.';
+    }
+    $area = $areaId > 0 ? Unit::find($areaId) : null;
+    if (!$area || $area['type'] !== 'area') {
+        $errors[] = 'Please select your Province, Zone, and Area.';
+    }
+    if ($parishName === '') {
+        $errors[] = 'Please enter your Parish church name.';
+    }
+
+    if (!$errors) {
+        $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1');
+        $stmt->execute([$username, $email]);
+        if ($stmt->fetch()) {
+            $errors[] = 'That username or email is already in use.';
+        }
+        $stmt = $pdo->prepare('SELECT id FROM pending_registrations WHERE status = "pending" AND (username = ? OR email = ?) LIMIT 1');
+        $stmt->execute([$username, $email]);
+        if ($stmt->fetch()) {
+            $errors[] = 'You already have a pending registration — please wait for approval.';
+        }
+    }
+
+    if ($errors) {
+        keepFormOld($_POST);
+        flash('register_error', implode(' ', $errors));
+        redirect('/register');
+    }
+
+    // Link to an existing parish if one matches; otherwise the parish is created
+    // on approval (its name is saved here, in CAPS).
+    $parish = $parishId > 0 ? Unit::find($parishId) : null;
+    if ($parish && (int) ($parish['parent_id'] ?? 0) !== $areaId) {
+        $parish = null;
+    }
+    if (!$parish) {
+        $parish = Unit::findByName('parish', $parishName, $areaId);
+    }
+
+    $stmt = $pdo->prepare('INSERT INTO pending_registrations (name, email, phone, username, password_hash, province_id, zone_id, area_id, parish_name, parish_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "pending")');
+    $stmt->execute([
+        mb_substr($name, 0, 150),
+        mb_substr($email, 0, 150),
+        mb_substr($phone, 0, 45) ?: null,
+        mb_substr($username, 0, 100),
+        password_hash($password, PASSWORD_ARGON2ID),
+        $provinceId > 0 ? $provinceId : null,
+        $zoneId > 0 ? $zoneId : null,
+        $areaId,
+        mb_substr($parishName, 0, 150),
+        $parish ? (int) $parish['id'] : null,
+    ]);
+    clearFormOld();
+    flash('register_sent', '1');
+    redirect('/register?sent=1');
+});
+
 $router->get('/events', function () {
     render('events');
 });

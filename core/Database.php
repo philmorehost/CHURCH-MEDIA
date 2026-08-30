@@ -559,6 +559,51 @@ class Database
                 // New form field types: 'time' and 'datetime' (date and time).
                 $pdo->exec("ALTER TABLE `form_fields` MODIFY COLUMN `field_type` ENUM('text','textarea','email','phone','number','date','url','select','radio','checkbox','image','cascade','church','time','datetime') NOT NULL DEFAULT 'text'");
             },
+            '2026_08_church_registration' => function (PDO $pdo): void {
+                // Public church-admin self-registration, pending super-admin approval.
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `pending_registrations` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `name` VARCHAR(150) NOT NULL,
+                    `email` VARCHAR(150) NOT NULL,
+                    `phone` VARCHAR(45) NULL,
+                    `username` VARCHAR(100) NOT NULL,
+                    `password_hash` VARCHAR(255) NOT NULL,
+                    `province_id` INT NULL,
+                    `zone_id` INT NULL,
+                    `area_id` INT NULL,
+                    `parish_name` VARCHAR(150) NULL,
+                    `parish_id` INT NULL,
+                    `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+                    `reviewed_by` INT NULL,
+                    `reviewed_at` TIMESTAMP NULL,
+                    `reject_reason` VARCHAR(500) NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (`province_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL,
+                    FOREIGN KEY (`zone_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL,
+                    FOREIGN KEY (`area_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL,
+                    FOREIGN KEY (`parish_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL,
+                    INDEX `idx_reg_status` (`status`, `created_at`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                // Publicly-flagged church name corrections, approved/rejected by the super admin.
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `church_name_flags` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `org_unit_id` INT NULL,
+                    `current_name` VARCHAR(150) NOT NULL,
+                    `suggested_name` VARCHAR(150) NOT NULL,
+                    `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+                    `reported_by` VARCHAR(150) NULL,
+                    `reviewed_by` INT NULL,
+                    `reviewed_at` TIMESTAMP NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL,
+                    FOREIGN KEY (`reviewed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+                    INDEX `idx_flag_status` (`status`, `created_at`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                // All church names are stored in CAPS.
+                $pdo->exec('UPDATE org_units SET name = UPPER(name)');
+            },
         ];
     }
 

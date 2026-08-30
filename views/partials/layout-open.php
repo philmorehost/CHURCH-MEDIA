@@ -20,6 +20,7 @@ $navLinks = [
     '/live' => 'Live',
     '/about' => 'About',
     '/contact' => 'Contact',
+    '/register' => 'Register',
 ];
 try {
     $navPages = Database::getInstance()->getConnection()

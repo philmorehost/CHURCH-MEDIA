@@ -223,6 +223,65 @@ class Unit
         return $build(0);
     }
 
+    /** Church names are normalised to CAPS. */
+    public static function nameFor(string $name): string
+    {
+        return mb_strtoupper(trim($name));
+    }
+
+    /** Find a unit by (case-insensitive) name + type + parent. */
+    public static function findByName(string $type, string $name, ?int $parentId): ?array
+    {
+        $sql = 'SELECT * FROM org_units WHERE type = ? AND UPPER(name) = UPPER(?) AND parent_id ' . ($parentId === null ? 'IS NULL' : '= ?') . ' ORDER BY id ASC LIMIT 1';
+        $stmt = self::db()->prepare($sql);
+        $params = [$type, $name];
+        if ($parentId !== null) {
+            $params[] = $parentId;
+        }
+        $stmt->execute($params);
+        return $stmt->fetch() ?: null;
+    }
+
+    /** Find a unit with this name anywhere in the hierarchy (used for correction flags). */
+    public static function findByNameAnywhere(string $name): ?array
+    {
+        $stmt = self::db()->prepare('SELECT * FROM org_units WHERE UPPER(name) = UPPER(?) ORDER BY type ASC, id ASC LIMIT 1');
+        $stmt->execute([$name]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /** Find an existing unit (case-insensitive) or create it; names normalised to CAPS. */
+    public static function findOrCreate(string $type, ?int $parentId, string $name): array
+    {
+        $name = self::nameFor($name);
+        if ($name === '') {
+            return ['errors' => ['Please provide a name.']];
+        }
+        $existing = self::findByName($type, $name, $parentId);
+        if ($existing) {
+            return ['id' => (int) $existing['id']];
+        }
+        return self::create($type, $parentId, $name);
+    }
+
+    /** Lightweight nested tree (id, name, type, children) safe to embed in a page/API. */
+    public static function treeLight(): array
+    {
+        $map = function (array $nodes) use (&$map): array {
+            $out = [];
+            foreach ($nodes as $n) {
+                $out[] = [
+                    'id' => (int) $n['id'],
+                    'name' => $n['name'],
+                    'type' => $n['type'],
+                    'children' => $map($n['children'] ?? []),
+                ];
+            }
+            return $out;
+        };
+        return $map(self::tree());
+    }
+
     /** Create a unit; returns ['id'=>..] or ['errors'=>[..]]. */
     public static function create(string $type, ?int $parentId, string $name): array
     {
@@ -240,13 +299,14 @@ class Unit
             return ['errors' => ['A ' . $type . ' must belong to a ' . $expectedParent . '.']];
         }
 
-        if (trim($name) === '') {
+        $name = self::nameFor($name);
+        if ($name === '') {
             return ['errors' => ['Please provide a name.']];
         }
 
-        $slug = self::uniqueSlug(trim($name));
+        $slug = self::uniqueSlug($name);
         $stmt = self::db()->prepare('INSERT INTO org_units (parent_id, type, name, slug) VALUES (?, ?, ?, ?)');
-        $stmt->execute([$parentId, $type, trim($name), $slug]);
+        $stmt->execute([$parentId, $type, $name, $slug]);
         return ['id' => (int) self::db()->lastInsertId()];
     }
 
@@ -274,13 +334,14 @@ class Unit
             return ['errors' => ['A ' . $type . ' must belong to a ' . $expectedParent . '.']];
         }
 
-        if (trim($name) === '') {
+        $name = self::nameFor($name);
+        if ($name === '') {
             return ['errors' => ['Please provide a name.']];
         }
 
-        $slug = self::uniqueSlug(trim($name), $id);
+        $slug = self::uniqueSlug($name, $id);
         $stmt = self::db()->prepare('UPDATE org_units SET parent_id = ?, type = ?, name = ?, slug = ? WHERE id = ?');
-        $stmt->execute([$parentId, $type, trim($name), $slug, $id]);
+        $stmt->execute([$parentId, $type, $name, $slug, $id]);
         return ['id' => $id];
     }
 

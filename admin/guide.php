@@ -184,6 +184,16 @@ require __DIR__ . '/partials/layout-open.php';
   <div class="card" style="margin-bottom:18px;">
     <h2 id="units">Units (<code>/admin/units</code>) <span class="pill super">SUPER</span></h2>
     <p>Manage the <strong>Province → Zone → Area → Parish</strong> hierarchy. Create parishes/zones/areas/provinces, and each one gets its own public directory page and media roll-up. Super-admin only.</p>
+    <ul>
+      <li><strong>⬆ Import Churches (CSV)</strong> — bulk-add the whole hierarchy from a CSV with columns <code>Province, Zone, Area, Parish</code> (one church per row; Parish optional). Names are stored in <strong>CAPS</strong> and existing units are matched automatically, so there are no duplicates.</li>
+      <li><strong>🏷 Name Corrections</strong> — review church name corrections flagged from the registration page. <em>Approve</em> automatically renames the church to the suggested spelling; <em>Reject</em> makes no changes.</li>
+    </ul>
+  </div>
+
+  <div class="card" style="margin-bottom:18px;">
+    <h2 id="registrations">Registrations (<code>/admin/registrations</code>) <span class="pill super">SUPER</span></h2>
+    <p>Churches register their admin at the public <strong>/register</strong> page. They pick their <strong>Province → Zone → Area</strong> from the church list, then <strong>type their Parish church name</strong> (auto-CAPS; existing parishes appear as suggestions as they type).</p>
+    <p>Here you simply <strong>review → edit if needed → approve</strong>. Approving creates the admin account (a brand-new parish name is created under the chosen Area automatically) and emails the applicant. Rejecting records an optional reason and emails them. Every step is safe — no data is ever deleted.</p>
   </div>
 
   <div class="card" style="margin-bottom:18px;">
