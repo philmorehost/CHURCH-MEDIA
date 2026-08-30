@@ -81,59 +81,82 @@ class CpanelApi
             return ['ok' => false, 'error' => 'cPanel API is not configured.'];
         }
         $url = 'https://' . $this->host . ':' . $this->port . '/execute/' . $module . '?' . http_build_query($params);
-        $ctx = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'header' => 'Authorization: Basic ' . base64_encode($this->user . ':' . $this->token) . "\r\n" .
-                            "Accept: application/json\r\n",
-                'timeout' => 30,
-                'ignore_errors' => true,
-            ],
-            'ssl' => [
-                // Shared hosts often serve the 2083 port with the same valid cert,
-                // but disabling verification here avoids failures on self-signed
-                // setups. The credential used is a scoped API token, not a password.
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-            ],
-        ]);
-        $body = @file_get_contents($url, false, $ctx);
 
-        // Capture the HTTP status from the wrapper's response headers so we can
-        // give a real diagnosis (401 = bad credentials, 404 = wrong host, etc.).
+        // Prefer cURL: it sends the Basic-auth header (username : API token)
+        // exactly the way cPanel expects, follows redirects, and handles TLS
+        // reliably on shared hosts. Falls back to the HTTP stream wrapper only
+        // if the cURL extension isn't compiled in.
+        $body = false;
         $status = 0;
-        $statusText = '';
-        if (!empty($http_response_header)) {
-            foreach ($http_response_header as $line) {
-                if (preg_match('#^HTTP/\S+\s+(\d+)\s*(.*)$#', (string) $line, $m)) {
-                    $status = (int) $m[1];
-                    $statusText = trim((string) $m[2]);
+        $transport = 'unknown';
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 5,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_HTTPGET => true,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => 0,
+                CURLOPT_USERPWD => $this->user . ':' . $this->token,
+                CURLOPT_HTTPHEADER => ['Accept: application/json'],
+            ]);
+            $body = curl_exec($ch);
+            $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            $err = curl_error($ch);
+            curl_close($ch);
+            $transport = 'curl';
+            if ($body === false) {
+                return ['ok' => false, 'error' => 'Could not reach the cPanel API (' . $this->host . ':' . $this->port . '). ' . ($err !== '' ? 'cURL: ' . $err : 'No response.')];
+            }
+        } else {
+            $ctx = stream_context_create([
+                'http' => [
+                    'method' => 'GET',
+                    'header' => 'Authorization: Basic ' . base64_encode($this->user . ':' . $this->token) . "\r\n" .
+                                "Accept: application/json\r\n",
+                    'timeout' => 30,
+                    'ignore_errors' => true,
+                ],
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                ],
+            ]);
+            $body = @file_get_contents($url, false, $ctx);
+            $transport = 'stream';
+            if (!empty($http_response_header)) {
+                foreach ($http_response_header as $line) {
+                    if (preg_match('#^HTTP/\S+\s+(\d+)#', (string) $line, $m)) {
+                        $status = (int) $m[1];
+                    }
                 }
+            }
+            if ($body === false) {
+                return ['ok' => false, 'error' => 'Could not reach the cPanel API (' . $this->host . ':' . $this->port . '). No response.'];
             }
         }
 
-        if ($body === false) {
-            return ['ok' => false, 'error' => 'Could not reach the cPanel API (' . $this->host . ':' . $this->port . ').' . ($statusText ? ' HTTP ' . $status . ' ' . $statusText . '.' : ' No response.')];
-        }
         $data = json_decode($body, true);
         if (!is_array($data)) {
             $excerpt = trim((string) preg_replace('/\s+/', ' ', (string) $body));
-            $excerpt = mb_substr($excerpt, 0, 220);
+            $excerpt = mb_substr($excerpt, 0, 200);
             $hint = '';
             if ($status === 401 || $status === 403) {
-                $hint = ' Authentication rejected. On shared hosting the #1 cause is putting your WEBSITE domain in the cPanel Host field — it resolves to a shared IP and hits another account’s cPanel, which 401s. Use the EXACT hostname from your cPanel login URL (e.g. rccglp63yaya.pmhserver.name.ng or cpanel.<provider>.com), keep the Email Domain as the real domain for @ addresses, and confirm the API token has the Email feature (cPanel → Security → Manage API Tokens).';
+                $hint = ' cPanel rejected the credentials (this is the login page it returns on auth failure). The username/token format is right, so check: (a) the Host is the cPanel hostname you log in with (a website domain resolves to a shared IP and hits another account); (b) the token belongs to the SAME cPanel account as the username; (c) the token has no IP restriction blocking your server; (d) the account has no two-factor auth blocking API tokens.';
             } elseif ($status === 404) {
-                $hint = ' Not found — this is probably not the cPanel server. Use the cPanel hostname (e.g. cpanel.yourhost.com), not the website domain.';
-            } elseif (stripos($excerpt, '<html') !== false || stripos($excerpt, '<!doctype') !== false || stripos($excerpt, 'login') !== false) {
+                $hint = ' Not found — this is probably not the cPanel server. Use the cPanel hostname you log in with (e.g. cpanel.<provider>.com), not the website domain.';
+            } elseif (stripos($excerpt, '<html') !== false || stripos($excerpt, '<!doctype') !== false) {
                 $hint = ' The server returned a web page instead of the API — confirm the cPanel host/port (2083 for cPanel) and that API access is allowed.';
             }
-            return ['ok' => false, 'error' => 'Unexpected cPanel API response (HTTP ' . $status . ($statusText ? ' ' . $statusText : '') . ').' . $hint . ' Body: ' . ($excerpt !== '' ? $excerpt : '(empty)')];
+            return ['ok' => false, 'error' => 'Unexpected cPanel API response (HTTP ' . $status . ', via ' . $transport . ').' . $hint . ' Body: ' . ($excerpt !== '' ? $excerpt : '(empty)')];
         }
         $errors = $data['errors'] ?? [];
         if (!empty($errors)) {
             return ['ok' => false, 'error' => implode(' ', array_map('strval', $errors))];
         }
-        $status = (int) ($data['status'] ?? 0);
-        return ['ok' => $status === 1, 'error' => $status === 1 ? null : 'cPanel API returned status 0 for ' . $module . '.'];
+        $ok = (int) ($data['status'] ?? 0) === 1;
+        return ['ok' => $ok, 'error' => $ok ? null : 'cPanel API returned status 0 for ' . $module . '.'];
     }
 }
