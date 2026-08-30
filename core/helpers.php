@@ -185,18 +185,28 @@ function decryptSecret(string $payload): ?string
 }
 
 /**
- * cPanel-strict password policy: at least 12 characters with at least 3 of
- * uppercase / lowercase / digit / symbol. Mirrors the client-side meter so a
- * weak password is rejected at registration — never at cPanel approval time.
+ * cPanel-style password strength, 0-100. Length tiers add 10 each (at 8, 10,
+ * 12, 14, 16, 18, 20 chars) and each character class adds 15 (upper, lower,
+ * digit, symbol). cPanel's own default minimum strength is 65.
  */
+function cpanelPasswordScore(string $pw): int
+{
+    $score = 0;
+    $len = strlen($pw);
+    foreach ([8, 10, 12, 14, 16, 18, 20] as $threshold) {
+        if ($len >= $threshold) { $score += 10; }
+    }
+    if (preg_match('/[A-Z]/', $pw)) { $score += 15; }
+    if (preg_match('/[a-z]/', $pw)) { $score += 15; }
+    if (preg_match('/[0-9]/', $pw)) { $score += 15; }
+    if (preg_match('/[^A-Za-z0-9]/', $pw)) { $score += 15; }
+    return min(100, $score);
+}
+
+/** True when a password meets cPanel's default minimum strength (65). */
 function strongEnoughPassword(string $pw): bool
 {
-    $checks = 0;
-    if (preg_match('/[A-Z]/', $pw)) { $checks++; }
-    if (preg_match('/[a-z]/', $pw)) { $checks++; }
-    if (preg_match('/[0-9]/', $pw)) { $checks++; }
-    if (preg_match('/[^A-Za-z0-9]/', $pw)) { $checks++; }
-    return strlen($pw) >= 12 && $checks >= 3;
+    return cpanelPasswordScore($pw) >= 65;
 }
 
 /** Lazily loads the single settings row and caches it for the request. */

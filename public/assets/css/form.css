@@ -130,6 +130,9 @@ form{padding:8px 34px 36px;}
 .cascade-selects{display:flex; flex-direction:column; gap:10px;}
 .cascade-note{font-size:12.5px; color:var(--ink-faint); margin-top:8px; line-height:1.5;}
 
+/* Password field briefly highlighted after a weak-password rejection */
+.pw-error{border-color:#ff6b6b !important; box-shadow:0 0 0 4px #ff6b6b33 !important;}
+
 /* Private form password gate */
 .form-lock{padding:34px 34px 40px; text-align:center;}
 .form-lock-icon{

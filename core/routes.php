@@ -106,12 +106,16 @@ $router->post('/register', function () {
     if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $username) || $username === '') {
         $errors[] = 'Username may only contain letters, numbers, dots, dashes, and underscores.';
     }
-    if (strlen($password) < 12) {
-        $errors[] = 'Password must be at least 12 characters (required for your corporate email).';
+    $pwError = false;
+    if (strlen($password) < 8) {
+        $pwError = true;
+        $errors[] = 'Password is too short — please enter at least 8 characters.';
     } elseif ($password !== $confirm) {
-        $errors[] = 'Passwords do not match.';
-    } elseif (!strongEnoughPassword($password)) {
-        $errors[] = 'Password is too weak for corporate email creation — use at least 12 characters with uppercase, lowercase, a number, and a symbol.';
+        $pwError = true;
+        $errors[] = 'Passwords do not match — please retype both.';
+    } elseif (cpanelPasswordScore($password) < 65) {
+        $pwError = true;
+        $errors[] = 'Password strength is below cPanel minimum (65) — add uppercase, lowercase, numbers, and a symbol. Your other details are kept; just fix the password and resubmit.';
     }
     if ($altEmail !== '' && !filter_var($altEmail, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'The alternative email address is not valid.';
@@ -138,6 +142,11 @@ $router->post('/register', function () {
     }
 
     if ($errors) {
+        // Flag the password section so the re-rendered page scrolls straight to
+        // it (all other fields are preserved) when the only problem is the password.
+        if ($pwError) {
+            $_SESSION['register_pw_focus'] = true;
+        }
         keepFormOld($_POST);
         flash('register_error', implode(' ', $errors));
         redirect('/register');

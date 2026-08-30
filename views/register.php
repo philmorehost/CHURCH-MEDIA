@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 $sent = flash('register_sent') !== null || ($_GET['sent'] ?? '') === '1';
 $error = flash('register_error');
+// True when a weak/mismatched password rejected the submission — the page will
+// scroll straight to the password field so the registrant only fixes that.
+$pwFocus = !empty($_SESSION['register_pw_focus']);
+unset($_SESSION['register_pw_focus']);
 $metaTitle = 'Register Your Church';
 $metaRobots = 'noindex, nofollow';
 $old = $_SESSION['_form_old'] ?? [];
@@ -46,7 +50,7 @@ $oldJson = json_encode([
 
       <form method="post" action="/register" id="registerForm"
             data-units='<?= e($unitsJson) ?>'
-            data-old='<?= e($oldJson) ?>'>
+            data-old='<?= e($oldJson) ?>'<?= $pwFocus ? ' data-focus-password="1"' : '' ?>>
         <input type="text" name="company" value="" class="honeypot" tabindex="-1" autocomplete="off" aria-hidden="true">
 
         <div class="form-field">
@@ -65,12 +69,12 @@ $oldJson = json_encode([
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="password"><span class="field-num">4</span><span>Password (min 12 characters) *</span></label>
-          <input type="password" id="password" name="password" minlength="12" required placeholder="At least 12 characters" data-password autocomplete="new-password">
+          <label class="form-label" for="password"><span class="field-num">4</span><span>Password (strong — cPanel strength 65) *</span></label>
+          <input type="password" id="password" name="password" minlength="8" required placeholder="Strong password (letters, numbers & symbols)" data-password autocomplete="new-password" style="<?= $pwFocus ? 'border-color:#ff6b6b;' : '' ?>">
           <div data-strength-bar style="height:6px;border-radius:6px;background:#ffffff12;margin-top:8px;overflow:hidden;">
             <div data-strength-fill style="height:100%;width:0;background:#ff6b6b;transition:width .12s ease;"></div>
           </div>
-          <div data-strength-label style="font-size:12px;color:var(--ink-faint);margin-top:4px;">Enter a strong password — mix uppercase, lowercase, numbers &amp; symbols (needed for your corporate email).</div>
+          <div data-strength-label style="font-size:12px;color:var(--ink-faint);margin-top:4px;">Enter a strong password — cPanel requires strength 65+ (mix uppercase, lowercase, numbers &amp; symbols).</div>
           <div data-password-suggestion style="display:none;margin-top:8px;font-size:13px;color:var(--gold-soft);">
             🔒 Too weak — try <strong data-suggestion-text></strong>
             <button type="button" class="btn secondary sm" data-suggestion-use style="margin-left:6px;">Use</button>
@@ -79,7 +83,7 @@ $oldJson = json_encode([
 
         <div class="form-field">
           <label class="form-label" for="password_confirm"><span class="field-num">5</span><span>Confirm Password *</span></label>
-          <input type="password" id="password_confirm" name="password_confirm" minlength="12" required placeholder="Repeat your password" data-confirm>
+          <input type="password" id="password_confirm" name="password_confirm" minlength="8" required placeholder="Repeat your password" data-confirm>
           <div data-password-match style="display:none;font-size:12px;margin-top:4px;"></div>
         </div>
 

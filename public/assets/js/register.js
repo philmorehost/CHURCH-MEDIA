@@ -221,18 +221,17 @@
   var matchWrap = document.querySelector('[data-password-match]');
   if (passwordInput && strengthFill) {
     var COLORS = { weak: '#ff6b6b', fair: '#e8b95f', strong: '#5fe0a4' };
+    // cPanel-style 0-100 score; cPanel's default minimum strength is 65.
     function strengthInfo(pw) {
       var score = 0;
-      if (pw.length >= 8) { score++; }
-      if (pw.length >= 12) { score++; }
-      if (pw.length >= 16) { score++; }
-      if (/[A-Z]/.test(pw)) { score++; }
-      if (/[a-z]/.test(pw)) { score++; }
-      if (/[0-9]/.test(pw)) { score++; }
-      if (/[^A-Za-z0-9]/.test(pw)) { score++; }
-      var pct = Math.min(100, Math.round(score / 7 * 100));
-      var level = score <= 3 ? 'weak' : (score <= 5 ? 'fair' : 'strong');
-      return { score: score, pct: pct, level: level };
+      [8, 10, 12, 14, 16, 18, 20].forEach(function (t) { if (pw.length >= t) { score += 10; } });
+      if (/[A-Z]/.test(pw)) { score += 15; }
+      if (/[a-z]/.test(pw)) { score += 15; }
+      if (/[0-9]/.test(pw)) { score += 15; }
+      if (/[^A-Za-z0-9]/.test(pw)) { score += 15; }
+      score = Math.min(100, score);
+      var level = score < 65 ? 'weak' : (score < 80 ? 'fair' : 'strong');
+      return { score: score, pct: score, level: level };
     }
     function suggestPassword(pw) {
       var clean = (pw || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -250,14 +249,14 @@
       var pw = passwordInput.value || '';
       var info = strengthInfo(pw);
       var labels = {
-        weak: 'Weak password — add a number and a symbol.',
-        fair: 'Good password.',
-        strong: 'Strong password ✓',
+        weak: 'Too weak — cPanel needs 65+. Add a number and a symbol.',
+        fair: 'Meets cPanel minimum (65).',
+        strong: 'Strong password ✓ (85+)',
       };
       strengthFill.style.width = pw ? info.pct + '%' : '0%';
       strengthFill.style.background = COLORS[info.level];
       if (strengthLabel) {
-        strengthLabel.textContent = pw ? labels[info.level] : 'Enter a strong password — mix uppercase, lowercase, numbers & symbols (needed for your corporate email).';
+        strengthLabel.textContent = pw ? labels[info.level] : 'Enter a strong password — cPanel requires strength 65+ (mix uppercase, lowercase, numbers & symbols).';
         strengthLabel.style.color = pw ? COLORS[info.level] : '';
       }
       if (suggestionWrap && suggestionText) {
@@ -294,5 +293,21 @@
     passwordInput.addEventListener('input', updateMeter);
     if (confirmInput) { confirmInput.addEventListener('input', updateMeter); }
     updateMeter();
+  }
+
+  /* ---------- weak-password recovery: jump straight to the password field ----------
+     After a rejection caused by the password, all other fields are preserved
+     (server-side keepFormOld) and we scroll to + focus the password field with
+     a brief red highlight, so the registrant only fixes that one section. */
+  var focusRoot = document.querySelector('[data-focus-password]');
+  var pwField = focusRoot ? focusRoot.querySelector('[data-password]') : null;
+  if (focusRoot && pwField) {
+    requestAnimationFrame(function () {
+      var y = pwField.getBoundingClientRect().top + (window.pageYOffset || document.documentElement.scrollTop) - 24;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+      pwField.focus();
+      pwField.classList.add('pw-error');
+      setTimeout(function () { pwField.classList.remove('pw-error'); }, 2400);
+    });
   }
 })();
