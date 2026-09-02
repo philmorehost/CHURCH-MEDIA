@@ -267,3 +267,49 @@
   .reel-info{right:72px; bottom:18px;}
   .reel-heart-burst{font-size:76px;}
 }
+
+/* ============ Sponsored Ad & Round Clock Countdown Timer ============ */
+.ad-sponsored-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: linear-gradient(135deg, #f7c46a, #d99b2b);
+  color: #1a1530; font-size: 11px; font-weight: 800;
+  padding: 3px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.ad-cta-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: linear-gradient(135deg, #f7c46a, #d99b2b); color: #1a1530;
+  font-weight: 800; font-size: 14px; padding: 12px 20px; border-radius: 30px;
+  text-decoration: none; box-shadow: 0 4px 15px rgba(247, 196, 106, 0.4);
+  transition: transform .15s, box-shadow .15s; margin-top: 10px; width: 100%; text-align: center;
+}
+.ad-cta-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(247, 196, 106, 0.6); }
+
+.ad-clock-wrap {
+  position: absolute; top: 14px; right: 14px; z-index: 10;
+  display: flex; align-items: center; gap: 8px;
+}
+.ad-clock-box {
+  position: relative; width: 44px; height: 44px;
+}
+.ad-clock-svg {
+  width: 44px; height: 44px; transform: rotate(-90deg);
+}
+.ad-clock-bg {
+  fill: none; stroke: rgba(255, 255, 255, 0.2); stroke-width: 4;
+}
+.ad-clock-circle {
+  fill: none; stroke: #e8b95f; stroke-width: 4; stroke-linecap: round;
+  stroke-dasharray: 113; stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1s linear;
+}
+.ad-clock-text {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  color: #fff; font-weight: 800; font-size: 13px; font-family: inherit;
+}
+.skip-ad-btn {
+  background: rgba(0, 0, 0, 0.7); border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff; font-weight: 700; font-size: 12px; padding: 8px 16px;
+  border-radius: 20px; cursor: pointer; backdrop-filter: blur(6px);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.skip-ad-btn:hover { background: #fff; color: #000; }

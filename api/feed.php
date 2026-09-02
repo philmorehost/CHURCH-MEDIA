@@ -49,21 +49,26 @@ $pinnedCols = mediaPinnedColumnsExist($pdo);
 $pinnedSelect = $pinnedCols ? ', p.is_pinned, p.pinned_at, p.pinned_expires_at' : '';
 $pinnedOrder = $pinnedCols ? '(p.is_pinned = 1 AND p.pinned_expires_at > NOW()) DESC, p.pinned_at ASC, ' : '';
 
-$stmt = $pdo->prepare("
-    SELECT p.id, p.slug, p.caption, p.post_type, p.likes_count, p.views_count, p.saves_count, p.created_at, p.org_unit_id$pinnedSelect, u.name AS author_name, u.username AS author_username,
-      (SELECT COUNT(*) FROM post_comments pc WHERE pc.media_post_id = p.id AND pc.is_published = 1) AS comments_count
-    FROM media_posts p JOIN users u ON u.id = p.user_id
-    WHERE $where
-    ORDER BY {$pinnedOrder}p.created_at DESC
-    LIMIT :limit OFFSET :offset
-");
-foreach ($params as $k => $v) {
-    $stmt->bindValue($k, $v);
+$posts = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT p.id, p.slug, p.caption, p.post_type, p.likes_count, p.views_count, p.saves_count, p.created_at, p.org_unit_id$pinnedSelect, u.name AS author_name, u.username AS author_username,
+          (SELECT COUNT(*) FROM post_comments pc WHERE pc.media_post_id = p.id AND pc.is_published = 1) AS comments_count
+        FROM media_posts p JOIN users u ON u.id = p.user_id
+        WHERE $where
+        ORDER BY {$pinnedOrder}p.created_at DESC
+        LIMIT :limit OFFSET :offset
+    ");
+    foreach ($params as $k => $v) {
+        $stmt->bindValue($k, $v);
+    }
+    $stmt->bindValue('limit', $perPage + 1, PDO::PARAM_INT);
+    $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $posts = $stmt->fetchAll();
+} catch (Throwable) {
+    $posts = [];
 }
-$stmt->bindValue('limit', $perPage + 1, PDO::PARAM_INT);
-$stmt->bindValue('offset', $offset, PDO::PARAM_INT);
-$stmt->execute();
-$posts = $stmt->fetchAll();
 
 $hasMore = count($posts) > $perPage;
 $posts = array_slice($posts, 0, $perPage);
@@ -123,4 +128,59 @@ foreach ($posts as &$post) {
 }
 unset($post);
 
-jsonResponse(['status' => 'success', 'page' => $page, 'has_more' => $hasMore, 'data' => $posts]);
+$activeAds = AdManager::getActiveAds();
+$settings = AdManager::getSettings();
+$skipTimerSeconds = (int) ($settings['skip_timer_seconds'] ?? 7);
+
+$formattedAds = array_map(function ($ad) use ($skipTimerSeconds) {
+    return [
+        'id' => (int) $ad['id'],
+        'title' => $ad['title'],
+        'media_type' => $ad['media_type'],
+        'media_url' => uploadUrl($ad['media_path']),
+        'thumbnail_url' => uploadUrl($ad['thumbnail_path'] ?: $ad['media_path']),
+        'target_url' => $ad['target_url'],
+        'cta_label' => $ad['cta_label'],
+        'skip_timer_seconds' => $skipTimerSeconds,
+        'is_sponsored' => true,
+    ];
+}, $activeAds);
+
+if ($formattedAds && $posts) {
+    $interspersed = [];
+    $adIndex = 0;
+    $numAds = count($formattedAds);
+    foreach ($posts as $i => $p) {
+        $interspersed[] = $p;
+        if (($i + 1) % 3 === 0) {
+            $adItem = $formattedAds[$adIndex % $numAds];
+            $interspersed[] = [
+                'id' => 'ad_' . $adItem['id'] . '_' . $i,
+                'is_sponsored' => true,
+                'ad_id' => $adItem['id'],
+                'caption' => $adItem['title'],
+                'post_type' => $adItem['media_type'] === 'video' ? 'vertical_reel' : 'single_image',
+                'target_url' => $adItem['target_url'],
+                'cta_label' => $adItem['cta_label'],
+                'skip_timer_seconds' => $adItem['skip_timer_seconds'],
+                'author_name' => 'Sponsored',
+                'author_username' => 'sponsored',
+                'likes_count' => 0,
+                'views_count' => 0,
+                'saves_count' => 0,
+                'comments_count' => 0,
+                'media_items' => [[
+                    'type' => $adItem['media_type'],
+                    'source' => 'upload',
+                    'file_url' => $adItem['media_url'],
+                    'thumbnail_url' => $adItem['thumbnail_url'],
+                    'conversion_status' => 'converted',
+                ]],
+            ];
+            $adIndex++;
+        }
+    }
+    $posts = $interspersed;
+}
+
+jsonResponse(['status' => 'success', 'page' => $page, 'has_more' => $hasMore, 'data' => $posts, 'ads' => $formattedAds]);

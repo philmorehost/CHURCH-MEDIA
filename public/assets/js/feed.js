@@ -25,7 +25,10 @@
       if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
         activeSlideEl = slide;
         activateMedia(slide, true);
-        pingView(slide.getAttribute('data-post-id'));
+        var isSponsored = slide.getAttribute('data-sponsored') === 'true';
+        var adId = slide.getAttribute('data-ad-id');
+        pingView(slide.getAttribute('data-post-id'), isSponsored, adId);
+        if (isSponsored && slide.startAdTimer) { slide.startAdTimer(); }
       } else {
         activateMedia(slide, false);
         if (activeSlideEl === slide) { activeSlideEl = null; }
@@ -115,10 +118,14 @@
     if (yt) { setYoutube(yt, yt.dataset.videoId, playing, muted); }
   }
 
-  function pingView(postId) {
+  function pingView(postId, isSponsored, adId) {
     if (!postId || state.seenIds.has(postId + ':viewed')) { return; }
     state.seenIds.add(postId + ':viewed');
-    fetch('/api/post?id=' + encodeURIComponent(postId)).catch(function () {});
+    if (isSponsored && adId) {
+      postJson('/api/ads', { action: 'impression', ad_id: Number(adId) }).catch(function () {});
+    } else {
+      fetch('/api/post?id=' + encodeURIComponent(postId)).catch(function () {});
+    }
   }
 
   function postJson(url, body) {
@@ -654,6 +661,77 @@
     avatar.textContent = author.charAt(0).toUpperCase();
     slide.querySelector('.reel-username').textContent = '@' + (post.author_username || author.toLowerCase().replace(/\s+/g, '.'));
     slide.querySelector('.reel-author-name').textContent = author;
+
+    // Sponsored Ad logic & round clock countdown timer
+    if (post.is_sponsored) {
+      slide.setAttribute('data-sponsored', 'true');
+      slide.setAttribute('data-ad-id', String(post.ad_id));
+
+      var authorRow = slide.querySelector('.reel-author-row');
+      var sponsoredBadge = document.createElement('span');
+      sponsoredBadge.className = 'ad-sponsored-badge';
+      sponsoredBadge.textContent = 'Sponsored';
+      authorRow.appendChild(sponsoredBadge);
+
+      var reelInfo = slide.querySelector('.reel-info');
+      var ctaBtn = document.createElement('a');
+      ctaBtn.className = 'ad-cta-btn';
+      ctaBtn.href = post.target_url || '#';
+      ctaBtn.target = '_blank';
+      ctaBtn.innerHTML = (post.cta_label || 'Learn More') + ' ↗';
+      ctaBtn.addEventListener('click', function () {
+        postJson('/api/ads', { action: 'click', ad_id: Number(post.ad_id) }).catch(function () {});
+      });
+      reelInfo.appendChild(ctaBtn);
+
+      var totalSec = Number(post.skip_timer_seconds) || 7;
+      var remainingSec = totalSec;
+      var timerInterval = null;
+
+      var clockWrap = document.createElement('div');
+      clockWrap.className = 'ad-clock-wrap';
+      clockWrap.innerHTML =
+        '<div class="ad-clock-box">' +
+          '<svg class="ad-clock-svg" viewBox="0 0 44 44">' +
+            '<circle class="ad-clock-bg" cx="22" cy="22" r="18" />' +
+            '<circle class="ad-clock-circle" cx="22" cy="22" r="18" />' +
+          '</svg>' +
+          '<div class="ad-clock-text">' + totalSec + '</div>' +
+        '</div>' +
+        '<button type="button" class="skip-ad-btn" style="display:none;">Skip Ad ⏭</button>';
+
+      slide.appendChild(clockWrap);
+
+      var clockBox = clockWrap.querySelector('.ad-clock-box');
+      var clockCircle = clockWrap.querySelector('.ad-clock-circle');
+      var clockText = clockWrap.querySelector('.ad-clock-text');
+      var skipBtn = clockWrap.querySelector('.skip-ad-btn');
+
+      skipBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var nextSlide = slide.nextElementSibling;
+        if (nextSlide && nextSlide.classList.contains('reel-slide')) {
+          nextSlide.scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+
+      slide.startAdTimer = function () {
+        if (timerInterval) { return; }
+        timerInterval = setInterval(function () {
+          remainingSec -= 1;
+          if (remainingSec > 0) {
+            var offset = 113 * (1 - (remainingSec / totalSec));
+            clockCircle.style.strokeDashoffset = offset;
+            clockText.textContent = String(remainingSec);
+          } else {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            clockBox.style.display = 'none';
+            skipBtn.style.display = 'inline-flex';
+          }
+        }, 1000);
+      };
+    }
 
     // tappable church (parish) link → unit page
     var unit = post.unit || [];

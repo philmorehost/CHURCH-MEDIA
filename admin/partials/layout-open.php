@@ -18,12 +18,13 @@ $navItems = [
     ['key' => 'notifications', 'href' => '/admin/notifications', 'label' => 'Notifications'],
     ['key' => 'attendance', 'href' => '/admin/attendance', 'label' => 'Attendance'],
     ['key' => 'newcomers', 'href' => '/admin/newcomers', 'label' => 'Newcomers'],
+    ['key' => 'ads', 'href' => '/admin/ads', 'label' => 'Ads Management'],
     ['key' => 'pages', 'href' => '/admin/pages', 'label' => 'Pages', 'super' => true],
     ['key' => 'guide', 'href' => '/admin/guide', 'label' => 'Guide'],
 ];
 $navItemsSystem = [
     ['key' => 'registrations', 'href' => '/admin/registrations', 'label' => 'Registrations', 'super' => true],
-    ['key' => 'units', 'href' => '/admin/units', 'label' => 'Units', 'super' => true],
+    ['key' => 'units', 'href' => '/admin/units', 'label' => 'Units', 'roles' => ['admin']],
     ['key' => 'security', 'href' => '/admin/security', 'label' => 'Security'],
     ['key' => 'settings', 'href' => '/admin/settings', 'label' => 'Settings', 'super' => true],
     ['key' => 'firebase', 'href' => '/admin/firebase', 'label' => 'Firebase', 'super' => true],

@@ -73,6 +73,10 @@ class Post {
   final List<UnitInfo> unit;
   final String unitLabel;
   final bool isPinned;
+  final bool isSponsored;
+  final String? targetUrl;
+  final String? ctaLabel;
+  final int skipTimerSeconds;
   bool likedByViewer;
   bool savedByViewer;
 
@@ -93,19 +97,23 @@ class Post {
     this.unit = const [],
     this.unitLabel = '',
     this.isPinned = false,
+    this.isSponsored = false,
+    this.targetUrl,
+    this.ctaLabel,
+    this.skipTimerSeconds = 7,
     required this.likedByViewer,
     this.savedByViewer = false,
   });
 
   factory Post.fromJson(Map<String, dynamic> json) => Post(
-        id: json['id'] as int,
+        id: int.tryParse(json['id'].toString()) ?? (json['ad_id'] != null ? int.tryParse(json['ad_id'].toString()) ?? 0 : 0),
         slug: json['slug'] as String?,
         caption: json['caption'] as String?,
         postType: json['post_type'] as String? ?? 'single_image',
-        likesCount: json['likes_count'] as int? ?? 0,
-        viewsCount: json['views_count'] as int? ?? 0,
-        savesCount: json['saves_count'] as int? ?? 0,
-        commentsCount: json['comments_count'] as int? ?? 0,
+        likesCount: int.tryParse(json['likes_count'].toString()) ?? 0,
+        viewsCount: int.tryParse(json['views_count'].toString()) ?? 0,
+        savesCount: int.tryParse(json['saves_count'].toString()) ?? 0,
+        commentsCount: int.tryParse(json['comments_count'].toString()) ?? 0,
         createdAt: json['created_at'] as String? ?? '',
         authorName: json['author_name'] as String? ?? '',
         authorUsername: json['author_username'] as String? ?? '',
@@ -119,10 +127,11 @@ class Post {
             .map((e) => UnitInfo.fromJson(e as Map<String, dynamic>))
             .toList(),
         unitLabel: json['unit_label'] as String? ?? '',
-        // is_pinned may arrive as a real bool, an int, or a string ('1'/'0')
-        // depending on how the server serialises TINYINT — accept all three
-        // so a type mismatch can never blank the feed.
         isPinned: json['is_pinned'] == true || json['is_pinned'] == 1 || json['is_pinned'] == '1',
+        isSponsored: json['is_sponsored'] == true || json['is_sponsored'] == 1 || json['is_sponsored'] == '1',
+        targetUrl: json['target_url'] as String?,
+        ctaLabel: json['cta_label'] as String?,
+        skipTimerSeconds: int.tryParse(json['skip_timer_seconds'].toString()) ?? 7,
         likedByViewer: json['liked_by_viewer'] as bool? ?? false,
         savedByViewer: json['saved_by_viewer'] as bool? ?? false,
       );

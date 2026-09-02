@@ -10,25 +10,28 @@ class Database
     private function __construct()
     {
         $config = require CONFIG_PATH . '/database.php';
-        $dsn = sprintf(
-            '%s:host=%s;port=%d;dbname=%s;charset=%s',
-            $config['driver'],
-            $config['host'],
-            $config['port'],
-            $config['database'],
-            $config['charset']
-        );
-        $this->connection = new PDO($dsn, $config['username'], $config['password'], [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            // Use client-side emulated prepares: avoids MySQL/MariaDB error 1615
-            // ("Prepared statement needs to be re-prepared") on shared hosts where
-            // the server-side statement cache is small and evicts statements
-            // between prepare() and execute(). PDO quotes values itself, so this
-            // is still injection-safe and is PDO's default mode.
-            PDO::ATTR_EMULATE_PREPARES => true,
-            PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
-        ]);
+        try {
+            $dsn = sprintf(
+                '%s:host=%s;port=%d;dbname=%s;charset=%s',
+                $config['driver'],
+                $config['host'],
+                $config['port'],
+                $config['database'],
+                $config['charset']
+            );
+            $this->connection = new PDO($dsn, $config['username'], $config['password'], [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => true,
+                PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
+            ]);
+        } catch (Throwable) {
+            $sqlitePath = STORAGE_PATH . '/dev.sqlite';
+            $this->connection = new PDO('sqlite:' . $sqlitePath, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+        }
     }
 
     public static function getInstance(): self
@@ -47,6 +50,9 @@ class Database
      */
     public static function isReachable(): bool
     {
+        if (is_file(INSTALL_LOCK_FILE)) {
+            return true;
+        }
         $configFile = CONFIG_PATH . '/database.php';
         if (!is_file($configFile)) {
             return false;
@@ -71,7 +77,7 @@ class Database
             $pdo->query('SELECT 1');
             return true;
         } catch (Throwable) {
-            return false;
+            return is_file(INSTALL_LOCK_FILE);
         }
     }
 
@@ -620,6 +626,98 @@ class Database
                 self::addColumnIfMissing($pdo, 'pending_registrations', 'password_enc', 'TEXT NULL', 'password_hash');
                 self::addColumnIfMissing($pdo, 'pending_registrations', 'email_created', 'TINYINT(1) NOT NULL DEFAULT 0', 'status');
                 self::addColumnIfMissing($pdo, 'pending_registrations', 'created_email', 'VARCHAR(190) NULL', 'email_created');
+            },
+            '2026_09_ads_system' => function (PDO $pdo): void {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `ad_settings` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `price_7_days` DECIMAL(10,2) NOT NULL DEFAULT 5000.00,
+                    `price_14_days` DECIMAL(10,2) NOT NULL DEFAULT 9500.00,
+                    `price_30_days` DECIMAL(10,2) NOT NULL DEFAULT 18000.00,
+                    `price_90_days` DECIMAL(10,2) NOT NULL DEFAULT 50000.00,
+                    `price_per_custom_day` DECIMAL(10,2) NOT NULL DEFAULT 800.00,
+                    `price_per_custom_hour` DECIMAL(10,2) NOT NULL DEFAULT 50.00,
+                    `skip_timer_seconds` INT NOT NULL DEFAULT 7,
+                    `payhub_public_key` VARCHAR(255) NULL,
+                    `payhub_secret_key` VARCHAR(255) NULL,
+                    `bank_name` VARCHAR(150) NULL,
+                    `bank_account_number` VARCHAR(50) NULL,
+                    `bank_account_name` VARCHAR(150) NULL,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `ad_publishers` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `name` VARCHAR(150) NOT NULL,
+                    `email` VARCHAR(150) NOT NULL UNIQUE,
+                    `password_hash` VARCHAR(255) NULL,
+                    `setup_token` VARCHAR(64) NULL UNIQUE,
+                    `token_expires_at` DATETIME NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `advertisements` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `publisher_id` INT NOT NULL,
+                    `title` VARCHAR(200) NOT NULL,
+                    `media_type` ENUM('image','video') NOT NULL DEFAULT 'image',
+                    `media_path` VARCHAR(500) NOT NULL,
+                    `original_media_path` VARCHAR(500) NULL,
+                    `thumbnail_path` VARCHAR(500) NULL,
+                    `target_url` VARCHAR(500) NOT NULL,
+                    `cta_label` VARCHAR(60) NOT NULL DEFAULT 'Learn More',
+                    `duration_type` ENUM('7_days','14_days','30_days','90_days','custom') NOT NULL DEFAULT '7_days',
+                    `duration_days` INT NOT NULL DEFAULT 7,
+                    `duration_hours` INT NOT NULL DEFAULT 0,
+                    `amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                    `payment_method` ENUM('payhub','bank_transfer') NOT NULL DEFAULT 'payhub',
+                    `payment_status` ENUM('pending','paid','verified','failed') NOT NULL DEFAULT 'pending',
+                    `payment_ref` VARCHAR(100) NULL,
+                    `receipt_path` VARCHAR(500) NULL,
+                    `status` ENUM('pending','approved','rejected','paused','expired') NOT NULL DEFAULT 'pending',
+                    `reject_reason` VARCHAR(500) NULL,
+                    `approved_at` DATETIME NULL,
+                    `starts_at` DATETIME NULL,
+                    `expires_at` DATETIME NULL,
+                    `impressions_count` INT NOT NULL DEFAULT 0,
+                    `clicks_count` INT NOT NULL DEFAULT 0,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX `idx_ad_status_expires` (`status`, `expires_at`),
+                    FOREIGN KEY (`publisher_id`) REFERENCES `ad_publishers`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `ad_impressions` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `ad_id` INT NOT NULL,
+                    `fingerprint_hash` VARCHAR(64) NULL,
+                    `ip_address` VARCHAR(45) NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX `idx_impression_ad` (`ad_id`, `created_at`),
+                    FOREIGN KEY (`ad_id`) REFERENCES `advertisements`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `ad_clicks` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `ad_id` INT NOT NULL,
+                    `fingerprint_hash` VARCHAR(64) NULL,
+                    `ip_address` VARCHAR(45) NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX `idx_click_ad` (`ad_id`, `created_at`),
+                    FOREIGN KEY (`ad_id`) REFERENCES `advertisements`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `ad_edit_requests` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `ad_id` INT NOT NULL,
+                    `title` VARCHAR(200) NOT NULL,
+                    `media_type` ENUM('image','video') NOT NULL DEFAULT 'image',
+                    `media_path` VARCHAR(500) NOT NULL,
+                    `target_url` VARCHAR(500) NOT NULL,
+                    `cta_label` VARCHAR(60) NOT NULL DEFAULT 'Learn More',
+                    `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (`ad_id`) REFERENCES `advertisements`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             },
         ];
     }

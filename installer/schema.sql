@@ -518,3 +518,95 @@ CREATE TABLE IF NOT EXISTS `newcomers` (
   FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL,
   FOREIGN KEY (`attendance_id`) REFERENCES `attendance_records`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Ads System Tables
+CREATE TABLE IF NOT EXISTS `ad_settings` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `price_7_days` DECIMAL(10,2) NOT NULL DEFAULT 5000.00,
+  `price_14_days` DECIMAL(10,2) NOT NULL DEFAULT 9500.00,
+  `price_30_days` DECIMAL(10,2) NOT NULL DEFAULT 18000.00,
+  `price_90_days` DECIMAL(10,2) NOT NULL DEFAULT 50000.00,
+  `price_per_custom_day` DECIMAL(10,2) NOT NULL DEFAULT 800.00,
+  `price_per_custom_hour` DECIMAL(10,2) NOT NULL DEFAULT 50.00,
+  `skip_timer_seconds` INT NOT NULL DEFAULT 7,
+  `payhub_public_key` VARCHAR(255) NULL,
+  `payhub_secret_key` VARCHAR(255) NULL,
+  `bank_name` VARCHAR(150) NULL,
+  `bank_account_number` VARCHAR(50) NULL,
+  `bank_account_name` VARCHAR(150) NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `ad_publishers` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(150) NOT NULL,
+  `email` VARCHAR(150) NOT NULL UNIQUE,
+  `password_hash` VARCHAR(255) NULL,
+  `setup_token` VARCHAR(64) NULL UNIQUE,
+  `token_expires_at` DATETIME NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `advertisements` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `publisher_id` INT NOT NULL,
+  `title` VARCHAR(200) NOT NULL,
+  `media_type` ENUM('image','video') NOT NULL DEFAULT 'image',
+  `media_path` VARCHAR(500) NOT NULL,
+  `original_media_path` VARCHAR(500) NULL,
+  `thumbnail_path` VARCHAR(500) NULL,
+  `target_url` VARCHAR(500) NOT NULL,
+  `cta_label` VARCHAR(60) NOT NULL DEFAULT 'Learn More',
+  `duration_type` ENUM('7_days','14_days','30_days','90_days','custom') NOT NULL DEFAULT '7_days',
+  `duration_days` INT NOT NULL DEFAULT 7,
+  `duration_hours` INT NOT NULL DEFAULT 0,
+  `amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `payment_method` ENUM('payhub','bank_transfer') NOT NULL DEFAULT 'payhub',
+  `payment_status` ENUM('pending','paid','verified','failed') NOT NULL DEFAULT 'pending',
+  `payment_ref` VARCHAR(100) NULL,
+  `receipt_path` VARCHAR(500) NULL,
+  `status` ENUM('pending','approved','rejected','paused','expired') NOT NULL DEFAULT 'pending',
+  `reject_reason` VARCHAR(500) NULL,
+  `approved_at` DATETIME NULL,
+  `starts_at` DATETIME NULL,
+  `expires_at` DATETIME NULL,
+  `impressions_count` INT NOT NULL DEFAULT 0,
+  `clicks_count` INT NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_ad_status_expires` (`status`, `expires_at`),
+  FOREIGN KEY (`publisher_id`) REFERENCES `ad_publishers`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `ad_impressions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `ad_id` INT NOT NULL,
+  `fingerprint_hash` VARCHAR(64) NULL,
+  `ip_address` VARCHAR(45) NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_impression_ad` (`ad_id`, `created_at`),
+  FOREIGN KEY (`ad_id`) REFERENCES `advertisements`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `ad_clicks` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `ad_id` INT NOT NULL,
+  `fingerprint_hash` VARCHAR(64) NULL,
+  `ip_address` VARCHAR(45) NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_click_ad` (`ad_id`, `created_at`),
+  FOREIGN KEY (`ad_id`) REFERENCES `advertisements`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `ad_edit_requests` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `ad_id` INT NOT NULL,
+  `title` VARCHAR(200) NOT NULL,
+  `media_type` ENUM('image','video') NOT NULL DEFAULT 'image',
+  `media_path` VARCHAR(500) NOT NULL,
+  `target_url` VARCHAR(500) NOT NULL,
+  `cta_label` VARCHAR(60) NOT NULL DEFAULT 'Learn More',
+  `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`ad_id`) REFERENCES `advertisements`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
