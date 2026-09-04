@@ -66,7 +66,7 @@ try {
     $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
     $posts = $stmt->fetchAll();
-} catch (Throwable) {
+} catch (Throwable $e) {
     $posts = [];
 }
 

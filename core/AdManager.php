@@ -57,7 +57,7 @@ class AdManager
             self::db()->exec("INSERT INTO ad_settings (price_7_days, price_14_days, price_30_days, price_90_days, price_per_custom_day, price_per_custom_hour, skip_timer_seconds) VALUES (5000.00, 9500.00, 18000.00, 50000.00, 800.00, 50.00, 7)");
             $stmt = self::db()->query('SELECT * FROM ad_settings ORDER BY id ASC LIMIT 1');
             return array_merge($defaults, $stmt ? ($stmt->fetch() ?: []) : []);
-        } catch (Throwable) {
+        } catch (Throwable $e) {
             return $defaults;
         }
     }

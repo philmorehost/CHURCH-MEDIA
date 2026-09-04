@@ -6,7 +6,7 @@ try {
     $categories = Database::getInstance()->getConnection()
         ->query('SELECT c.slug, c.name FROM media_categories c WHERE EXISTS (SELECT 1 FROM media_post_categories mpc WHERE mpc.media_category_id = c.id) ORDER BY c.name ASC')
         ->fetchAll();
-} catch (Throwable) {
+} catch (Throwable $e) {
     $categories = [];
 }
 ?>

@@ -25,7 +25,7 @@ class Database
                 PDO::ATTR_EMULATE_PREPARES => true,
                 PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
             ]);
-        } catch (Throwable) {
+        } catch (Throwable $e) {
             $sqlitePath = STORAGE_PATH . '/dev.sqlite';
             $this->connection = new PDO('sqlite:' . $sqlitePath, null, null, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -76,7 +76,7 @@ class Database
             ]);
             $pdo->query('SELECT 1');
             return true;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
             return is_file(INSTALL_LOCK_FILE);
         }
     }
@@ -97,7 +97,7 @@ class Database
                 }
             }
             return true;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
             return false;
         }
     }
@@ -110,7 +110,7 @@ class Database
         }
         try {
             return self::databaseHasSchema(self::getInstance()->getConnection());
-        } catch (Throwable) {
+        } catch (Throwable $e) {
             return false;
         }
     }
