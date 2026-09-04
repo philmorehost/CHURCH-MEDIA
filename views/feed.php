@@ -2,9 +2,13 @@
 declare(strict_types=1);
 $metaTitle = 'Reels';
 $metaDescription = 'Watch the latest reels from ' . e(setting('site_title')) . ' — worship, sermon clips, and moments from the community.';
-$categories = Database::getInstance()->getConnection()
-    ->query('SELECT c.slug, c.name FROM media_categories c WHERE EXISTS (SELECT 1 FROM media_post_categories mpc WHERE mpc.media_category_id = c.id) ORDER BY c.name ASC')
-    ->fetchAll();
+try {
+    $categories = Database::getInstance()->getConnection()
+        ->query('SELECT c.slug, c.name FROM media_categories c WHERE EXISTS (SELECT 1 FROM media_post_categories mpc WHERE mpc.media_category_id = c.id) ORDER BY c.name ASC')
+        ->fetchAll();
+} catch (Throwable $e) {
+    $categories = [];
+}
 ?>
 <link rel="stylesheet" href="<?= asset('css/feed.css') ?>">
 

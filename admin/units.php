@@ -2,16 +2,48 @@
 declare(strict_types=1);
 
 Auth::requireRole('admin');
-if (!Auth::isSuperAdmin()) {
-    http_response_code(403);
-    exit('Only the super admin can manage units.');
-}
 
 $pdo = Database::getInstance()->getConnection();
 $user = Auth::user();
 $action = $_GET['action'] ?? 'list';
 $id = (int) ($_GET['id'] ?? 0);
 $errors = [];
+
+// Require Super Admin for management/modification actions
+$superOnlyActions = ['create', 'edit', 'delete', 'import_csv', 'flag_approve', 'flag_reject'];
+if (in_array($action, $superOnlyActions, true) && !Auth::isSuperAdmin()) {
+    http_response_code(403);
+    exit('Only the super admin can modify church units.');
+}
+
+// Export all Church Units to CSV (accessible to Super Admin and Admins)
+if ($action === 'export_csv') {
+    $all = Unit::all();
+    $labelsById = Unit::labelsById();
+    $unitsById = [];
+    foreach ($all as $u) {
+        $unitsById[(int) $u['id']] = $u;
+    }
+    $rows = [];
+    foreach ($all as $u) {
+        $parentId = $u['parent_id'] !== null ? (int) $u['parent_id'] : null;
+        $parentName = $parentId && isset($unitsById[$parentId]) ? $unitsById[$parentId]['name'] : '';
+        $fullPath = $labelsById[(int) $u['id']] ?? $u['name'];
+        $rows[] = [
+            'ID' => $u['id'],
+            'Type' => ucfirst($u['type']),
+            'Name' => $u['name'],
+            'Slug' => $u['slug'] ?? '',
+            'Parent ID' => $parentId ?? '',
+            'Parent Name' => $parentName,
+            'Full Hierarchy' => $fullPath,
+            'Created At' => $u['created_at'] ?? ''
+        ];
+    }
+    csvDownload('church-units-' . date('Y-m-d') . '.csv', [
+        'ID', 'Type', 'Name', 'Slug', 'Parent ID', 'Parent Name', 'Full Hierarchy', 'Created At'
+    ], $rows);
+}
 
 // Bulk-import churches from CSV: Province,Zone,Area,Parish (Parish optional).
 if ($action === 'import_csv' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -299,9 +331,12 @@ require __DIR__ . '/partials/layout-open.php';
   </div>
 <?php else: ?>
   <div class="btn-row" style="margin-bottom:20px;">
-    <a class="btn" href="/admin/units?action=create">+ Add Unit</a>
-    <a class="btn secondary" href="/admin/units?action=import_csv">⬆ Import Churches (CSV)</a>
-    <a class="btn secondary" href="/admin/units?action=flags">🏷 Name Corrections</a>
+    <?php if (Auth::isSuperAdmin()): ?>
+      <a class="btn" href="/admin/units?action=create">+ Add Unit</a>
+      <a class="btn secondary" href="/admin/units?action=import_csv">⬆ Import Churches (CSV)</a>
+      <a class="btn secondary" href="/admin/units?action=flags">🏷 Name Corrections</a>
+    <?php endif; ?>
+    <a class="btn secondary" href="/admin/units?action=export_csv">⬇ Export Units (CSV)</a>
   </div>
   <?php if (!$tree): ?>
     <div class="card"><p style="color:var(--ink-faint);">No units yet — start by adding a Province, or <a href="/admin/units?action=import_csv" style="color:var(--gold-soft);">import churches from CSV</a>.</p></div>

@@ -9,6 +9,10 @@ declare(strict_types=1);
  * its form (GET) and processes it (POST) to keep the two in lock-step.
  */
 
+if (!defined('APP_IS_INSTALLED')) {
+    require_once __DIR__ . '/../bootstrap.php';
+}
+
 if (APP_IS_INSTALLED) {
     redirect('/');
 }
@@ -17,8 +21,13 @@ if (empty($_SESSION['install'])) {
     $_SESSION['install'] = ['max_step' => 1];
 }
 
-$requested = isset($_GET['step']) ? (int) $_GET['step'] : $_SESSION['install']['max_step'];
-$step = max(1, min($requested, $_SESSION['install']['max_step'], 4));
+$requested = isset($_GET['step']) ? (int) $_GET['step'] : 1;
+if (!isset($_GET['step']) && !empty($_SESSION['install']['max_step'])) {
+    $requested = (int) $_SESSION['install']['max_step'];
+}
+
+$maxAllowed = (int) ($_SESSION['install']['max_step'] ?? 1);
+$step = max(1, min($requested, $maxAllowed, 4));
 
 $steps = [
     1 => ['title' => 'Requirements & License', 'file' => __DIR__ . '/steps/1-requirements.php'],

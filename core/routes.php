@@ -219,6 +219,43 @@ $router->get('/give', function () {
     render('give');
 });
 
+$router->get('/advertise', function () {
+    render('advertise');
+});
+
+$router->post('/advertise', function () {
+    render('advertise');
+});
+
+$router->get('/ads/setup-password', function () {
+    render('publisher_auth', ['mode' => 'setup']);
+});
+
+$router->post('/ads/setup-password', function () {
+    render('publisher_auth', ['mode' => 'setup']);
+});
+
+$router->get('/ads/login', function () {
+    render('publisher_auth', ['mode' => 'login']);
+});
+
+$router->post('/ads/login', function () {
+    render('publisher_auth', ['mode' => 'login']);
+});
+
+$router->get('/ads/logout', function () {
+    unset($_SESSION['publisher_id']);
+    redirect('/ads/login');
+});
+
+$router->get('/ads/manager', function () {
+    render('publisher_dashboard');
+});
+
+$router->post('/ads/manager', function () {
+    render('publisher_dashboard');
+});
+
 $router->get('/live', function () {
     render('live');
 });

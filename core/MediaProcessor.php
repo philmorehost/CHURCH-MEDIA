@@ -276,7 +276,7 @@ class MediaProcessor
     }
 
     /** SVG initial-letter favicon, used when no favicon has been uploaded. */
-    public static function renderDynamicFavicon(string $initial): never
+    public static function renderDynamicFavicon(string $initial): void
     {
         header('Content-Type: image/svg+xml');
         header('Cache-Control: public, max-age=86400');

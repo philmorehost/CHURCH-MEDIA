@@ -41,7 +41,7 @@ class SecurityGuard
         }
     }
 
-    private function deny(string $message): never
+    private function deny(string $message): void
     {
         http_response_code(403);
         exit($message);

@@ -61,13 +61,23 @@ define('APP_IS_LOCAL', $isLocal);
 // installed and heal the missing lock automatically; we only drop the lock (and
 // show the installer) when the DB is genuinely unreachable or empty.
 $lockExists = is_file(INSTALL_LOCK_FILE);
-$hasSchema = false;
+$hasCompletedInstall = false;
 if (!$lockExists) {
-    $hasSchema = Database::hasAppSchema();
+    try {
+        if (Database::isReachable() && Database::hasAppSchema()) {
+            $pdo = Database::getInstance()->getConnection();
+            $stmt = $pdo->query('SELECT COUNT(*) FROM users WHERE is_super_admin = 1');
+            if ($stmt && (int) $stmt->fetchColumn() > 0) {
+                $hasCompletedInstall = true;
+            }
+        }
+    } catch (Throwable $e) {
+        $hasCompletedInstall = false;
+    }
 }
-$installed = $lockExists || $hasSchema;
+$installed = $lockExists || $hasCompletedInstall;
 
-if ($lockExists && !Database::isReachable() && !$hasSchema) {
+if ($lockExists && !Database::isReachable() && !$hasCompletedInstall) {
     @unlink(INSTALL_LOCK_FILE);
     $installed = false;
 }
