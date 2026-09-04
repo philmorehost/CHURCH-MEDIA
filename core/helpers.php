@@ -231,7 +231,7 @@ function settings(): array
     return $cache;
 }
 
-function setting(string $key, mixed $default = null): mixed
+function setting(string $key, $default = null)
 {
     return settings()[$key] ?? $default;
 }
@@ -440,7 +440,7 @@ function keepFormOld(array $input): void
 }
 
 /** Returns the previously submitted value for a form input (string for scalar fields, array for checkbox). */
-function formOld(string $key, mixed $default = ''): mixed
+function formOld(string $key, $default = '')
 {
     $old = $_SESSION['_form_old'] ?? [];
     return array_key_exists($key, $old) ? $old[$key] : $default;
