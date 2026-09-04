@@ -63,13 +63,13 @@ function uploadUrl(?string $path): ?string
     return baseUrl('uploads/' . ltrim($path, '/'));
 }
 
-function redirect(string $path): never
+function redirect(string $path): void
 {
     header('Location: ' . $path);
     exit;
 }
 
-function jsonResponse(array $payload, int $status = 200): never
+function jsonResponse(array $payload, int $status = 200): void
 {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
@@ -81,7 +81,7 @@ function jsonResponse(array $payload, int $status = 200): never
  * Streams rows as an Excel-friendly CSV download and exits. fputcsv handles
  * quoting/escaping, and the UTF-8 BOM makes it open correctly in Excel.
  */
-function csvDownload(string $filename, array $headers, array $rows): never
+function csvDownload(string $filename, array $headers, array $rows): void
 {
     http_response_code(200);
     header('Content-Type: text/csv; charset=utf-8');
