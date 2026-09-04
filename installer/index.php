@@ -9,6 +9,10 @@ declare(strict_types=1);
  * its form (GET) and processes it (POST) to keep the two in lock-step.
  */
 
+if (!defined('APP_IS_INSTALLED')) {
+    require_once __DIR__ . '/../bootstrap.php';
+}
+
 if (APP_IS_INSTALLED) {
     redirect('/');
 }
