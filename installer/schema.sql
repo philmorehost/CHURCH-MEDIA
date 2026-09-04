@@ -96,21 +96,6 @@ CREATE TABLE IF NOT EXISTS `pending_registrations` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Publicly-flagged church name corrections, reviewed by the super admin.
-CREATE TABLE IF NOT EXISTS `church_name_flags` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `org_unit_id` INT NULL,
-  `current_name` VARCHAR(150) NOT NULL,
-  `suggested_name` VARCHAR(150) NOT NULL,
-  `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
-  `reported_by` VARCHAR(150) NULL,
-  `reviewed_by` INT NULL,
-  `reviewed_at` TIMESTAMP NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`reviewed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
-  INDEX `idx_flag_status` (`status`, `created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 CREATE TABLE IF NOT EXISTS `users` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(150) NOT NULL,
@@ -128,6 +113,22 @@ CREATE TABLE IF NOT EXISTS `users` (
   `last_login_ip` VARCHAR(45) NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Publicly-flagged church name corrections, reviewed by the super admin.
+CREATE TABLE IF NOT EXISTS `church_name_flags` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `org_unit_id` INT NULL,
+  `current_name` VARCHAR(150) NOT NULL,
+  `suggested_name` VARCHAR(150) NOT NULL,
+  `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `reported_by` VARCHAR(150) NULL,
+  `reviewed_by` INT NULL,
+  `reviewed_at` TIMESTAMP NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`org_unit_id`) REFERENCES `org_units`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`reviewed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+  INDEX `idx_flag_status` (`status`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `security_logs` (
