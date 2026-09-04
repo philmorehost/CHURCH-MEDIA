@@ -33,22 +33,6 @@ class AdManager
             'bank_account_name' => '',
         ];
         try {
-            self::db()->exec("CREATE TABLE IF NOT EXISTS ad_settings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                price_7_days REAL DEFAULT 5000.00,
-                price_14_days REAL DEFAULT 9500.00,
-                price_30_days REAL DEFAULT 18000.00,
-                price_90_days REAL DEFAULT 50000.00,
-                price_per_custom_day REAL DEFAULT 800.00,
-                price_per_custom_hour REAL DEFAULT 50.00,
-                skip_timer_seconds INTEGER DEFAULT 7,
-                payhub_public_key TEXT,
-                payhub_secret_key TEXT,
-                bank_name TEXT,
-                bank_account_number TEXT,
-                bank_account_name TEXT,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )");
             $stmt = self::db()->query('SELECT * FROM ad_settings ORDER BY id ASC LIMIT 1');
             $row = $stmt ? $stmt->fetch() : false;
             if ($row) {
